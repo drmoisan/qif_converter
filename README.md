@@ -1,36 +1,32 @@
 
-# QIF → CSV Converter (Updated: filtering + QIF writer)
+# QIF → CSV Converter (v3: Multi-payee filters, glob, Quicken CSV profiles, date ranges)
 
-## What’s inside
-- `qif_converter/qif_to_csv.py` — parser, CSV writers (flat/exploded), **payee filtering**, and `write_qif` + CLI
-- `tests/test_qif_to_csv.py` — main parser/writer tests
-- `tests/test_filters_and_qif_writer.py` — tests for filtering + QIF round-trip
-- `pytest.ini` — tells PyCharm/pytest where tests live
-- `requirements.txt` — test dependency
+## New in this version
+- Multiple `--filter-payee` values with `--combine any|all`
+- Match modes now include `glob` (`Star*`, `*bucks`)
+- CSV profiles: `--csv-profile quicken-windows` and `--csv-profile quicken-mac`
+- Date range filtering: `--date-from`, `--date-to` (accepts `mm/dd'yy`, `mm/dd/yyyy`, or `yyyy-mm-dd`)
 
-## Run tests
+## Examples
+```bash
+# Any Starbucks or Dunkin, case-insensitive, generic CSV
+python -m qif_converter.qif_to_csv in.qif out.csv --filter-payee starbucks --filter-payee dunkin --combine any
+
+# Both a Star* prefix and *456 suffix (glob, all)
+python -m qif_converter.qif_to_csv in.qif out.csv --filter-payee "star*" --filter-payee "*456" --match glob --combine all
+
+# Quicken Windows profile
+python -m qif_converter.qif_to_csv in.qif win.csv --filter-payee starbucks --csv-profile quicken-windows
+
+# Quicken Mac (Mint) profile
+python -m qif_converter.qif_to_csv in.qif mac.csv --filter-payee starbucks --csv-profile quicken-mac
+
+# Date range filter (inclusive)
+python -m qif_converter.qif_to_csv in.qif out.csv --date-from "08/01'25" --date-to 2025-08-15
+```
+
+## Tests
 ```bash
 pip install -r requirements.txt
 pytest -q
-```
-
-## CLI usage
-```bash
-# CSV out (flattened, default)
-python -m qif_converter.qif_to_csv input.qif output.csv
-
-# CSV out (exploded: one row per split)
-python -m qif_converter.qif_to_csv input.qif output.csv --explode-splits
-
-# Filter by payee (contains, case-insensitive)
-python -m qif_converter.qif_to_csv input.qif filtered.csv --filter-payee Starbucks
-
-# Exact, case-sensitive
-python -m qif_converter.qif_to_csv input.qif out.csv --filter-payee "STARBUCKS 456" --match exact --case-sensitive
-
-# Regex
-python -m qif_converter.qif_to_csv input.qif dunkin.csv --filter-payee "dunkin( donuts)?" --match regex
-
-# Emit filtered QIF instead of CSV
-python -m qif_converter.qif_to_csv input.qif subset.qif --filter-payee Starbucks --emit qif
 ```

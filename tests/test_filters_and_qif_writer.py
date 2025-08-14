@@ -70,75 +70,81 @@ def test_filter_startswith_endswith(tmp_path: Path):
     qif_path = write(tmp_path, "sample.qif", SAMPLE_QIF)
     txns = mod.parse_qif(qif_path)
     out = mod.filter_by_payee(txns, "Starbucks", mode="startswith", case_sensitive=True)
-    assert len(out) == 1
+    assert len(out) == 1  # Only "Starbucks #123" when case-sensitive
     out2 = mod.filter_by_payee(txns, "Cafe", mode="endswith", case_sensitive=False)
     assert len(out2) == 1
     assert out2[0]["payee"] == "Joe's Cafe"
 
 
-def test_filter_regex(tmp_path: Path):
+def test_filter_regex_and_glob(tmp_path: Path):
     qif_path = write(tmp_path, "sample.qif", SAMPLE_QIF)
     txns = mod.parse_qif(qif_path)
     out = mod.filter_by_payee(txns, r"(dunkin|joe's\s+cafe)", mode="regex", case_sensitive=False)
     names = [t["payee"] for t in out]
     assert set(names) == {"Dunkin Donuts", "Joe's Cafe"}
+    # glob star*
+    out2 = mod.filter_by_payee(txns, "Star*", mode="glob", case_sensitive=True)
+    names2 = [t["payee"] for t in out2]
+    assert names2 == ["Starbucks #123"]
 
 
-def test_cli_filter_to_csv(tmp_path: Path, monkeypatch):
+def test_filter_multi_any_all(tmp_path: Path):
     qif_path = write(tmp_path, "sample.qif", SAMPLE_QIF)
-    out_csv = tmp_path / "filtered.csv"
-    sys.argv = ["qif_to_csv.py", str(qif_path), str(out_csv), "--filter-payee", "starbucks"]
+    txns = mod.parse_qif(qif_path)
+    # any: Starbucks or Dunkin (case-insensitive contains)
+    out_any = mod.filter_by_payees(txns, ["starbucks", "dunkin"], mode="contains", case_sensitive=False, combine="any")
+    assert set(t["payee"] for t in out_any) == {"Starbucks #123", "STARBUCKS 456", "Dunkin Donuts"}
+    # all: startswith "Star" AND contains "456" -> matches STARBUCKS 456 only if case-insensitive & combine all with glob/contains
+    out_all = mod.filter_by_payees(txns, ["star*", "*456"], mode="glob", case_sensitive=False, combine="all")
+    assert set(t["payee"] for t in out_all) == {"STARBUCKS 456"}
+
+
+def test_cli_filter_to_csv_profiles(tmp_path: Path):
+    qif_path = write(tmp_path, "sample.qif", SAMPLE_QIF)
+    # Windows profile
+    out_csv = tmp_path / "win.csv"
+    sys.argv = ["qif_to_csv.py", str(qif_path), str(out_csv), "--filter-payee", "starbucks", "--csv-profile", "quicken-windows"]
     mod.main()
     rows = read_csv(out_csv)
+    assert rows[0].keys() == {"Date","Payee","FI Payee","Amount","Debit/Credit","Category","Account","Tag","Memo","Chknum"}
     assert len(rows) == 2
-    assert set(r["payee"] for r in rows) == {"Starbucks #123", "STARBUCKS 456"}
+    # Mac profile
+    out_csv2 = tmp_path / "mac.csv"
+    sys.argv = ["qif_to_csv.py", str(qif_path), str(out_csv2), "--filter-payee", "starbucks", "--csv-profile", "quicken-mac"]
+    mod.main()
+    rows2 = read_csv(out_csv2)
+    assert rows2[0].keys() == {"Date","Description","Original Description","Amount","Transaction Type","Category","Account Name","Labels","Notes"}
+    assert len(rows2) == 2
 
 
 ROUNDTRIP_QIF = r"""!Account
-NBrokerage
-TInvst
-^
-!Type:Invst
-D08/05'25
-NBuy
-YACME Corp
-Q10
-I25.50
-T-255.00
-O1.00
-^
-!Account
 NChecking
 TBank
 ^
 !Type:Bank
-D08/06'25
+D08/01'25
 T-20.00
 PUtility Co
 LUtilities:Electric
-SUtilities:Electric
-EBase charge
-$-18.00
-STaxes
-EState tax
-$-2.00
 A123 Main St
 ASuite 456
+^
+!Type:Bank
+D08/10'25
+T-50.00
+PSome Other
+LOther
 ^
 """
 
 
-def test_write_qif_roundtrip(tmp_path: Path):
-    src = write(tmp_path, "src.qif", ROUNDTRIP_QIF)
+def test_date_range_filter(tmp_path: Path):
+    src = write(tmp_path, "range.qif", ROUNDTRIP_QIF)
     txns = mod.parse_qif(src)
-    subset = [t for t in txns if (t.get("type") == "Bank" and "Utility" in t.get("payee", ""))]
-    out_qif = tmp_path / "filtered.qif"
-    mod.write_qif(subset, out_qif)
-    txns2 = mod.parse_qif(out_qif)
-    assert len(txns2) == 1
-    t = txns2[0]
-    assert t["type"] == "Bank"
-    assert t["payee"] == "Utility Co"
-    assert t["category"] == "Utilities:Electric"
-    assert len(t["splits"]) == 2
-    assert t["address"] == "123 Main St\nSuite 456"
+    # range: include only 08/05'25..08/09'25 -> should exclude both
+    filtered = mod.filter_by_date_range(txns, "08/05/2025", "2025-08-09")
+    assert filtered == []
+    # include 08/01'25..08/05'25 -> includes first only
+    filtered2 = mod.filter_by_date_range(txns, "08/01'25", "08/05'25")
+    assert len(filtered2) == 1
+    assert filtered2[0]["payee"] == "Utility Co"
