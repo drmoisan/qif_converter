@@ -329,6 +329,14 @@ class App(tk.Tk):
 
         files.columnconfigure(1, weight=1)
 
+        # Checkbox: output only matched items
+        self.m_only_matched = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            root,
+            text="Output Only Matched Items",
+            variable=self.m_only_matched
+        ).pack(anchor="w", padx=12, pady=(0, 6))
+
         # Actions
         actions = ttk.Frame(root)
         actions.pack(fill="x", **pad)
@@ -652,8 +660,16 @@ class App(tk.Tk):
                                            f"Output QIF already exists:\n\n{qif_out}\n\nOverwrite?"):
                     return
             s.apply_updates()
+
+            # Respect "Output Only Matched Items"
+            if self.m_only_matched.get():
+                txns_to_write = mex.build_matched_only_txns(s)
+            else:
+                txns_to_write = s.txns
+
             qif_out.parent.mkdir(parents=True, exist_ok=True)
-            mod.write_qif(s.txns, qif_out)
+            mod.write_qif(txns_to_write, qif_out)
+
             self._m_info(f"Updates applied. Wrote updated QIF:\n{qif_out}")
             messagebox.showinfo("Done", f"Updated QIF written:\n{qif_out}")
         except Exception as e:

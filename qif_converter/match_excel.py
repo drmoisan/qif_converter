@@ -314,6 +314,52 @@ class MatchSession:
 
     # --- Convenience end-to-end ---------------------------------------------
 
+def build_matched_only_txns(session: "MatchSession") -> List[Dict[str, Any]]:
+    """
+    Return a new list of QIF transactions containing ONLY matched items:
+      - Non-split txns included iff the txn itself is matched.
+      - For split txns, include only the splits that are matched.
+        If no split is matched (and the parent txn isn't matched as a whole),
+        the txn is omitted entirely.
+
+    This does NOT mutate session.txns; it returns a deep-ish copy suitable for write_qif().
+    """
+    from copy import deepcopy
+
+    txns = deepcopy(session.txns)
+    matched_keys = set(session.qif_to_excel.keys())
+    out: List[Dict[str, Any]] = []
+
+    for ti, t in enumerate(txns):
+        splits = t.get("splits") or []
+        # Case 1: txn has no splits → include only if whole-transaction matched
+        if not splits:
+            key = QIFItemKey(txn_index=ti, split_index=None)
+            if key in matched_keys:
+                out.append(t)
+            continue
+
+        # Case 2: txn has splits → include only matched splits (and/or whole if applicable)
+        # (Whole-transaction matches are still represented at the txn level; but since the txn
+        #  also has splits, we follow the "matched items" semantics and filter by split keys.)
+        new_splits = []
+        for si, s in enumerate(splits):
+            key = QIFItemKey(txn_index=ti, split_index=si)
+            if key in matched_keys:
+                new_splits.append(s)
+        if new_splits:
+            t["splits"] = new_splits
+            out.append(t)
+        else:
+            # If no split is matched, include only if the whole txn is matched (edge case)
+            whole_key = QIFItemKey(txn_index=ti, split_index=None)
+            if whole_key in matched_keys:
+                # Parent matched (rare for a split txn) → keep txn but with original splits
+                out.append(t)
+
+    return out
+
+
 def run_excel_qif_merge(
     qif_in: Path,
     xlsx: Path,
