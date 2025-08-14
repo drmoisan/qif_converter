@@ -85,8 +85,13 @@ def local_filter_by_payee(txns, query, mode="contains", case_sensitive=False):
         elif mode == "endswith":
             match = payee_cmp.endswith(query_cmp)
         elif mode == "glob":
+            # Smart-case glob:
+            # - if case_sensitive=True, be case-sensitive
+            # - else if pattern contains ANY uppercase, be case-sensitive
+            # - else (all lowercase), be case-insensitive
             pattern = "^" + re.escape(query).replace(r"\*", ".*").replace(r"\?", ".") + "$"
-            flags = 0 if case_sensitive else re.IGNORECASE
+            smart_case = case_sensitive or any(ch.isalpha() and ch.isupper() for ch in query)
+            flags = 0 if smart_case else re.IGNORECASE
             match = re.search(pattern, payee, flags) is not None
         elif mode == "regex":
             flags = 0 if case_sensitive else re.IGNORECASE
