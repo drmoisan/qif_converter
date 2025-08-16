@@ -1,0 +1,29 @@
+# qif_converter/gui/__init__.py
+from .app import App
+
+# Tests import/monkeypatch these off `qif_converter.gui`
+from qif_converter import qif_to_csv as mod  # e.g., tests monkeypatch gui.mod.parse_qif
+
+# Re-export shared helpers used by tests (you already have these in your new split code)
+from .helpers import (
+    parse_date_maybe,
+    filter_date_range,
+    local_filter_by_payee,
+    apply_multi_payee_filters,
+)
+from .csv_profiles import (
+    write_csv_quicken_windows,
+    write_csv_quicken_mac,
+    WIN_HEADERS,
+    MAC_HEADERS,
+)
+
+__all__ = [
+    "App",
+    "parse_date_maybe",
+    "filter_date_range",
+    "local_filter_by_payee",
+    "apply_multi_payee_filters",
+    "write_csv_quicken_windows",
+    "write_csv_quicken_mac",
+]

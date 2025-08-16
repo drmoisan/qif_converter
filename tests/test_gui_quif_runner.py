@@ -3,8 +3,7 @@ import re
 from pathlib import Path
 from datetime import datetime
 
-from qif_converter import gui_qif_runner as gui
-
+from qif_converter import gui as gui
 
 def mk_tx(date_str, **kw):
     d = {"date": date_str, "amount": "0.00", "payee": "", "category": ""}
