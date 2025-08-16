@@ -159,18 +159,27 @@ def test_delayed_overwrite_prompt_csv_headless(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(gui.mod, "parse_qif", lambda p: (called.__setitem__("parse", called["parse"] + 1) or []))
     monkeypatch.setattr(gui.mod, "write_csv_flat", lambda tx, p: called.__setitem__("flat", called["flat"] + 1))
 
-    # Patch messageboxes
-    monkeypatch.setattr(gui.messagebox, "askyesno", lambda *a, **k: False)
-    monkeypatch.setattr(gui.messagebox, "showinfo", lambda *a, **k: None)
-    monkeypatch.setattr(gui.messagebox, "showerror", lambda *a, **k: None)
+    # Use an injected messagebox stub to avoid Tk calls
+    from types import SimpleNamespace
+    app.mb = SimpleNamespace(
+        askyesno=lambda *a, **k: False,  # decline overwrite
+        showinfo=lambda *a, **k: None,
+        showerror=lambda *a, **k: None,
+    )
 
     app._run()
+
     assert called["parse"] == 0  # declined overwrite → cancels before parsing
     assert called["flat"] == 0
 
     # Accept overwrite and run again
-    monkeypatch.setattr(gui.messagebox, "askyesno", lambda *a, **k: True)
+    app.mb = SimpleNamespace(
+        askyesno=lambda *a, **k: True,
+        showinfo=lambda *a, **k: None,
+        showerror=lambda *a, **k: None,
+    )
     app._run()
+
     assert called["parse"] == 1
     assert called["flat"] == 1
 
@@ -189,10 +198,14 @@ def test_delayed_overwrite_prompt_qif_headless(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(gui.mod, "parse_qif", lambda p: (called.__setitem__("parse", called["parse"] + 1) or []))
     monkeypatch.setattr(gui.mod, "write_qif", lambda tx, p: called.__setitem__("write_qif", called["write_qif"] + 1))
 
-    monkeypatch.setattr(gui.messagebox, "askyesno", lambda *a, **k: True)
-    monkeypatch.setattr(gui.messagebox, "showinfo", lambda *a, **k: None)
-    monkeypatch.setattr(gui.messagebox, "showerror", lambda *a, **k: None)
+    from types import SimpleNamespace
+    app.mb = SimpleNamespace(
+        askyesno=lambda *a, **k: True,  # accept overwrite
+        showinfo=lambda *a, **k: None,
+        showerror=lambda *a, **k: None,
+    )
 
     app._run()
+
     assert called["parse"] == 1
     assert called["write_qif"] == 1
