@@ -6,6 +6,9 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple, Iterable
+from difflib import SequenceMatcher
+import pandas as pd
+import re
 
 # We re-use your parser and writer
 from . import qif_to_csv as base
@@ -140,29 +143,46 @@ def _flatten_qif_items(txns: List[Dict[str, Any]]) -> List[QIFItemView]:
 # ---------------- Category extraction & matching ----------------
 
 def extract_qif_categories(txns: List[Dict[str, Any]]) -> List[str]:
-    """Collect categories from txns and splits, dedupe, sort, and drop blanks."""
-    cats = set()
+    """
+    Collect categories from txns and splits, dedupe case-insensitively,
+    preserve first-seen casing, drop blanks, and sort alphabetically (case-insensitive).
+    """
+    first_by_lower: Dict[str, str] = {}
+
+    def _add(cat: str):
+        s = (cat or "").strip()
+        if not s:
+            return
+        key = s.lower()
+        # keep first-seen casing for that lowercase key
+        if key not in first_by_lower:
+            first_by_lower[key] = s
+
     for t in txns:
-        c = (t.get("category") or "").strip()
-        if c:
-            cats.add(c)
+        _add(t.get("category", ""))
         for s in t.get("splits") or []:
-            sc = (s.get("category") or "").strip()
-            if sc:
-                cats.add(sc)
-    return sorted(cats, key=lambda s: s.lower())
+            _add(s.get("category", ""))
+
+    # Return values sorted case-insensitively
+    return sorted(first_by_lower.values(), key=lambda v: v.lower())
 
 def extract_excel_categories(xlsx_path: Path, col_name: str = "Canonical MECE Category") -> List[str]:
-    """Load Excel and return unique, sorted category names from the given column."""
+    """Load Excel and return unique, sorted category names from the given column (case-insensitive dedupe)."""
     df = pd.read_excel(xlsx_path)
     if col_name not in df.columns:
         raise ValueError(f"Excel missing '{col_name}' column.")
-    vals = []
+
+    first_by_lower: Dict[str, str] = {}
     for v in df[col_name].dropna().astype(str):
         s = v.strip()
-        if s:
-            vals.append(s)
-    return sorted(set(vals), key=lambda s: s.lower())
+        if not s:
+            continue
+        key = s.lower()
+        if key not in first_by_lower:
+            first_by_lower[key] = s
+
+    return sorted(first_by_lower.values(), key=lambda s: s.lower())
+
 
 def _ratio(a: str, b: str) -> float:
     return SequenceMatcher(a=a.lower().strip(), b=b.lower().strip()).ratio()
