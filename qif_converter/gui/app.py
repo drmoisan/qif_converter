@@ -17,6 +17,7 @@ from qif_converter.gui.probe_tab import ProbeTab
 from qif_converter.gui.utils import (
     filter_date_range, apply_multi_payee_filters,
 )
+from qif_converter import qfx_to_txns as qfx
 
 class App(tk.Tk):
     """
@@ -232,8 +233,14 @@ class App(tk.Tk):
             dt = self.date_to.get().strip()
 
             self.log.delete("1.0", "end")
-            self.logln("Parsing QIF…")
-            txns = mod.parse_qif(in_path)
+            # choose parser by extension
+            in_ext = in_path.suffix.lower()
+            if in_ext in (".qfx", ".ofx"):
+                self.logln("Parsing QFX/OFX…")
+                txns = qfx.parse_qfx(in_path)
+            else:
+                self.logln("Parsing QIF…")
+                txns = mod.parse_qif(in_path)
 
             if df or dt:
                 self.logln(f"Filtering by date range: from={df or 'MIN'} to={dt or 'MAX'}")

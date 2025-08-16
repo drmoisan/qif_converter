@@ -7,8 +7,9 @@ from typing import List
 from qif_converter import qif_to_csv as mod
 from qif_converter.gui.helpers import filter_date_range, apply_multi_payee_filters
 from qif_converter.gui.csv_profiles import (
-    write_csv_quicken_windows, write_csv_quicken_mac,
-)
+    write_csv_quicken_windows, write_csv_quicken_mac,)
+from qif_converter import qfx_to_txns as qfx
+
 
 class ConvertTab(ttk.Frame):
     """Primary function: Convert QIF → CSV/QIF with filters and profiles."""
@@ -94,7 +95,15 @@ class ConvertTab(ttk.Frame):
 
     # ---------- actions ----------
     def _browse_in(self):
-        path = filedialog.askopenfilename(title="Select input QIF", filetypes=[("QIF files","*.qif"),("All files","*.*")])
+        path = filedialog.askopenfilename(
+            title="Select input file",
+            filetypes=[
+                ("QIF / QFX files", ("*.qif", "*.qfx", "*.ofx")),
+                ("QIF files", "*.qif"),
+                ("QFX/OFX files", ("*.qfx", "*.ofx")),
+                ("All files", "*.*"),
+            ]
+        )
         if path:
             self.in_path.set(path)
 
@@ -166,8 +175,25 @@ class ConvertTab(ttk.Frame):
             dt = self.date_to.get().strip()
 
             self.log.delete("1.0", "end")
-            self.logln("Parsing QIF…")
-            txns = mod.parse_qif(in_path)
+            ext = in_path.suffix.lower()
+            if ext in (".qfx", ".ofx"):
+                self.logln("Parsing QFX…")
+                from qif_converter.qfx_to_txns import parse_qfx
+                txns = parse_qfx(in_path)
+            else:
+                ext = in_path.suffix.lower()
+                if ext in (".qfx", ".ofx"):
+                    self.logln("Parsing QFX…")
+                    from qif_converter.qfx_to_txns import parse_qfx
+                    txns = parse_qfx(in_path)
+                else:
+                    in_ext = in_path.suffix.lower()
+                    if in_ext in (".qfx", ".ofx"):
+                        self.logln("Parsing QFX/OFX…")
+                        txns = qfx.parse_qfx(in_path)
+                    else:
+                        self.logln("Parsing QIF…")
+                        txns = mod.parse_qif(in_path)
 
             if df or dt:
                 self.logln(f"Filtering by date range: from={df or 'MIN'} to={dt or 'MAX'}")

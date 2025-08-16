@@ -358,11 +358,15 @@ class MergeTab(ttk.Frame):
         self.lbx_unx.delete(0, "end")
         s = self._merge_session
         if not s:
-            self.m_pairs = []; self.m_unmatched_qif = []; self.m_unmatched_excel = []; return
+            self.m_pairs = [];
+            self.m_unmatched_qif = [];
+            self.m_unmatched_excel = [];
+            return
 
+        # ---------- Matched pairs ----------
         pairs_preview = []
-        for q, er, cost in s.matched_pairs():
-            label = (f"[d+{cost}] QIF#{q.key.txn_index}{('/S'+str(q.key.split_index)) if q.key.is_split() else ''} "
+        for q, er, cost in sorted(s.matched_pairs(), key=lambda t: (t[0].date, t[1].date)):
+            label = (f"[d+{cost}] QIF#{q.key.txn_index}{('/S' + str(q.key.split_index)) if q.key.is_split() else ''} "
                      f"{q.date.isoformat()} {q.amount} |→ Excel#{er.idx} {er.date.isoformat()} {er.amount} | {er.item}")
             self.lbx_pairs.insert("end", label)
             qif_dict = {
@@ -382,26 +386,31 @@ class MergeTab(ttk.Frame):
             }
             pairs_preview.append((excel_dict, qif_dict))
 
+        # ---------- Unmatched QIF ----------
         unqif_preview = []
-        for q in s.unmatched_qif():
-            label = (f"QIF#{q.key.txn_index}{('/S'+str(q.key.split_index)) if q.key.is_split() else ''} "
+        for q in sorted(s.unmatched_qif(), key=lambda x: x.date):
+            label = (f"QIF#{q.key.txn_index}{('/S' + str(q.key.split_index)) if q.key.is_split() else ''} "
                      f"{q.date.isoformat()} {q.amount} | {q.payee} | {q.memo or q.category}")
             self.lbx_unqif.insert("end", label)
             unqif_preview.append({
                 "date": q.date.isoformat(), "amount": q.amount,
                 "payee": getattr(q, "payee", ""), "category": getattr(q, "category", ""),
-                "memo": getattr(q, "memo", ""), "transfer_account": getattr(getattr(q, "key", None), "transfer_account", ""),
-                "splits": [ {"category": getattr(sp,"category",""), "memo": getattr(sp,"memo",""), "amount": getattr(sp,"amount","")}
-                            for sp in getattr(q, "splits", []) or [] ],
+                "memo": getattr(q, "memo", ""),
+                "transfer_account": getattr(getattr(q, "key", None), "transfer_account", ""),
+                "splits": [{"category": getattr(sp, "category", ""), "memo": getattr(sp, "memo", ""),
+                            "amount": getattr(sp, "amount", "")}
+                           for sp in getattr(q, "splits", []) or []],
             })
 
+        # ---------- Unmatched Excel ----------
         unx_preview = []
-        for er in s.unmatched_excel():
+        for er in sorted(s.unmatched_excel(), key=lambda x: x.date):
             label = f"Excel#{er.idx} {er.date.isoformat()} {er.amount} | {er.item} | {er.category}"
             self.lbx_unx.insert("end", label)
             unx_preview.append({
                 "Date": er.date.isoformat(), "Amount": er.amount, "Item": getattr(er, "item", ""),
-                "Canonical MECE Category": getattr(er, "category", ""), "Categorization Rationale": getattr(er, "rationale", ""),
+                "Canonical MECE Category": getattr(er, "category", ""),
+                "Categorization Rationale": getattr(er, "rationale", ""),
             })
 
         self.m_pairs = pairs_preview
