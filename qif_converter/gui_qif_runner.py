@@ -15,6 +15,7 @@ import csv
 import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+from types import SimpleNamespace
 
 # --- project imports ---
 from qif_converter import qif_to_csv as mod
@@ -196,8 +197,14 @@ def write_csv_quicken_mac(txns: List[Dict[str, Any]], out_path: Path):
 # =========================
 
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self, messagebox_api=None):
         super().__init__()
+        # Dependency-injected messagebox wrapper; calls module functions at call time
+        self.mb = messagebox_api or SimpleNamespace(
+            showinfo=lambda *a, **k: messagebox.showinfo(*a, **k),
+            showerror=lambda *a, **k: messagebox.showerror(*a, **k),
+            askyesno=lambda *a, **k: messagebox.askyesno(*a, **k),
+        )
         self.title("QIF Tools")
         self.geometry("980x720")
         self.minsize(920, 640)
@@ -503,13 +510,13 @@ class App(tk.Tk):
             in_path = Path(self.in_path.get().strip())
             out_path = Path(self.out_path.get().strip())
             if not in_path or not in_path.exists():
-                messagebox.showerror("Error", "Please select a valid input QIF file.")
+                self.mb.showerror("Error", "Please select a valid input QIF file.")
                 return
             if not out_path:
-                messagebox.showerror("Error", "Please choose an output file.")
+                self.mb.showerror("Error", "Please choose an output file.")
                 return
             if Path(out_path).exists():
-                if not messagebox.askyesno(
+                if not self.mb.askyesno(
                     "Confirm Overwrite",
                     f"The file already exists:\n\n{out_path}\n\nDo you want to overwrite it?"
                 ):
@@ -546,7 +553,7 @@ class App(tk.Tk):
             if emit == "qif":
                 self.logln(f"Writing QIF → {out_path}")
                 mod.write_qif(txns, out_path)
-                messagebox.showinfo("Done", f"Filtered QIF written:\n{out_path}")
+                self.mb.showinfo("Done", f"Filtered QIF written:\n{out_path}")
                 return
 
             if csv_profile == "quicken-windows":
@@ -563,9 +570,9 @@ class App(tk.Tk):
                     self.logln(f"Writing CSV (flattened) → {out_path}")
                     mod.write_csv_flat(txns, out_path)
 
-            messagebox.showinfo("Done", f"CSV written:\n{out_path}")
+            self.mb.showinfo("Done", f"CSV written:\n{out_path}")
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            self.mb.showerror("Error", str(e))
             self.logln(f"ERROR: {e}")
 
     # =========================
@@ -596,10 +603,10 @@ class App(tk.Tk):
             qif_in = Path(self.m_qif_in.get().strip())
             xlsx = Path(self.m_xlsx.get().strip())
             if not qif_in.exists():
-                messagebox.showerror("Error", "Please choose a valid input QIF.")
+                self.mb.showerror("Error", "Please choose a valid input QIF.")
                 return
             if not xlsx.exists():
-                messagebox.showerror("Error", "Please choose a valid Excel (.xlsx).")
+                self.mb.showerror("Error", "Please choose a valid Excel (.xlsx).")
                 return
 
             txns = mod.parse_qif(qif_in)
@@ -613,7 +620,7 @@ class App(tk.Tk):
                          f"Unmatched QIF: {len(sess.unmatched_qif())} | "
                          f"Unmatched Excel: {len(sess.unmatched_excel())}")
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            self.mb.showerror("Error", str(e))
 
     def _m_refresh_lists(self):
         self.lbx_pairs.delete(0, "end")
@@ -661,12 +668,12 @@ class App(tk.Tk):
     def _m_manual_match(self):
         s = self._merge_session
         if not s:
-            messagebox.showerror("Error", "No session loaded.")
+            self.mb.showerror("Error", "No session loaded.")
             return
         qkey = self._m_selected_unqif_key()
         ei = self._m_selected_unx_idx()
         if qkey is None or ei is None:
-            messagebox.showerror("Error", "Select one QIF item and one Excel row to match.")
+            self.mb.showerror("Error", "Select one QIF item and one Excel row to match.")
             return
         ok, msg = s.manual_match(qkey, ei)
         self._m_info(("Matched." if ok else "Not matched.") + " " + msg)
@@ -699,7 +706,7 @@ class App(tk.Tk):
             self._m_refresh_lists()
             return
 
-        messagebox.showinfo("Info", "Nothing selected to unmatch.")
+        self.mb.showinfo("Info", "Nothing selected to unmatch.")
 
     def _m_why_not(self):
         s = self._merge_session
@@ -708,7 +715,7 @@ class App(tk.Tk):
         sel_q = self._m_selected_unqif_key()
         sel_e = self._m_selected_unx_idx()
         if sel_q is None or sel_e is None:
-            messagebox.showinfo("Info", "Pick one unmatched QIF and one unmatched Excel to explain.")
+            self.mb.showinfo("Info", "Pick one unmatched QIF and one unmatched Excel to explain.")
             return
         q = next(x for x in s.unmatched_qif() if x.key == sel_q)
         er = next(x for x in s.unmatched_excel() if x.idx == sel_e)
@@ -718,14 +725,14 @@ class App(tk.Tk):
         try:
             s = self._merge_session
             if not s:
-                messagebox.showerror("Error", "No session loaded. Click 'Load + Auto-Match' first.")
+                self.mb.showerror("Error", "No session loaded. Click 'Load + Auto-Match' first.")
                 return
             qif_out = Path(self.m_qif_out.get().strip())
             if not qif_out:
-                messagebox.showerror("Error", "Please choose an output QIF file.")
+                self.mb.showerror("Error", "Please choose an output QIF file.")
                 return
             if qif_out.exists():
-                if not messagebox.askyesno("Confirm Overwrite",
+                if not self.mb.askyesno("Confirm Overwrite",
                                            f"Output QIF already exists:\n\n{qif_out}\n\nOverwrite?"):
                     return
             s.apply_updates()
@@ -740,9 +747,9 @@ class App(tk.Tk):
             mod.write_qif(txns_to_write, qif_out)
 
             self._m_info(f"Updates applied. Wrote updated QIF:\n{qif_out}")
-            messagebox.showinfo("Done", f"Updated QIF written:\n{qif_out}")
+            self.mb.showinfo("Done", f"Updated QIF written:\n{qif_out}")
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            self.mb.showerror("Error", str(e))
 
     def _m_info(self, msg: str):
         self.txt_info.delete("1.0", "end")
@@ -754,10 +761,10 @@ class App(tk.Tk):
             qif_in = Path(self.m_qif_in.get().strip())
             xlsx = Path(self.m_xlsx.get().strip())
             if not qif_in.exists():
-                messagebox.showerror("Error", "Please choose a valid input QIF.")
+                self.mb.showerror("Error", "Please choose a valid input QIF.")
                 return
             if not xlsx.exists():
-                messagebox.showerror("Error", "Please choose a valid Excel (.xlsx).")
+                self.mb.showerror("Error", "Please choose a valid Excel (.xlsx).")
                 return
 
             # Build session
@@ -844,11 +851,11 @@ class App(tk.Tk):
                 e = selected(lbx_excel)
                 q = selected(lbx_qif)
                 if not e or not q:
-                    messagebox.showinfo("Info", "Select one Excel category and one QIF category to match.")
+                    self.mb.showinfo("Info", "Select one Excel category and one QIF category to match.")
                     return
                 ok, msg = sess.manual_match(e, q)
                 if not ok:
-                    messagebox.showerror("Error", msg)
+                    self.mb.showerror("Error", msg)
                 refresh()
 
             def do_unmatch():
@@ -866,7 +873,7 @@ class App(tk.Tk):
                 if e and sess.manual_unmatch(e):
                     refresh()
                     return
-                messagebox.showinfo("Info", "Select a matched pair (middle list) or an Excel category to unmatch.")
+                self.mb.showinfo("Info", "Select a matched pair (middle list) or an Excel category to unmatch.")
 
             def browse_out():
                 p = filedialog.asksaveasfilename(
@@ -880,20 +887,20 @@ class App(tk.Tk):
             def apply_and_save():
                 outp = Path(out_path_var.get().strip())
                 if outp.exists():
-                    if not messagebox.askyesno("Confirm Overwrite", f"{outp}\n\nOverwrite?"):
+                    if not self.mb.askyesno("Confirm Overwrite", f"{outp}\n\nOverwrite?"):
                         return
                 try:
                     out_file = sess.apply_to_excel(xlsx, xlsx_out=outp)
-                    messagebox.showinfo("Done", f"Normalized Excel written:\n{out_file}")
+                    self.mb.showinfo("Done", f"Normalized Excel written:\n{out_file}")
                     win.destroy()
                 except Exception as e:
-                    messagebox.showerror("Error", str(e))
+                    self.mb.showerror("Error", str(e))
 
             # initial population
             refresh()
 
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            self.mb.showerror("Error", str(e))
 
     # =========================
     # QDX Probe tab actions
@@ -920,7 +927,7 @@ class App(tk.Tk):
         try:
             qdx = Path(self.p_qdx.get().strip())
             if not qdx.exists():
-                messagebox.showerror("Error", "Please pick a valid QDX file.")
+                self.mb.showerror("Error", "Please pick a valid QDX file.")
                 return
             qif = Path(self.p_qif.get().strip()) if self.p_qif.get().strip() else None
             out = Path(self.p_out.get().strip()) if self.p_out.get().strip() else None
@@ -936,9 +943,9 @@ class App(tk.Tk):
             for a in artifacts:
                 self.p_artifacts.insert("end", str(a))
 
-            messagebox.showinfo("QDX Probe", "Probe completed.")
+            self.mb.showinfo("QDX Probe", "Probe completed.")
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            self.mb.showerror("Error", str(e))
 
     def _p_selected_artifact(self) -> Optional[Path]:
         sel = self.p_artifacts.curselection()
@@ -952,7 +959,7 @@ class App(tk.Tk):
     def _p_open_artifact_folder(self):
         p = self._p_selected_artifact()
         if not p:
-            messagebox.showinfo("Info", "Select an artifact first.")
+            self.mb.showinfo("Info", "Select an artifact first.")
             return
         folder = p.parent
         try:
@@ -963,17 +970,17 @@ class App(tk.Tk):
             else:
                 subprocess.Popen(["xdg-open", str(folder)])
         except Exception as e:
-            messagebox.showerror("Error", f"Could not open folder:\n{e}")
+            self.mb.showerror("Error", f"Could not open folder:\n{e}")
 
     def _p_preview_artifact(self):
         p = self._p_selected_artifact()
         if not p or not p.exists():
-            messagebox.showinfo("Info", "Select an existing artifact to preview.")
+            self.mb.showinfo("Info", "Select an existing artifact to preview.")
             return
         try:
             data = p.read_bytes()
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to read artifact:\n{e}")
+            self.mb.showerror("Error", f"Failed to read artifact:\n{e}")
             return
 
         # Try text decodes in order; fall back to hex if looks binary
