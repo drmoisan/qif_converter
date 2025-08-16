@@ -5,7 +5,9 @@ from types import SimpleNamespace
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+from tkinter import font as tkfont
 from typing import List
+from .scaling import apply_global_font_scaling
 
 # project modules
 from qif_converter import qif_to_csv as mod
@@ -23,6 +25,79 @@ class App(tk.Tk):
     """
     def __init__(self, messagebox_api=None):
         super().__init__()
+        # NEW: auto font scaling
+        try:
+            apply_global_font_scaling(self, base_pt=10, minimum_pt=12)
+        except Exception:
+            pass
+
+        # --- Notebook (tab) styling for better visibility and selected color ---
+        self.style = ttk.Style(self)
+        try:
+            self.style.theme_use("clam")  # clam respects custom colors on Windows/macOS
+        except Exception:
+            pass
+
+        # Base font → slightly larger & bold for tabs
+        try:
+            base = tkfont.nametofont("TkDefaultFont")
+            tab_font = tkfont.Font(self, family=base.cget("family"),
+                                   size=max(12, int(base.cget("size")) + 2),
+                                   weight="bold")
+        except Exception:
+            tab_font = ("Segoe UI", 12, "bold")
+
+        # Define a custom Notebook style so we can target its Tab style precisely
+        self.style.configure(
+            "Custom.TNotebook",
+            background="#d1d5db",  # notebook area behind tabs
+            borderwidth=2,
+            relief="ridge",
+            tabmargins=(12, 6, 12, 0)  # extra air around tabs
+        )
+
+        # Tab base (unselected) appearance
+        self.style.configure(
+            "Custom.TNotebook.Tab",
+            font=tab_font,
+            padding=(18, 10),
+            borderwidth=2,
+            relief="raised",
+            background="#e5e7eb",  # light gray when not selected
+            foreground="black"
+        )
+
+        # State-driven colors: selected and hover
+        self.style.map(
+            "Custom.TNotebook.Tab",
+            background=[
+                ("selected", "#2563eb"),  # vivid blue when selected
+                ("active", "#3b82f6"),  # lighter blue on hover
+                ("!selected", "#e5e7eb")
+            ],
+            foreground=[
+                ("selected", "white"),
+                ("active", "white"),
+                ("!selected", "black")
+            ]
+        )
+
+        # Apply the custom style to your Notebook
+        # If you've already created it earlier, set the style attribute:
+        #   self.nb.configure(style="Custom.TNotebook")
+        # If you're creating it now, do:
+        #   self.nb = ttk.Notebook(self, style="Custom.TNotebook")
+        try:
+            self.nb.configure(style="Custom.TNotebook")
+        except Exception:
+            pass
+
+        # Dependency-injected messagebox wrapper; calls module functions at call time
+        self.mb = messagebox_api or SimpleNamespace(
+            showinfo=lambda *a, **k: messagebox.showinfo(*a, **k),
+            showerror=lambda *a, **k: messagebox.showerror(*a, **k),
+            askyesno=lambda *a, **k: messagebox.askyesno(*a, **k),
+        )
         self.title("QIF Tools")
         self.geometry("980x720")
         self.minsize(920, 640)

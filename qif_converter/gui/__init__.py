@@ -18,6 +18,12 @@ from .csv_profiles import (
     MAC_HEADERS,
 )
 
+from .scaling import (
+    _safe_float,
+    detect_system_font_scale,
+    apply_global_font_scaling,
+)
+
 __all__ = [
     "App",
     "parse_date_maybe",
