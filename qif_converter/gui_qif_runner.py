@@ -16,12 +16,102 @@ import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from types import SimpleNamespace
+import os
+import math
 
 # --- project imports ---
 from qif_converter import qif_to_csv as mod
 from qif_converter import match_excel as mex
 from qif_converter import qdx_probe  # NEW: library API for probe
 
+# =========================
+# Handle Scaling
+# =========================
+
+def _safe_float(x, default):
+    try:
+        return float(x)
+    except Exception:
+        return default
+
+def detect_system_font_scale(root) -> float:
+    """
+    Detect a reasonable UI scale factor from the environment & Tk.
+    Returns a factor where 1.0 = baseline, 1.25 = 125% etc.
+    """
+    # Highest priority: explicit env override
+    env_scale = os.environ.get("QIF_GUI_FONT_SCALE")
+    if env_scale:
+        val = _safe_float(env_scale, 1.0)
+        return max(val, 0.5)
+
+    # Try Tk DPI and tk scaling
+    scale_candidates = []
+
+    # Tk 'scaling' (pixels per point). Default is DPI/72.
+    try:
+        tk_scaling = float(root.tk.call("tk", "scaling"))
+        # map pixels-per-point to a user-friendly scale (normalize to 96 DPI baseline)
+        # tk_scaling = DPI / 72  → DPI = tk_scaling * 72
+        # user_scale = DPI / 96
+        scale_candidates.append((tk_scaling * 72.0) / 96.0)
+    except Exception:
+        pass
+
+    # DPI via winfo_fpixels('1i'): pixels per inch for 1 inch
+    try:
+        dpi = float(root.winfo_fpixels("1i"))
+        scale_candidates.append(dpi / 96.0)
+    except Exception:
+        pass
+
+    # Fallback to 1.0 if we can't read anything
+    if not scale_candidates:
+        return 1.0
+
+    # Be generous: take the max (if OS applies additional scaling, this tends to reflect it)
+    scale = max(1.0, max(scale_candidates))
+    # Clamp to a sane range
+    return max(0.75, min(scale, 3.0))
+
+def apply_global_font_scaling(root, base_pt: int = 10, minimum_pt: int = 12):
+    """
+    Sets larger, readable fonts app-wide based on system scaling.
+    Optional overrides:
+      - QIF_GUI_FONT_SCALE (e.g., '1.25')
+      - QIF_GUI_FONT_SIZE  (absolute point size, overrides scaling)
+    """
+    try:
+        from tkinter import font as tkfont
+    except Exception:
+        return  # headless / Tk not available
+
+    # Absolute size override wins
+    env_size = os.environ.get("QIF_GUI_FONT_SIZE")
+    if env_size:
+        try:
+            target_pt = int(env_size)
+        except Exception:
+            target_pt = minimum_pt
+    else:
+        scale = detect_system_font_scale(root)
+        target_pt = max(minimum_pt, int(round(base_pt * scale)))
+
+    # Update standard Tk font families
+    for name in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont", "TkFixedFont"):
+        try:
+            f = tkfont.nametofont(name)
+            # Keep family, just bump size
+            f.configure(size=target_pt)
+        except Exception:
+            pass
+
+    # Also set a catch-all default (helps 3rd-party widgets)
+    try:
+        default = tkfont.nametofont("TkDefaultFont")
+        root.option_add("*Font", default)
+    except Exception:
+        pass
 
 
 # =========================
@@ -199,6 +289,11 @@ def write_csv_quicken_mac(txns: List[Dict[str, Any]], out_path: Path):
 class App(tk.Tk):
     def __init__(self, messagebox_api=None):
         super().__init__()
+        # NEW: auto font scaling
+        try:
+            apply_global_font_scaling(self, base_pt=10, minimum_pt=12)
+        except Exception:
+            pass
         # Dependency-injected messagebox wrapper; calls module functions at call time
         self.mb = messagebox_api or SimpleNamespace(
             showinfo=lambda *a, **k: messagebox.showinfo(*a, **k),
