@@ -137,6 +137,129 @@ def _flatten_qif_items(txns: List[Dict[str, Any]]) -> List[QIFItemView]:
             ))
     return out
 
+# ---------------- Category extraction & matching ----------------
+
+def extract_qif_categories(txns: List[Dict[str, Any]]) -> List[str]:
+    """Collect categories from txns and splits, dedupe, sort, and drop blanks."""
+    cats = set()
+    for t in txns:
+        c = (t.get("category") or "").strip()
+        if c:
+            cats.add(c)
+        for s in t.get("splits") or []:
+            sc = (s.get("category") or "").strip()
+            if sc:
+                cats.add(sc)
+    return sorted(cats, key=lambda s: s.lower())
+
+def extract_excel_categories(xlsx_path: Path, col_name: str = "Canonical MECE Category") -> List[str]:
+    """Load Excel and return unique, sorted category names from the given column."""
+    df = pd.read_excel(xlsx_path)
+    if col_name not in df.columns:
+        raise ValueError(f"Excel missing '{col_name}' column.")
+    vals = []
+    for v in df[col_name].dropna().astype(str):
+        s = v.strip()
+        if s:
+            vals.append(s)
+    return sorted(set(vals), key=lambda s: s.lower())
+
+def _ratio(a: str, b: str) -> float:
+    return SequenceMatcher(a=a.lower().strip(), b=b.lower().strip()).ratio()
+
+def fuzzy_autopairs(
+    qif_cats: List[str],
+    excel_cats: List[str],
+    threshold: float = 0.84,
+) -> Tuple[List[Tuple[str, str, float]], List[str], List[str]]:
+    """
+    Greedy one-to-one fuzzy matching:
+      - considers all pairs >= threshold similarity
+      - picks highest ratio first, then alphabetical tie-breakers
+    Returns: (pairs [(qif, excel, score)], unmatched_qif, unmatched_excel)
+    """
+    candidates: List[Tuple[float, str, str]] = []
+    for q in qif_cats:
+        for e in excel_cats:
+            r = _ratio(q, e)
+            if r >= threshold:
+                candidates.append((r, q, e))
+    candidates.sort(key=lambda x: (-x[0], x[1].lower(), x[2].lower()))
+
+    used_q, used_e = set(), set()
+    pairs: List[Tuple[str, str, float]] = []
+    for r, q, e in candidates:
+        if q in used_q or e in used_e:
+            continue
+        pairs.append((q, e, r))
+        used_q.add(q)
+        used_e.add(e)
+
+    unmatched_q = [q for q in qif_cats if q not in used_q]
+    unmatched_e = [e for e in excel_cats if e not in used_e]
+    return pairs, unmatched_q, unmatched_e
+
+class CategoryMatchSession:
+    """
+    Manages category name mapping (Excel → QIF):
+      - qif_cats: canonical names from QIF
+      - excel_cats: names from Excel
+      - mapping: excel_name -> qif_name
+    """
+    def __init__(self, qif_cats: List[str], excel_cats: List[str]):
+        self.qif_cats = list(qif_cats)
+        self.excel_cats = list(excel_cats)
+        self.mapping: Dict[str, str] = {}
+
+    def auto_match(self, threshold: float = 0.84):
+        pairs, _, _ = fuzzy_autopairs(self.qif_cats, self.excel_cats, threshold)
+        for qif_name, excel_name, _score in [(p[0], p[1], p[2]) for p in pairs]:
+            self.mapping[excel_name] = qif_name
+
+    def manual_match(self, excel_name: str, qif_name: str) -> Tuple[bool, str]:
+        if excel_name not in self.excel_cats:
+            return False, "Excel category not in list."
+        if qif_name not in self.qif_cats:
+            return False, "QIF category not in list."
+        # ensure one-to-one by removing any other excel that mapped to this qif_name
+        for k, v in list(self.mapping.items()):
+            if v == qif_name and k != excel_name:
+                self.mapping.pop(k, None)
+        self.mapping[excel_name] = qif_name
+        return True, "Matched."
+
+    def manual_unmatch(self, excel_name: str) -> bool:
+        return self.mapping.pop(excel_name, None) is not None
+
+    def unmatched(self) -> Tuple[List[str], List[str]]:
+        used_q = set(self.mapping.values())
+        used_e = set(self.mapping.keys())
+        uq = [q for q in self.qif_cats if q not in used_q]
+        ue = [e for e in self.excel_cats if e not in used_e]
+        return uq, ue
+
+    def apply_to_excel(
+        self,
+        xlsx_in: Path,
+        xlsx_out: Optional[Path] = None,
+        col_name: str = "Canonical MECE Category",
+    ) -> Path:
+        """
+        Writes a new Excel with the Canonical MECE Category values replaced by
+        mapped QIF names where a mapping exists. Unmapped rows remain unchanged.
+        """
+        df = pd.read_excel(xlsx_in)
+        if col_name not in df.columns:
+            raise ValueError(f"Excel missing '{col_name}' column.")
+        def _map_cell(v):
+            s = str(v).strip() if pd.notna(v) else ""
+            return self.mapping.get(s, s)
+        df[col_name] = df[col_name].map(_map_cell)
+        out = xlsx_out or xlsx_in.with_name(xlsx_in.stem + "_normalized.xlsx")
+        df.to_excel(out, index=False)
+        return out
+
+
 # --- Matching engine ---------------------------------------------------------
 
 def _candidate_cost(qif_date: date, excel_date: date) -> Optional[int]:

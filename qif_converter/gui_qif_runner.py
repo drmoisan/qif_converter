@@ -347,6 +347,7 @@ class App(tk.Tk):
         actions.pack(fill="x", **pad)
         ttk.Button(actions, text="Load + Auto-Match", command=self._m_load_and_auto).pack(side="left")
         ttk.Button(actions, text="Apply Updates & Save", command=self._m_apply_and_save).pack(side="right")
+        ttk.Button(actions, text="Normalize Categories", command=self._m_normalize_categories).pack(side="left", padx=6)
 
         # Lists: matched / unmatched
         lists = ttk.Frame(root)
@@ -379,6 +380,7 @@ class App(tk.Tk):
 
         self.txt_info = tk.Text(root, height=6)
         self.txt_info.pack(fill="x", padx=8, pady=6)
+
 
     # --------------- QDX Probe tab  --------------
     def _build_probe_tab(self, root):
@@ -745,6 +747,153 @@ class App(tk.Tk):
     def _m_info(self, msg: str):
         self.txt_info.delete("1.0", "end")
         self.txt_info.insert("end", msg)
+
+    def _m_normalize_categories(self):
+        """Open a modal to normalize Excel categories to QIF categories."""
+        try:
+            qif_in = Path(self.m_qif_in.get().strip())
+            xlsx = Path(self.m_xlsx.get().strip())
+            if not qif_in.exists():
+                messagebox.showerror("Error", "Please choose a valid input QIF.")
+                return
+            if not xlsx.exists():
+                messagebox.showerror("Error", "Please choose a valid Excel (.xlsx).")
+                return
+
+            # Build session
+            txns = mod.parse_qif(qif_in)
+            qif_cats = mex.extract_qif_categories(txns)
+            excel_cats = mex.extract_excel_categories(xlsx)
+            sess = mex.CategoryMatchSession(qif_cats, excel_cats)
+
+            # Modal window
+            win = tk.Toplevel(self)
+            win.title("Normalize Categories")
+            win.geometry("900x520")
+            win.transient(self)
+            win.grab_set()
+
+            pad = {'padx': 8, 'pady': 6}
+
+            # Top buttons
+            top = ttk.Frame(win)
+            top.pack(fill="x", **pad)
+            ttk.Button(top, text="Auto-Match", command=lambda: (sess.auto_match(), refresh())).pack(side="left")
+            ttk.Button(top, text="Match Selected →", command=lambda: do_match()).pack(side="left", padx=6)
+            ttk.Button(top, text="Unmatch Selected", command=lambda: do_unmatch()).pack(side="left", padx=6)
+
+            # Lists
+            lists = ttk.Frame(win)
+            lists.pack(fill="both", expand=True, **pad)
+
+            left = ttk.LabelFrame(lists, text="QIF Categories (canonical)")
+            left.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+            lbx_qif = tk.Listbox(left, exportselection=False)
+            lbx_qif.pack(fill="both", expand=True, padx=4, pady=4)
+
+            mid = ttk.LabelFrame(lists, text="Matched pairs (Excel → QIF)")
+            mid.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+            lbx_pairs = tk.Listbox(mid, exportselection=False)
+            lbx_pairs.pack(fill="both", expand=True, padx=4, pady=4)
+
+            right = ttk.LabelFrame(lists, text="Excel Categories (to normalize)")
+            right.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+            lbx_excel = tk.Listbox(right, exportselection=False)
+            lbx_excel.pack(fill="both", expand=True, padx=4, pady=4)
+
+            # Bottom actions
+            bot = ttk.Frame(win)
+            bot.pack(fill="x", **pad)
+
+            out_path_var = tk.StringVar(value=str(xlsx.with_name(xlsx.stem + "_normalized.xlsx")))
+            ttk.Label(bot, text="Output Excel:").pack(side="left")
+            ttk.Entry(bot, textvariable=out_path_var, width=60).pack(side="left", padx=6)
+            ttk.Button(bot, text="Browse…", command=lambda: browse_out()).pack(side="left", padx=2)
+
+            ttk.Button(bot, text="Apply & Save", command=lambda: apply_and_save()).pack(side="right")
+
+            info = tk.Text(win, height=4, wrap="word")
+            info.pack(fill="x", padx=8, pady=(0, 8))
+
+            # Helpers for UI
+            def refresh():
+                lbx_qif.delete(0, "end")
+                lbx_excel.delete(0, "end")
+                lbx_pairs.delete(0, "end")
+                uq, ue = sess.unmatched()
+                for c in uq:
+                    lbx_qif.insert("end", c)
+                for c in ue:
+                    lbx_excel.insert("end", c)
+                for excel_name, qif_name in sorted(sess.mapping.items(), key=lambda kv: kv[0].lower()):
+                    lbx_pairs.insert("end", f"{excel_name}  →  {qif_name}")
+
+                info.delete("1.0", "end")
+                info.insert("end", f"QIF categories: {len(sess.qif_cats)} | "
+                                   f"Excel categories: {len(sess.excel_cats)} | "
+                                   f"Matched: {len(sess.mapping)} | "
+                                   f"Unmatched QIF: {len(uq)} | Unmatched Excel: {len(ue)}")
+
+            def selected(lbx: tk.Listbox) -> Optional[str]:
+                sel = lbx.curselection()
+                if not sel:
+                    return None
+                return lbx.get(sel[0])
+
+            def do_match():
+                e = selected(lbx_excel)
+                q = selected(lbx_qif)
+                if not e or not q:
+                    messagebox.showinfo("Info", "Select one Excel category and one QIF category to match.")
+                    return
+                ok, msg = sess.manual_match(e, q)
+                if not ok:
+                    messagebox.showerror("Error", msg)
+                refresh()
+
+            def do_unmatch():
+                # unmatch by selecting a pair or an Excel category
+                sel = lbx_pairs.curselection()
+                if sel:
+                    label = lbx_pairs.get(sel[0])
+                    # label format: "Excel → QIF"
+                    if "  →  " in label:
+                        excel_name = label.split("  →  ", 1)[0]
+                        sess.manual_unmatch(excel_name)
+                        refresh()
+                        return
+                e = selected(lbx_excel)
+                if e and sess.manual_unmatch(e):
+                    refresh()
+                    return
+                messagebox.showinfo("Info", "Select a matched pair (middle list) or an Excel category to unmatch.")
+
+            def browse_out():
+                p = filedialog.asksaveasfilename(
+                    title="Select normalized Excel output",
+                    defaultextension=".xlsx",
+                    filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")]
+                )
+                if p:
+                    out_path_var.set(p)
+
+            def apply_and_save():
+                outp = Path(out_path_var.get().strip())
+                if outp.exists():
+                    if not messagebox.askyesno("Confirm Overwrite", f"{outp}\n\nOverwrite?"):
+                        return
+                try:
+                    out_file = sess.apply_to_excel(xlsx, xlsx_out=outp)
+                    messagebox.showinfo("Done", f"Normalized Excel written:\n{out_file}")
+                    win.destroy()
+                except Exception as e:
+                    messagebox.showerror("Error", str(e))
+
+            # initial population
+            refresh()
+
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
 
     # =========================
     # QDX Probe tab actions
