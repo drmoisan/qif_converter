@@ -57,30 +57,68 @@ class MergeTab(ttk.Frame):
         # Left: Unmatched QIF
         left = ttk.LabelFrame(lists, text="Unmatched QIF items")
         left.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-        left_container = ttk.Frame(left); left_container.pack(fill="both", expand=True)
+        left_container = ttk.Frame(left);
+        left_container.pack(fill="both", expand=True)
+
         self.lbx_unqif = tk.Listbox(left_container, exportselection=False)
         self.lbx_unqif.pack(fill="both", expand=True, padx=4, pady=4)
-        self.prev_unqif = tk.Text(left_container, height=8, wrap="word"); self.prev_unqif.pack_forget()
+
+        # --- ADD: Export button (Unmatched QIF) ---
+        left_btns = ttk.Frame(left_container)
+        left_btns.pack(fill="x", padx=4, pady=(0, 4))
+        ttk.Button(
+            left_btns,
+            text="Export…",
+            command=lambda: self._export_listbox(self.lbx_unqif, "unmatched_qif")
+        ).pack(side="left")
+        # -------------------------------------------
+
+        self.prev_unqif = tk.Text(left_container, height=8, wrap="word")
+        self.prev_unqif.pack_forget()
 
         # Middle: Matched pairs
         mid = ttk.LabelFrame(lists, text="Matched pairs")
         mid.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-        mid_container = ttk.Frame(mid); mid_container.pack(fill="both", expand=True)
+        mid_container = ttk.Frame(mid);
+        mid_container.pack(fill="both", expand=True)
+
         self.lbx_pairs = tk.Listbox(mid_container, exportselection=False)
         self.lbx_pairs.pack(fill="both", expand=True, padx=4, pady=4)
-        self.prev_pairs = tk.Text(mid_container, height=8, wrap="word"); self.prev_pairs.pack_forget()
+
+        # --- ADD: Export button (Matched pairs) ---
+        mid_btns = ttk.Frame(mid_container)
+        mid_btns.pack(fill="x", padx=4, pady=(0, 4))
+        ttk.Button(
+            mid_btns,
+            text="Export…",
+            command=lambda: self._export_listbox(self.lbx_pairs, "matched_pairs")
+        ).pack(side="left")
+        # -------------------------------------------
+
+        self.prev_pairs = tk.Text(mid_container, height=8, wrap="word")
+        self.prev_pairs.pack_forget()
 
         # Right: Unmatched Excel
         right = ttk.LabelFrame(lists, text="Unmatched Excel rows")
         right.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-        right_container = ttk.Frame(right); right_container.pack(fill="both", expand=True)
+        right_container = ttk.Frame(right);
+        right_container.pack(fill="both", expand=True)
+
         self.lbx_unx = tk.Listbox(right_container, exportselection=False)
         self.lbx_unx.pack(fill="both", expand=True, padx=4, pady=4)
-        self.prev_unx = tk.Text(right_container, height=8, wrap="word"); self.prev_unx.pack_forget()
 
-        self.lbx_unqif.bind("<<ListboxSelect>>", lambda e: self._m_update_preview("unqif"))
-        self.lbx_pairs.bind("<<ListboxSelect>>", lambda e: self._m_update_preview("pairs"))
-        self.lbx_unx.bind("<<ListboxSelect>>", lambda e: self._m_update_preview("unx"))
+        # --- ADD: Export button (Unmatched Excel) ---
+        right_btns = ttk.Frame(right_container)
+        right_btns.pack(fill="x", padx=4, pady=(0, 4))
+        ttk.Button(
+            right_btns,
+            text="Export…",
+            command=lambda: self._export_listbox(self.lbx_unx, "unmatched_excel")
+        ).pack(side="left")
+        # --------------------------------------------
+
+        self.prev_unx = tk.Text(right_container, height=8, wrap="word")
+        self.prev_unx.pack_forget()
 
         # Footer: Manual match/unmatch + reason
         foot = ttk.Frame(self)
@@ -154,8 +192,11 @@ class MergeTab(ttk.Frame):
             return
         sel = self.lbx_pairs.curselection()
         if sel:
-            pairs = s.matched_pairs()
-            qv, er, _ = pairs[sel[0]]
+            try:
+                qv, er, _ = self._pairs_sorted[sel[0]]
+            except Exception:
+                # fallback to session in unlikely desync
+                qv, er, _ = s.matched_pairs()[sel[0]]
             s.manual_unmatch(qkey=qv.key)
             self._m_info("Unmatched selected pair.")
             self._m_refresh_lists()
@@ -198,6 +239,30 @@ class MergeTab(ttk.Frame):
                 self.mb.showinfo("Info", msg)
             except Exception:
                 pass
+
+    def _export_listbox(self, lb: tk.Listbox, default_tag: str):
+        """Export the current strings shown in a Listbox to a file (txt or csv)."""
+        items = lb.get(0, "end")
+        if not items:
+            self.mb.showinfo("Export", f"No items to export from '{default_tag}'.")
+            return
+
+        path = filedialog.asksaveasfilename(
+            title=f"Export {default_tag}",
+            initialfile=f"{default_tag}.txt",
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+
+        try:
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                for row in items:
+                    f.write(str(row) + "\n")
+            self.mb.showinfo("Export", f"Exported {len(items)} items to:\n{path}")
+        except Exception as e:
+            self.mb.showerror("Export Error", str(e))
 
     def open_normalize_modal(self):
         """
@@ -358,14 +423,19 @@ class MergeTab(ttk.Frame):
         self.lbx_unx.delete(0, "end")
         s = self._merge_session
         if not s:
-            self.m_pairs = [];
-            self.m_unmatched_qif = [];
-            self.m_unmatched_excel = [];
+            self.m_pairs = []
+            self.m_unmatched_qif = []
+            self.m_unmatched_excel = []
+            # keep sorted holders empty too
+            self._pairs_sorted = []
+            self._unqif_sorted = []
+            self._unx_sorted = []
             return
 
         # ---------- Matched pairs ----------
+        self._pairs_sorted = sorted(s.matched_pairs(), key=lambda t: (t[0].date, t[1].date))
         pairs_preview = []
-        for q, er, cost in sorted(s.matched_pairs(), key=lambda t: (t[0].date, t[1].date)):
+        for q, er, cost in self._pairs_sorted:
             label = (f"[d+{cost}] QIF#{q.key.txn_index}{('/S' + str(q.key.split_index)) if q.key.is_split() else ''} "
                      f"{q.date.isoformat()} {q.amount} |→ Excel#{er.idx} {er.date.isoformat()} {er.amount} | {er.item}")
             self.lbx_pairs.insert("end", label)
@@ -387,8 +457,9 @@ class MergeTab(ttk.Frame):
             pairs_preview.append((excel_dict, qif_dict))
 
         # ---------- Unmatched QIF ----------
+        self._unqif_sorted = sorted(s.unmatched_qif(), key=lambda x: x.date)
         unqif_preview = []
-        for q in sorted(s.unmatched_qif(), key=lambda x: x.date):
+        for q in self._unqif_sorted:
             label = (f"QIF#{q.key.txn_index}{('/S' + str(q.key.split_index)) if q.key.is_split() else ''} "
                      f"{q.date.isoformat()} {q.amount} | {q.payee} | {q.memo or q.category}")
             self.lbx_unqif.insert("end", label)
@@ -397,14 +468,17 @@ class MergeTab(ttk.Frame):
                 "payee": getattr(q, "payee", ""), "category": getattr(q, "category", ""),
                 "memo": getattr(q, "memo", ""),
                 "transfer_account": getattr(getattr(q, "key", None), "transfer_account", ""),
-                "splits": [{"category": getattr(sp, "category", ""), "memo": getattr(sp, "memo", ""),
-                            "amount": getattr(sp, "amount", "")}
-                           for sp in getattr(q, "splits", []) or []],
+                "splits": [
+                    {"category": getattr(sp, "category", ""), "memo": getattr(sp, "memo", ""),
+                     "amount": getattr(sp, "amount", "")}
+                    for sp in getattr(q, "splits", []) or []
+                ],
             })
 
         # ---------- Unmatched Excel ----------
+        self._unx_sorted = sorted(s.unmatched_excel(), key=lambda x: x.date)
         unx_preview = []
-        for er in sorted(s.unmatched_excel(), key=lambda x: x.date):
+        for er in self._unx_sorted:
             label = f"Excel#{er.idx} {er.date.isoformat()} {er.amount} | {er.item} | {er.category}"
             self.lbx_unx.insert("end", label)
             unx_preview.append({
@@ -423,20 +497,16 @@ class MergeTab(ttk.Frame):
             self._m_update_preview("unx")
 
     def _m_selected_unqif_key(self) -> Optional[mex.QIFItemKey]:
-        s = self._merge_session
-        if not s: return None
+        if not getattr(self, "_unqif_sorted", None): return None
         sel = self.lbx_unqif.curselection()
         if not sel: return None
-        q = s.unmatched_qif()[sel[0]]
-        return q.key
+        return self._unqif_sorted[sel[0]].key
 
     def _m_selected_unx_idx(self) -> Optional[int]:
-        s = self._merge_session
-        if not s: return None
+        if not getattr(self, "_unx_sorted", None): return None
         sel = self.lbx_unx.curselection()
         if not sel: return None
-        er = s.unmatched_excel()[sel[0]]
-        return er.idx
+        return self._unx_sorted[sel[0]].idx
 
     def _m_why_not(self):
         s = self._merge_session
@@ -461,24 +531,87 @@ class MergeTab(ttk.Frame):
             self._m_update_preview("pairs")
             self._m_update_preview("unx")
 
+    # --- replace your _m_update_preview with this ---
     def _m_update_preview(self, which: str):
         if not self.m_preview_var.get():
             return
+
+        # ensure preview areas are visible in case user toggled after selecting
+        for w in (self.prev_unqif, self.prev_pairs, self.prev_unx):
+            if str(w) not in str(w.pack_info()) and which in ("unqif", "pairs", "unx"):
+                # if not packed (was pack_forget), don’t auto-pack here;
+                # packing is handled by _m_toggle_previews. Just proceed to set text.
+                pass
+
         try:
             if which == "unqif":
                 idxs = self.lbx_unqif.curselection()
-                tx = self.m_unmatched_qif[idxs[0]] if idxs else {}
+                if not idxs:
+                    _set_text(self.prev_unqif, "")
+                    return
+                q = self._unqif_sorted[idxs[0]]
+                tx = {
+                    "date": q.date.isoformat(),
+                    "amount": getattr(q, "amount", ""),
+                    "payee": getattr(q, "payee", ""),
+                    "category": getattr(q, "category", ""),
+                    "memo": getattr(q, "memo", ""),
+                    "transfer_account": getattr(getattr(q, "key", None), "transfer_account", ""),
+                    "splits": [
+                        {"category": getattr(sp, "category", ""), "memo": getattr(sp, "memo", ""),
+                         "amount": getattr(sp, "amount", "")}
+                        for sp in getattr(q, "splits", []) or []
+                    ],
+                }
                 _set_text(self.prev_unqif, _fmt_txn(tx))
+
             elif which == "unx":
                 idxs = self.lbx_unx.curselection()
-                row = self.m_unmatched_excel[idxs[0]] if idxs else {}
+                if not idxs:
+                    _set_text(self.prev_unx, "")
+                    return
+                er = self._unx_sorted[idxs[0]]
+                row = {
+                    "Date": er.date.isoformat(),
+                    "Amount": er.amount,
+                    "Item": getattr(er, "item", ""),
+                    "Canonical MECE Category": getattr(er, "category", ""),
+                    "Categorization Rationale": getattr(er, "rationale", ""),
+                }
                 _set_text(self.prev_unx, _fmt_excel_row(row))
+
             elif which == "pairs":
                 idxs = self.lbx_pairs.curselection()
-                text = ""
-                if idxs:
-                    excel_row, qif_tx = self.m_pairs[idxs[0]]
-                    text = "[Excel]\n" + _fmt_excel_row(excel_row) + "\n\n[QIF]\n" + _fmt_txn(qif_tx)
+                if not idxs:
+                    _set_text(self.prev_pairs, "")
+                    return
+                q, er, _ = self._pairs_sorted[idxs[0]]
+                excel_row = {
+                    "Date": getattr(er, "date", None) and er.date.isoformat(),
+                    "Amount": getattr(er, "amount", ""),
+                    "Item": getattr(er, "item", ""),
+                    "Canonical MECE Category": getattr(er, "category", ""),
+                    "Categorization Rationale": getattr(er, "rationale", ""),
+                }
+                qif_tx = {
+                    "date": getattr(q, "date", None) and q.date.isoformat(),
+                    "amount": getattr(q, "amount", ""),
+                    "payee": getattr(q, "payee", ""),
+                    "category": getattr(q, "category", ""),
+                    "memo": getattr(q, "memo", ""),
+                    "transfer_account": getattr(getattr(q, "key", None), "transfer_account", ""),
+                    "splits": [
+                        {"category": getattr(sp, "category", ""), "memo": getattr(sp, "memo", ""),
+                         "amount": getattr(sp, "amount", "")}
+                        for sp in getattr(q, "splits", []) or []
+                    ],
+                }
+                text = "[Excel]\n" + _fmt_excel_row(excel_row) + "\n\n[QIF]\n" + _fmt_txn(qif_tx)
                 _set_text(self.prev_pairs, text)
-        except Exception:
-            pass
+
+        except Exception as e:
+            # show a minimal error so problems aren’t silently hidden
+            try:
+                self._m_info(f"Preview error: {e}")
+            except Exception:
+                pass

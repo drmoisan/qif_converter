@@ -1,5 +1,3 @@
-# qif_converter/gui/__init__.py
-from .app import App
 
 # Tests import/monkeypatch these off `qif_converter.gui`
 from qif_converter import qif_to_csv as mod  # e.g., tests monkeypatch gui.mod.parse_qif
@@ -33,3 +31,10 @@ __all__ = [
     "write_csv_quicken_windows",
     "write_csv_quicken_mac",
 ]
+
+# Lazily expose App to avoid importing tkinter during package import
+def __getattr__(name):
+    if name == "App":
+        from .app import App  # imported only when actually accessed
+        return App
+    raise AttributeError(name)
