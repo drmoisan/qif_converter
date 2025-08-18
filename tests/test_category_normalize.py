@@ -5,7 +5,8 @@ import pytest
 import tkinter as tk
 
 from qif_converter import match_excel as mex
-from qif_converter.gui_qif_runner import App
+from qif_converter.gui import App
+
 
 # Skip entirely if tkinter isn’t importable (e.g., headless CI without Tk)
 pytest.importorskip("tkinter")

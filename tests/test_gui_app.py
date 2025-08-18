@@ -2,7 +2,7 @@
 from pathlib import Path
 import pytest
 
-from qif_converter import gui_qif_runner as gui
+from qif_converter import gui as gui
 
 
 # --------- Tiny stubs so we can use App methods without Tk ----------
