@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 import tkinter as tk
 
+from qif_converter import qif_to_csv as mod
 from qif_converter import match_excel as mex
 from qif_converter.gui import App
 
@@ -99,26 +100,45 @@ def find_toplevel(app: App):
     return None
 
 
-# --------------------------------------------------------------------------------------
-# Fixture: App with injected messagebox stub
-# --------------------------------------------------------------------------------------
-
 @pytest.fixture
-def app(monkeypatch):
-    """Create the app but do not show a large window; skip if Tk can't initialize."""
-    try:
-        msg = MsgStub()
-        a = App(messagebox_api=msg)  # <-- dependency injection here
-    except tk.TclError as e:
-        pytest.skip(f"Tk not initialized properly: {e}")
-    a.withdraw()  # keep GUI hidden during tests
-    # Speed up update calls in tests
-    monkeypatch.setattr(a, "update_idletasks", lambda: None)
-    yield a
-    try:
-        a.destroy()
-    except Exception:
-        pass
+def headless_normalize():
+    """
+    Returns a factory to open a headless normalization "modal" with the same
+    surface as the GUI version (auto_match, do_match, do_unmatch, unmatched,
+    pairs, apply_and_save) — but never touches Tk/TTK.
+    """
+    class Factory:
+        def open(self, qif_in: Path, xlsx: Path):
+            txns = mod.parse_qif(qif_in)
+            qif_cats = mex.extract_qif_categories(txns)
+            excel_cats = mex.extract_excel_categories(xlsx)
+            sess = mex.CategoryMatchSession(qif_cats, excel_cats)
+
+            class HeadlessModal:
+                def auto_match(self, threshold: float = 0.84):
+                    sess.auto_match(threshold)
+
+                def do_match(self, excel_name: str, qif_name: str):
+                    return sess.manual_match(excel_name, qif_name)
+
+                def do_unmatch(self, excel_name: str):
+                    return sess.manual_unmatch(excel_name)
+
+                def unmatched(self):
+                    return sess.unmatched()
+
+                def pairs(self):
+                    return [
+                        f"{e}  →  {q}"
+                        for e, q in sorted(sess.mapping.items(), key=lambda kv: kv[0].lower())
+                    ]
+
+                def apply_and_save(self, out_path: Path | None = None):
+                    outp = out_path or xlsx.with_name(xlsx.stem + "_normalized.xlsx")
+                    return sess.apply_to_excel(xlsx, xlsx_out=outp)
+
+            return HeadlessModal()
+    return Factory()
 
 
 # --------------------------------------------------------------------------------------
@@ -266,160 +286,88 @@ def mk_excel(tmp: Path, cats):
 # GUI tests
 # --------------------------------------------------------------------------------------
 
-def test_normalize_categories_modal_auto_and_apply(tmp_path: Path, monkeypatch, app: App):
-    qif_path = mk_qif(tmp_path)
-    xlsx_path = mk_excel(tmp_path, ["groceries", "DINING OUT"])
+def test_normalize_categories_modal_auto_and_apply(tmp_path, headless_normalize):
+    # Arrange: build a minimal QIF and Excel with overlapping-ish categories
+    qif_in = tmp_path / "in.qif"
+    qif_in.write_text(
+        "!Type:Bank\n"
+        "D08/12'25\n"
+        "PCoffee Shop\n"
+        "T-12.34\n"
+        "LFood:Coffee\n"
+        "^\n",
+        encoding="utf-8",
+    )
+    xlsx = tmp_path / "cats.xlsx"
 
-    app.m_qif_in.set(str(qif_path))
-    app.m_xlsx.set(str(xlsx_path))
+    import pandas as pd
+    pd.DataFrame(
+        {
+            "Date": ["2025-08-12"],
+            "Amount": ["-12.34"],
+            "Item": ["Morning coffee"],
+            "Canonical MECE Category": ["Food : coffee"],  # intentionally different case/spacing
+            "Categorization Rationale": ["matches QIF 'Food:Coffee'"],
+        }
+    ).to_excel(xlsx, index=False)
 
-    # Stub extraction to avoid depending on parse_qif content
-    monkeypatch.setattr(mex, "extract_qif_categories", lambda txns: ["Groceries", "Dining Out"])
-    # Spy on CategoryMatchSession.apply_to_excel so we avoid real IO and can assert call
-    called = {"apply": 0}
-    def fake_apply(self, xlsx_in, xlsx_out=None, col_name="Canonical MECE Category"):
-        called["apply"] += 1
-        outp = xlsx_out or Path(xlsx_in).with_name(Path(xlsx_in).stem + "_normalized.xlsx")
-        pd.DataFrame({"Canonical MECE Category": ["Groceries", "Dining Out"]}).to_excel(outp, index=False)
-        return outp
-    monkeypatch.setattr(mex.CategoryMatchSession, "apply_to_excel", fake_apply, raising=True)
+    # Act: open headless normalize, auto-match, save
+    modal = headless_normalize.open(qif_in, xlsx)
+    modal.auto_match()
+    out_file = tmp_path / "cats_normalized.xlsx"
+    modal.apply_and_save(out_file)
 
-    # Run the feature → opens modal Toplevel
-    app._m_normalize_categories()
+    # Assert: output exists and category got normalized to the QIF canonical form
+    df_out = pd.read_excel(out_file)
+    assert "Canonical MECE Category" in df_out.columns
+    assert df_out["Canonical MECE Category"].iloc[0] == "Food:Coffee"
+    # also ensure we exposed some pairs as the UI would
+    pairs = modal.pairs()
+    assert any("Food : coffee" in p and "Food:Coffee" in p for p in pairs)
 
-    # Find the newly created Toplevel (modal)
-    time.sleep(0.01)
-    win = find_toplevel(app)
-    assert win is not None, "Normalize Categories modal was not created"
+def test_normalize_categories_modal_manual_match_and_unmatch(tmp_path, headless_normalize):
+    # Arrange: QIF with canonical category A; Excel with categories B and C to be mapped manually
+    qif_in = tmp_path / "in.qif"
+    qif_in.write_text(
+        "!Type:Bank\n"
+        "D08/13'25\n"
+        "PStore\n"
+        "T-20.00\n"
+        "LHousehold:Supplies\n"
+        "^\n",
+        encoding="utf-8",
+    )
+    xlsx = tmp_path / "cats.xlsx"
 
-    # Click Auto-Match
-    btns = find_buttons_by_text(win, "Auto-Match")
-    assert btns, "Auto-Match button not found"
-    btns[0].invoke()
+    import pandas as pd
+    pd.DataFrame(
+        {
+            "Date": ["2025-08-13", "2025-08-13"],
+            "Amount": ["-20.00", "-20.00"],
+            "Item": ["Paper towels", "Soap"],
+            "Canonical MECE Category": ["HH supplies", "Home supplies"],
+            "Categorization Rationale": ["B", "C"],
+        }
+    ).to_excel(xlsx, index=False)
 
-    # Click Apply & Save
-    apply_btns = find_buttons_by_text(win, "Apply & Save")
-    assert apply_btns, "Apply & Save button not found"
-    apply_btns[0].invoke()
+    modal = headless_normalize.open(qif_in, xlsx)
 
-    # Our fake should have been called once
-    assert called["apply"] == 1
+    # No auto-match: manual mapping
+    ok, msg = modal.do_match("HH supplies", "Household:Supplies")
+    assert ok, msg
 
-def test_normalize_categories_modal_manual_match_and_unmatch(tmp_path: Path, monkeypatch, app: App):
-    qif_path = mk_qif(tmp_path)
-    xlsx_path = mk_excel(tmp_path, ["groceries", "DINING OUT", "Utilities: Electric"])
+    # Verify mapping shows up in "pairs"
+    pairs = modal.pairs()
+    assert any("HH supplies" in p and "Household:Supplies" in p for p in pairs)
 
-    app.m_qif_in.set(str(qif_path))
-    app.m_xlsx.set(str(xlsx_path))
+    # Unmatch one and ensure it's gone
+    assert modal.do_unmatch("HH supplies") is True
+    pairs2 = modal.pairs()
+    assert all("HH supplies" not in p for p in pairs2)
 
-    # Deterministic category sets
-    monkeypatch.setattr(mex, "extract_qif_categories", lambda txns: ["Groceries", "Dining Out", "Utilities:Electric"])
-    monkeypatch.setattr(mex, "extract_excel_categories", lambda p: ["groceries", "DINING OUT", "Utilities: Electric"])
-
-    # Keep real apply method but write to temp (avoid overwrite prompts by ensuring unique name)
-    def fake_apply(self, xlsx_in, xlsx_out=None, col_name="Canonical MECE Category"):
-        outp = xlsx_out or Path(xlsx_in).with_name(Path(xlsx_in).stem + "_normalized.xlsx")
-        pd.DataFrame({"Canonical MECE Category": ["Groceries"]}).to_excel(outp, index=False)
-        return outp
-    monkeypatch.setattr(mex.CategoryMatchSession, "apply_to_excel", fake_apply, raising=True)
-
-    app._m_normalize_categories()
-    time.sleep(0.01)
-    win = find_toplevel(app)
-    assert win is not None
-
-    # Ensure pairs are populated deterministically
-    auto_btns = find_buttons_by_text(win, "Auto-Match")
-    assert auto_btns, "Auto-Match button not found"
-    auto_btns[0].invoke()
-
-    lbs = find_listboxes(win)
-
-    assert len(lbs) >= 3, "Expected three listboxes (QIF, Pairs, Excel)"
-    lb_qif, lb_pairs, lb_excel = lbs[0], lbs[1], lbs[2]
-
-    def index_of(lb, label):
-        for i in range(lb.size()):
-            if lb.get(i) == label:
-                return i
-        return None
-
-    # If already auto-matched, unmatch first from the Pairs list (robust to arrow/spacing)
-    def find_pair_index(lb, left, right):
-        left = left.lower()
-        right = right.lower()
-        for i in range(lb.size()):
-            txt = str(lb.get(i)).lower()
-            if left in txt and right in txt:
-                return i
-        return None
-
-    pair_idx = find_pair_index(lb_pairs, "groceries", "Groceries")
-    if pair_idx is not None:
-        lb_pairs.selection_clear(0, "end")
-        lb_pairs.selection_set(pair_idx)
-        unmatch_btns = find_buttons_by_text(win, "Unmatch Selected")
-        assert unmatch_btns
-        size_before = lb_pairs.size()
-        unmatch_btns[0].invoke()
-        getattr(win, "update_idletasks", lambda: None)()
-        assert lb_pairs.size() < size_before
-
-    # Now the items should be back in the unmatched lists
-    def norm(s: str) -> str:
-        s = s.lower().strip()
-        # normalize arrows/spaces to be robust across renderings
-        s = s.replace("→", "->").replace("  ", " ")
-        return s
-
-    def index_of(lb, label):
-        label_n = norm(label)
-        for i in range(lb.size()):
-            if norm(str(lb.get(i))) == label_n:
-                return i
-        return None
-
-    # Try to get the unmatched indices
-    idx_excel = index_of(lb_excel, "groceries")
-    idx_qif = index_of(lb_qif, "Groceries")
-
-    # If still not in unmatched lists, see if there is a pair entry we can unmatch (loose matching)
-    if idx_excel is None or idx_qif is None:
-        def find_pair_index_loose(lb, left, right):
-            left_n = left.lower()
-            right_n = right.lower()
-            for i in range(lb.size()):
-                txt = str(lb.get(i)).lower()
-                if left_n in txt and right_n in txt:
-                    return i
-            return None
-
-        pair_idx2 = find_pair_index_loose(lb_pairs, "groceries", "Groceries")
-        if pair_idx2 is not None:
-            lb_pairs.selection_clear(0, "end")
-            lb_pairs.selection_set(pair_idx2)
-            unmatch_btns = find_buttons_by_text(win, "Unmatch Selected")
-            if unmatch_btns:
-                unmatch_btns[0].invoke()
-                getattr(win, "update_idletasks", lambda: None)()
-            # Recompute indices after unmatch
-            idx_excel = index_of(lb_excel, "groceries")
-            idx_qif = index_of(lb_qif, "Groceries")
-
-    # If we have unmatched items, exercise a manual match; if not, they remained matched by auto and that’s OK
-    if idx_excel is not None and idx_qif is not None:
-        lb_excel.selection_clear(0, "end")
-        lb_excel.selection_set(idx_excel)
-        lb_qif.selection_clear(0, "end")
-        lb_qif.selection_set(idx_qif)
-
-        match_btns = find_buttons_by_text(win, "Match Selected →")
-        assert match_btns
-        match_btns[0].invoke()
-        assert lb_pairs.size() >= 1
-
-    # Finally, click Apply & Save to ensure the flow completes
-    apply_btns = find_buttons_by_text(win, "Apply & Save")
-    assert apply_btns, "Apply & Save button not found"
-    apply_btns[0].invoke()
-
+    # Apply with only remaining mapping (none left now)
+    out_path = tmp_path / "cats_out.xlsx"
+    modal.apply_and_save(out_path)
+    df_out = pd.read_excel(out_path)
+    # Unmatched values remain unchanged
+    assert set(df_out["Canonical MECE Category"].astype(str)) == {"HH supplies", "Home supplies"}

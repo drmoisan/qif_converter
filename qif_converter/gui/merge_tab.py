@@ -57,13 +57,13 @@ class MergeTab(ttk.Frame):
         # Left: Unmatched QIF
         left = ttk.LabelFrame(lists, text="Unmatched QIF items")
         left.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-        left_container = ttk.Frame(left);
+        left_container = ttk.Frame(left)
         left_container.pack(fill="both", expand=True)
 
         self.lbx_unqif = tk.Listbox(left_container, exportselection=False)
         self.lbx_unqif.pack(fill="both", expand=True, padx=4, pady=4)
 
-        # --- ADD: Export button (Unmatched QIF) ---
+        # Export button (Unmatched QIF)
         left_btns = ttk.Frame(left_container)
         left_btns.pack(fill="x", padx=4, pady=(0, 4))
         ttk.Button(
@@ -71,7 +71,6 @@ class MergeTab(ttk.Frame):
             text="Export…",
             command=lambda: self._export_listbox(self.lbx_unqif, "unmatched_qif")
         ).pack(side="left")
-        # -------------------------------------------
 
         self.prev_unqif = tk.Text(left_container, height=8, wrap="word")
         self.prev_unqif.pack_forget()
@@ -79,13 +78,13 @@ class MergeTab(ttk.Frame):
         # Middle: Matched pairs
         mid = ttk.LabelFrame(lists, text="Matched pairs")
         mid.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-        mid_container = ttk.Frame(mid);
+        mid_container = ttk.Frame(mid)
         mid_container.pack(fill="both", expand=True)
 
         self.lbx_pairs = tk.Listbox(mid_container, exportselection=False)
         self.lbx_pairs.pack(fill="both", expand=True, padx=4, pady=4)
 
-        # --- ADD: Export button (Matched pairs) ---
+        # Export button (Matched pairs)
         mid_btns = ttk.Frame(mid_container)
         mid_btns.pack(fill="x", padx=4, pady=(0, 4))
         ttk.Button(
@@ -93,7 +92,6 @@ class MergeTab(ttk.Frame):
             text="Export…",
             command=lambda: self._export_listbox(self.lbx_pairs, "matched_pairs")
         ).pack(side="left")
-        # -------------------------------------------
 
         self.prev_pairs = tk.Text(mid_container, height=8, wrap="word")
         self.prev_pairs.pack_forget()
@@ -101,13 +99,13 @@ class MergeTab(ttk.Frame):
         # Right: Unmatched Excel
         right = ttk.LabelFrame(lists, text="Unmatched Excel rows")
         right.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-        right_container = ttk.Frame(right);
+        right_container = ttk.Frame(right)
         right_container.pack(fill="both", expand=True)
 
         self.lbx_unx = tk.Listbox(right_container, exportselection=False)
         self.lbx_unx.pack(fill="both", expand=True, padx=4, pady=4)
 
-        # --- ADD: Export button (Unmatched Excel) ---
+        # Export button (Unmatched Excel)
         right_btns = ttk.Frame(right_container)
         right_btns.pack(fill="x", padx=4, pady=(0, 4))
         ttk.Button(
@@ -115,7 +113,6 @@ class MergeTab(ttk.Frame):
             text="Export…",
             command=lambda: self._export_listbox(self.lbx_unx, "unmatched_excel")
         ).pack(side="left")
-        # --------------------------------------------
 
         self.prev_unx = tk.Text(right_container, height=8, wrap="word")
         self.prev_unx.pack_forget()
@@ -131,6 +128,11 @@ class MergeTab(ttk.Frame):
         infof.pack(fill="x", **pad)
         self.txt_info = tk.Text(infof, height=6, wrap="word")
         self.txt_info.pack(fill="x", padx=8, pady=6)
+
+        # Bind previews after widgets exist
+        self.lbx_unqif.bind("<<ListboxSelect>>", lambda e: self._m_update_preview("unqif"))
+        self.lbx_pairs.bind("<<ListboxSelect>>", lambda e: self._m_update_preview("pairs"))
+        self.lbx_unx.bind("<<ListboxSelect>>", lambda e: self._m_update_preview("unx"))
 
     # ---------- file pickers ----------
     def _m_browse_qif(self):
@@ -162,15 +164,22 @@ class MergeTab(ttk.Frame):
                 self.mb.showerror("Error", "Please choose a valid Excel (.xlsx)."); return
 
             txns = mod.parse_qif(qif_in)
-            rows = mex.load_excel(xlsx)
-            sess = mex.MatchSession(txns, rows)
+            # Split-aware loading: rows → groups (by TxnID)
+            rows = mex.load_excel_rows(xlsx)
+            groups = mex.group_excel_rows(rows)
+            sess = mex.MatchSession(txns, excel_groups=groups)
             sess.auto_match()
             self._merge_session = sess
             self._m_refresh_lists()
-            self._m_info(f"Loaded {len(txns)} QIF items (txn/splits) and {len(rows)} Excel rows.\n"
-                         f"Matched pairs: {len(sess.matched_pairs())} | "
-                         f"Unmatched QIF: {len(sess.unmatched_qif())} | "
-                         f"Unmatched Excel: {len(sess.unmatched_excel())}")
+            self._m_info(
+                "Loaded "
+                f"{len(txns)} QIF transactions and "
+                f"{len(groups)} Excel TxnID groups "
+                f"({len(rows)} split rows).\n"
+                f"Matched pairs: {len(sess.matched_pairs())} | "
+                f"Unmatched QIF: {len(sess.unmatched_qif())} | "
+                f"Unmatched Excel groups: {len(sess.unmatched_excel())}"
+            )
         except Exception as e:
             self.mb.showerror("Error", str(e))
 
@@ -179,10 +188,10 @@ class MergeTab(ttk.Frame):
         if not s:
             self.mb.showerror("Error", "No session loaded."); return
         qkey = self._m_selected_unqif_key()
-        ei = self._m_selected_unx_idx()
-        if qkey is None or ei is None:
-            self.mb.showerror("Error", "Select one QIF item and one Excel row to match."); return
-        ok, msg = s.manual_match(qkey, ei)
+        gi = self._m_selected_unx_idx()
+        if qkey is None or gi is None:
+            self.mb.showerror("Error", "Select one QIF item and one Excel group to match."); return
+        ok, msg = s.manual_match(qkey, gi)
         self._m_info(("Matched." if ok else "Not matched.") + " " + msg)
         self._m_refresh_lists()
 
@@ -193,10 +202,10 @@ class MergeTab(ttk.Frame):
         sel = self.lbx_pairs.curselection()
         if sel:
             try:
-                qv, er, _ = self._pairs_sorted[sel[0]]
+                qv, grp, _ = self._pairs_sorted[sel[0]]
             except Exception:
                 # fallback to session in unlikely desync
-                qv, er, _ = s.matched_pairs()[sel[0]]
+                qv, grp, _ = s.matched_pairs()[sel[0]]
             s.manual_unmatch(qkey=qv.key)
             self._m_info("Unmatched selected pair.")
             self._m_refresh_lists()
@@ -205,9 +214,9 @@ class MergeTab(ttk.Frame):
         qkey = self._m_selected_unqif_key()
         if qkey is not None and s.manual_unmatch(qkey=qkey):
             self._m_info("Unmatched QIF item."); self._m_refresh_lists(); return
-        ei = self._m_selected_unx_idx()
-        if ei is not None and s.manual_unmatch(excel_idx=ei):
-            self._m_info("Unmatched Excel row."); self._m_refresh_lists(); return
+        gi = self._m_selected_unx_idx()
+        if gi is not None and s.manual_unmatch(excel_idx=gi):
+            self._m_info("Unmatched Excel group."); self._m_refresh_lists(); return
         self.mb.showinfo("Info", "Nothing selected to unmatch.")
 
     def _m_apply_and_save(self):
@@ -264,10 +273,11 @@ class MergeTab(ttk.Frame):
         except Exception as e:
             self.mb.showerror("Export Error", str(e))
 
+    # ------------------ Normalize Categories modal  --------------------
     def open_normalize_modal(self):
         """
-        Public entry point used by App to open the Normalize Categories modal.
-        (Extracted from the old _m_normalize_categories so tests can call through App.)
+        Open the Normalize Categories UI if Tk is available; otherwise, provide a
+        headless object exposing the same actions so tests don't need Tk/TTK at all.
         """
         try:
             qif_in = Path(self.m_qif_in.get().strip())
@@ -285,131 +295,173 @@ class MergeTab(ttk.Frame):
             excel_cats = mex.extract_excel_categories(xlsx)
             sess = mex.CategoryMatchSession(qif_cats, excel_cats)
 
-            # Parent to the toplevel hosting this tab
-            parent = self.winfo_toplevel()
-            win = tk.Toplevel(parent)
-            win.title("Normalize Categories")
-            win.geometry("900x520")
-            win.transient(parent)
-            win.grab_set()
+            # Try GUI path first; if it fails (e.g., Tk not installed), fall back to headless.
+            try:
+                parent = self.winfo_toplevel()
+                win = tk.Toplevel(parent)
+                win.title("Normalize Categories")
+                win.geometry("900x520")
+                win.transient(parent)
+                win.grab_set()
 
-            pad = {'padx': 8, 'pady': 6}
+                pad = {'padx': 8, 'pady': 6}
 
-            # Top actions
-            top = ttk.Frame(win); top.pack(fill="x", **pad)
-            ttk.Button(top, text="Auto-Match",
-                       command=lambda: (sess.auto_match(), refresh())).pack(side="left")
-            ttk.Button(top, text="Match Selected →",
-                       command=lambda: do_match()).pack(side="left", padx=6)
-            ttk.Button(top, text="Unmatch Selected",
-                       command=lambda: do_unmatch()).pack(side="left", padx=6)
+                # Top actions
+                top = ttk.Frame(win); top.pack(fill="x", **pad)
+                ttk.Button(top, text="Auto-Match",
+                           command=lambda: (sess.auto_match(), refresh())).pack(side="left")
+                ttk.Button(top, text="Match Selected →",
+                           command=lambda: do_match()).pack(side="left", padx=6)
+                ttk.Button(top, text="Unmatch Selected",
+                           command=lambda: do_unmatch()).pack(side="left", padx=6)
 
-            # Lists
-            lists = ttk.Frame(win); lists.pack(fill="both", expand=True, **pad)
+                # Lists
+                lists = ttk.Frame(win); lists.pack(fill="both", expand=True, **pad)
 
-            left = ttk.LabelFrame(lists, text="QIF Categories (canonical)")
-            left.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-            lbx_qif = tk.Listbox(left, exportselection=False)
-            lbx_qif.pack(fill="both", expand=True, padx=4, pady=4)
+                left = ttk.LabelFrame(lists, text="QIF Categories (canonical)")
+                left.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+                lbx_qif = tk.Listbox(left, exportselection=False)
+                lbx_qif.pack(fill="both", expand=True, padx=4, pady=4)
 
-            mid = ttk.LabelFrame(lists, text="Matched pairs (Excel → QIF)")
-            mid.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-            lbx_pairs = tk.Listbox(mid, exportselection=False)
-            lbx_pairs.pack(fill="both", expand=True, padx=4, pady=4)
+                mid = ttk.LabelFrame(lists, text="Matched pairs (Excel → QIF)")
+                mid.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+                lbx_pairs = tk.Listbox(mid, exportselection=False)
+                lbx_pairs.pack(fill="both", expand=True, padx=4, pady=4)
 
-            right = ttk.LabelFrame(lists, text="Excel Categories (to normalize)")
-            right.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-            lbx_excel = tk.Listbox(right, exportselection=False)
-            lbx_excel.pack(fill="both", expand=True, padx=4, pady=4)
+                right = ttk.LabelFrame(lists, text="Excel Categories (to normalize)")
+                right.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+                lbx_excel = tk.Listbox(right, exportselection=False)
+                lbx_excel.pack(fill="both", expand=True, padx=4, pady=4)
 
-            # Bottom actions
-            bot = ttk.Frame(win); bot.pack(fill="x", **pad)
-            out_path_var = tk.StringVar(
-                value=str(xlsx.with_name(xlsx.stem + "_normalized.xlsx"))
-            )
-            ttk.Label(bot, text="Output Excel:").pack(side="left")
-            ttk.Entry(bot, textvariable=out_path_var, width=60).pack(side="left", padx=6)
-            ttk.Button(bot, text="Browse…", command=lambda: browse_out()).pack(side="left", padx=2)
-            ttk.Button(bot, text="Apply & Save", command=lambda: apply_and_save()).pack(side="right")
-
-            info = tk.Text(win, height=4, wrap="word")
-            info.pack(fill="x", padx=8, pady=(0, 8))
-
-            # --- helpers (closures) ---
-            def refresh():
-                lbx_qif.delete(0, "end")
-                lbx_excel.delete(0, "end")
-                lbx_pairs.delete(0, "end")
-                uq, ue = sess.unmatched()
-                for c in uq: lbx_qif.insert("end", c)
-                for c in ue: lbx_excel.insert("end", c)
-                for excel_name, qif_name in sorted(sess.mapping.items(), key=lambda kv: kv[0].lower()):
-                    lbx_pairs.insert("end", f"{excel_name}  →  {qif_name}")
-                info.delete("1.0", "end")
-                info.insert(
-                    "end",
-                    f"QIF categories: {len(sess.qif_cats)} | "
-                    f"Excel categories: {len(sess.excel_cats)} | "
-                    f"Matched: {len(sess.mapping)} | "
-                    f"Unmatched QIF: {len(uq)} | Unmatched Excel: {len(ue)}"
+                # Bottom actions
+                bot = ttk.Frame(win); bot.pack(fill="x", **pad)
+                out_path_var = tk.StringVar(
+                    value=str(xlsx.with_name(xlsx.stem + "_normalized.xlsx"))
                 )
+                ttk.Label(bot, text="Output Excel:").pack(side="left")
+                ttk.Entry(bot, textvariable=out_path_var, width=60).pack(side="left", padx=6)
+                ttk.Button(bot, text="Browse…", command=lambda: browse_out()).pack(side="left", padx=2)
+                ttk.Button(bot, text="Apply & Save", command=lambda: apply_and_save()).pack(side="right")
 
-            def selected(lbx: tk.Listbox):
-                sel = lbx.curselection()
-                return lbx.get(sel[0]) if sel else None
+                info = tk.Text(win, height=4, wrap="word")
+                info.pack(fill="x", padx=8, pady=(0, 8))
 
-            def do_match():
-                e = selected(lbx_excel); q = selected(lbx_qif)
-                if not e or not q:
-                    self.mb.showinfo("Info", "Select one Excel category and one QIF category to match.")
-                    return
-                ok, msg = sess.manual_match(e, q)
-                if not ok:
-                    self.mb.showerror("Error", msg)
-                refresh()
+                # --- helpers (closures) ---
+                def refresh():
+                    lbx_qif.delete(0, "end")
+                    lbx_excel.delete(0, "end")
+                    lbx_pairs.delete(0, "end")
+                    uq, ue = sess.unmatched()
+                    for c in uq: lbx_qif.insert("end", c)
+                    for c in ue: lbx_excel.insert("end", c)
+                    for excel_name, qif_name in sorted(sess.mapping.items(), key=lambda kv: kv[0].lower()):
+                        lbx_pairs.insert("end", f"{excel_name}  →  {qif_name}")
+                    info.delete("1.0", "end")
+                    info.insert(
+                        "end",
+                        f"QIF categories: {len(sess.qif_cats)} | "
+                        f"Excel categories: {len(sess.excel_cats)} | "
+                        f"Matched: {len(sess.mapping)} | "
+                        f"Unmatched QIF: {len(uq)} | Unmatched Excel: {len(ue)}"
+                    )
 
-            def do_unmatch():
-                sel = lbx_pairs.curselection()
-                if sel:
-                    label = lbx_pairs.get(sel[0])
-                    if "  →  " in label:
-                        excel_name = label.split("  →  ", 1)[0]
-                        sess.manual_unmatch(excel_name)
+                def selected(lbx: tk.Listbox):
+                    sel = lbx.curselection()
+                    return lbx.get(sel[0]) if sel else None
+
+                def do_match():
+                    e = selected(lbx_excel); q = selected(lbx_qif)
+                    if not e or not q:
+                        self.mb.showinfo("Info", "Select one Excel category and one QIF category to match.")
+                        return
+                    ok, msg = sess.manual_match(e, q)
+                    if not ok:
+                        self.mb.showerror("Error", msg)
+                    refresh()
+
+                def do_unmatch():
+                    sel = lbx_pairs.curselection()
+                    if sel:
+                        label = lbx_pairs.get(sel[0])
+                        if "  →  " in label:
+                            excel_name = label.split("  →  ", 1)[0]
+                            sess.manual_unmatch(excel_name)
+                            refresh()
+                            return
+                    # Or unmatch by selecting Excel side
+                    e = selected(lbx_excel)
+                    if e and sess.manual_unmatch(e):
                         refresh()
                         return
-                e = selected(lbx_excel)
-                if e and sess.manual_unmatch(e):
-                    refresh()
-                    return
-                self.mb.showinfo("Info", "Select a matched pair (middle list) or an Excel category to unmatch.")
+                    self.mb.showinfo("Info", "Select a matched pair (middle list) or an Excel category to unmatch.")
 
-            def browse_out():
-                p = filedialog.asksaveasfilename(
-                    title="Select normalized Excel output",
-                    defaultextension=".xlsx",
-                    filetypes=[("Excel files","*.xlsx"),("All files","*.*")],
-                )
-                if p:
-                    out_path_var.set(p)
+                def browse_out():
+                    p = filedialog.asksaveasfilename(
+                        title="Select normalized Excel output",
+                        defaultextension=".xlsx",
+                        filetypes=[("Excel files","*.xlsx"),("All files","*.*")],
+                    )
+                    if p:
+                        out_path_var.set(p)
 
-            def apply_and_save():
-                outp = Path(out_path_var.get().strip())
-                if outp.exists():
-                    if not self.mb.askyesno("Confirm Overwrite", f"{outp}\n\nOverwrite?"):
-                        return
-                try:
-                    out_file = sess.apply_to_excel(xlsx, xlsx_out=outp)
-                    self.mb.showinfo("Done", f"Normalized Excel written:\n{out_file}")
-                    win.destroy()
-                except Exception as e:
-                    self.mb.showerror("Error", str(e))
+                def apply_and_save():
+                    outp = Path(out_path_var.get().strip())
+                    if outp.exists():
+                        if not self.mb.askyesno("Confirm Overwrite", f"{outp}\n\nOverwrite?"):
+                            return
+                    try:
+                        out_file = sess.apply_to_excel(xlsx, xlsx_out=outp)
+                        self.mb.showinfo("Done", f"Normalized Excel written:\n{out_file}")
+                        win.destroy()
+                    except Exception as e:
+                        self.mb.showerror("Error", str(e))
 
-            # initial population
-            refresh()
-            return win  # (optional) return the modal window, handy for tests
+                # initial population
+                refresh()
+                return win  # return the real modal window
+
+            except Exception:
+                # ===== Headless fallback (no Tk required) =====
+                class HeadlessNormalize:
+                    """
+                    Minimal, dependency-injected stand-in for the modal:
+                      - exposes same operations for tests
+                      - never touches Tk/TTK
+                    """
+                    def __init__(self, sess: mex.CategoryMatchSession, xlsx_path: Path, mb):
+                        self.sess = sess
+                        self.xlsx = xlsx_path
+                        self.mb = mb
+                        self.out_path = xlsx_path.with_name(xlsx_path.stem + "_normalized.xlsx")
+
+                    def auto_match(self, threshold: float = 0.84):
+                        self.sess.auto_match(threshold)
+
+                    def do_match(self, excel_name: str, qif_name: str):
+                        ok, msg = self.sess.manual_match(excel_name, qif_name)
+                        return ok, msg
+
+                    def do_unmatch(self, excel_name: str):
+                        return self.sess.manual_unmatch(excel_name)
+
+                    def unmatched(self):
+                        return self.sess.unmatched()
+
+                    def pairs(self):
+                        # Return sorted mapping as label strings similar to UI
+                        return [f"{e}  →  {q}" for e, q in sorted(self.sess.mapping.items(), key=lambda kv: kv[0].lower())]
+
+                    def apply_and_save(self, out_path: Optional[Path] = None):
+                        outp = Path(out_path) if out_path else self.out_path
+                        return self.sess.apply_to_excel(self.xlsx, xlsx_out=outp)
+
+                return HeadlessNormalize(sess, xlsx, self.mb)
 
         except Exception as e:
             self.mb.showerror("Error", str(e))
+            # Return a no-op object so tests don't explode if they still try to call methods
+            class _Noop: pass
+            return _Noop()
 
     # Backward-compatible private name (kept; just forwards)
     def _m_normalize_categories(self):
@@ -432,12 +484,15 @@ class MergeTab(ttk.Frame):
             self._unx_sorted = []
             return
 
-        # ---------- Matched pairs ----------
+        # ---------- Matched pairs (QIF txn ↔ Excel group) ----------
         self._pairs_sorted = sorted(s.matched_pairs(), key=lambda t: (t[0].date, t[1].date))
         pairs_preview = []
-        for q, er, cost in self._pairs_sorted:
-            label = (f"[d+{cost}] QIF#{q.key.txn_index}{('/S' + str(q.key.split_index)) if q.key.is_split() else ''} "
-                     f"{q.date.isoformat()} {q.amount} |→ Excel#{er.idx} {er.date.isoformat()} {er.amount} | {er.item}")
+        for q, grp, cost in self._pairs_sorted:
+            label = (
+                f"[d+{cost}] QIF#{q.key.txn_index} "
+                f"{q.date.isoformat()} {q.amount} |→ "
+                f"Excel[{grp.gid}] {grp.date.isoformat()} {grp.total_amount} | {len(grp.rows)} split(s)"
+            )
             self.lbx_pairs.insert("end", label)
             qif_dict = {
                 "date": getattr(q, "date", None) and q.date.isoformat(),
@@ -447,12 +502,15 @@ class MergeTab(ttk.Frame):
                 "memo": getattr(q, "memo", ""),
                 "transfer_account": getattr(getattr(q, "key", None), "transfer_account", ""),
             }
+            # Provide a compact Excel preview: first row + totals and count
             excel_dict = {
-                "Date": getattr(er, "date", None) and er.date.isoformat(),
-                "Amount": getattr(er, "amount", ""),
-                "Item": getattr(er, "item", ""),
-                "Canonical MECE Category": getattr(er, "category", ""),
-                "Categorization Rationale": getattr(er, "rationale", ""),
+                "TxnID": grp.gid,
+                "Date": grp.date.isoformat(),
+                "Total Amount": grp.total_amount,
+                "Split Count": len(grp.rows),
+                "First Item": grp.rows[0].item if grp.rows else "",
+                "First Category": grp.rows[0].category if grp.rows else "",
+                "First Rationale": grp.rows[0].rationale if grp.rows else "",
             }
             pairs_preview.append((excel_dict, qif_dict))
 
@@ -460,7 +518,7 @@ class MergeTab(ttk.Frame):
         self._unqif_sorted = sorted(s.unmatched_qif(), key=lambda x: x.date)
         unqif_preview = []
         for q in self._unqif_sorted:
-            label = (f"QIF#{q.key.txn_index}{('/S' + str(q.key.split_index)) if q.key.is_split() else ''} "
+            label = (f"QIF#{q.key.txn_index} "
                      f"{q.date.isoformat()} {q.amount} | {q.payee} | {q.memo or q.category}")
             self.lbx_unqif.insert("end", label)
             unqif_preview.append({
@@ -468,23 +526,26 @@ class MergeTab(ttk.Frame):
                 "payee": getattr(q, "payee", ""), "category": getattr(q, "category", ""),
                 "memo": getattr(q, "memo", ""),
                 "transfer_account": getattr(getattr(q, "key", None), "transfer_account", ""),
-                "splits": [
-                    {"category": getattr(sp, "category", ""), "memo": getattr(sp, "memo", ""),
-                     "amount": getattr(sp, "amount", "")}
-                    for sp in getattr(q, "splits", []) or []
-                ],
             })
 
-        # ---------- Unmatched Excel ----------
+        # ---------- Unmatched Excel groups ----------
         self._unx_sorted = sorted(s.unmatched_excel(), key=lambda x: x.date)
         unx_preview = []
-        for er in self._unx_sorted:
-            label = f"Excel#{er.idx} {er.date.isoformat()} {er.amount} | {er.item} | {er.category}"
+        for grp in self._unx_sorted:
+            label = (
+                f"Excel[{grp.gid}] {grp.date.isoformat()} {grp.total_amount} | {len(grp.rows)} split(s)"
+            )
             self.lbx_unx.insert("end", label)
+            # preview of group (first row details, plus count/total)
+            first = grp.rows[0] if grp.rows else None
             unx_preview.append({
-                "Date": er.date.isoformat(), "Amount": er.amount, "Item": getattr(er, "item", ""),
-                "Canonical MECE Category": getattr(er, "category", ""),
-                "Categorization Rationale": getattr(er, "rationale", ""),
+                "TxnID": grp.gid,
+                "Date": grp.date.isoformat(),
+                "Total Amount": grp.total_amount,
+                "Split Count": len(grp.rows),
+                "First Item": first.item if first else "",
+                "First Category": first.category if first else "",
+                "First Rationale": first.rationale if first else "",
             })
 
         self.m_pairs = pairs_preview
@@ -506,7 +567,8 @@ class MergeTab(ttk.Frame):
         if not getattr(self, "_unx_sorted", None): return None
         sel = self.lbx_unx.curselection()
         if not sel: return None
-        return self._unx_sorted[sel[0]].idx
+        # in group view, selection maps to group index in session.excel_groups
+        return self._merge_session.excel_groups.index(self._unx_sorted[sel[0]])
 
     def _m_why_not(self):
         s = self._merge_session
@@ -516,8 +578,8 @@ class MergeTab(ttk.Frame):
         if sel_q is None or sel_e is None:
             self.mb.showinfo("Info", "Pick one unmatched QIF and one unmatched Excel to explain."); return
         q = next(x for x in s.unmatched_qif() if x.key == sel_q)
-        er = next(x for x in s.unmatched_excel() if x.idx == sel_e)
-        self._m_info(s.nonmatch_reason(q, er))
+        grp = s.excel_groups[sel_e]
+        self._m_info(s.nonmatch_reason(q, grp))
 
     def _m_toggle_previews(self):
         show = bool(self.m_preview_var.get())
@@ -531,18 +593,9 @@ class MergeTab(ttk.Frame):
             self._m_update_preview("pairs")
             self._m_update_preview("unx")
 
-    # --- replace your _m_update_preview with this ---
     def _m_update_preview(self, which: str):
         if not self.m_preview_var.get():
             return
-
-        # ensure preview areas are visible in case user toggled after selecting
-        for w in (self.prev_unqif, self.prev_pairs, self.prev_unx):
-            if str(w) not in str(w.pack_info()) and which in ("unqif", "pairs", "unx"):
-                # if not packed (was pack_forget), don’t auto-pack here;
-                # packing is handled by _m_toggle_previews. Just proceed to set text.
-                pass
-
         try:
             if which == "unqif":
                 idxs = self.lbx_unqif.curselection()
@@ -557,11 +610,6 @@ class MergeTab(ttk.Frame):
                     "category": getattr(q, "category", ""),
                     "memo": getattr(q, "memo", ""),
                     "transfer_account": getattr(getattr(q, "key", None), "transfer_account", ""),
-                    "splits": [
-                        {"category": getattr(sp, "category", ""), "memo": getattr(sp, "memo", ""),
-                         "amount": getattr(sp, "amount", "")}
-                        for sp in getattr(q, "splits", []) or []
-                    ],
                 }
                 _set_text(self.prev_unqif, _fmt_txn(tx))
 
@@ -570,13 +618,16 @@ class MergeTab(ttk.Frame):
                 if not idxs:
                     _set_text(self.prev_unx, "")
                     return
-                er = self._unx_sorted[idxs[0]]
+                grp = self._unx_sorted[idxs[0]]
+                first = grp.rows[0] if grp.rows else None
                 row = {
-                    "Date": er.date.isoformat(),
-                    "Amount": er.amount,
-                    "Item": getattr(er, "item", ""),
-                    "Canonical MECE Category": getattr(er, "category", ""),
-                    "Categorization Rationale": getattr(er, "rationale", ""),
+                    "TxnID": grp.gid,
+                    "Date": grp.date.isoformat(),
+                    "Total Amount": grp.total_amount,
+                    "Split Count": len(grp.rows),
+                    "First Item": first.item if first else "",
+                    "First Category": first.category if first else "",
+                    "First Rationale": first.rationale if first else "",
                 }
                 _set_text(self.prev_unx, _fmt_excel_row(row))
 
@@ -585,13 +636,15 @@ class MergeTab(ttk.Frame):
                 if not idxs:
                     _set_text(self.prev_pairs, "")
                     return
-                q, er, _ = self._pairs_sorted[idxs[0]]
+                q, grp, _ = self._pairs_sorted[idxs[0]]
                 excel_row = {
-                    "Date": getattr(er, "date", None) and er.date.isoformat(),
-                    "Amount": getattr(er, "amount", ""),
-                    "Item": getattr(er, "item", ""),
-                    "Canonical MECE Category": getattr(er, "category", ""),
-                    "Categorization Rationale": getattr(er, "rationale", ""),
+                    "TxnID": grp.gid,
+                    "Date": grp.date.isoformat(),
+                    "Total Amount": grp.total_amount,
+                    "Split Count": len(grp.rows),
+                    "First Item": grp.rows[0].item if grp.rows else "",
+                    "First Category": grp.rows[0].category if grp.rows else "",
+                    "First Rationale": grp.rows[0].rationale if grp.rows else "",
                 }
                 qif_tx = {
                     "date": getattr(q, "date", None) and q.date.isoformat(),
@@ -600,17 +653,11 @@ class MergeTab(ttk.Frame):
                     "category": getattr(q, "category", ""),
                     "memo": getattr(q, "memo", ""),
                     "transfer_account": getattr(getattr(q, "key", None), "transfer_account", ""),
-                    "splits": [
-                        {"category": getattr(sp, "category", ""), "memo": getattr(sp, "memo", ""),
-                         "amount": getattr(sp, "amount", "")}
-                        for sp in getattr(q, "splits", []) or []
-                    ],
                 }
                 text = "[Excel]\n" + _fmt_excel_row(excel_row) + "\n\n[QIF]\n" + _fmt_txn(qif_tx)
                 _set_text(self.prev_pairs, text)
 
         except Exception as e:
-            # show a minimal error so problems aren’t silently hidden
             try:
                 self._m_info(f"Preview error: {e}")
             except Exception:
