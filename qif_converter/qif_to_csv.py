@@ -19,7 +19,7 @@ from pathlib import Path
 import csv
 import argparse
 import re
-from typing import List, Dict, Any, Optional, Iterable, TextIO, Union
+from typing import List, Dict, Any, Optional, Iterable, TextIO, Union, IO
 from collections import defaultdict
 import fnmatch
 
@@ -61,7 +61,8 @@ def parse_qif(path: Path, encoding: str = "utf-8") -> List[Dict[str, Any]]:
         rec.setdefault("splits", [])
         txns.append(rec)
 
-    with path.open("r", encoding=encoding, errors="replace") as f:
+    with _open_for_read(path=path,binary=False,encoding=encoding,errors="replace") as f:
+    #with path.open("r", encoding=encoding, errors="replace") as f:
         rec: Dict[str, Any] = {}
         pending_split: Optional[Dict[str, str]] = None
         for raw_line in f:
@@ -221,39 +222,80 @@ def filter_by_date_range(txns: List[Dict[str, Any]], date_from: Optional[str], d
         out.append(t)
     return out
 
+# --------------------- Writer Helpers ---------------------
+
+def _emit_multiline_field(out, tag: str, value: str) -> None:
+    """
+    Write a multi-line QIF field so that EACH line is prefixed with the tag.
+    Example:
+      MLine 1
+      MLine 2
+    """
+    if value is None:
+        return
+    for line in str(value).splitlines():
+        out.write(f"{tag}{line}\n")
+
+def _open_for_read(path: Path, binary: bool = False, **kwargs):
+    mode = "rb" if binary else "r"
+    return open(path, mode, **kwargs)
+
+
+def _open_for_write(path: Path, *, binary: bool = False, newline: Optional[str] = "") -> IO:
+    """
+    Small indirection so tests can monkeypatch in-memory I/O.
+    Default behavior simply delegates to Path.open. Tests can replace
+    this function to support 'MEM://' or other schemes.
+    """
+    mode = "wb" if binary else "w"
+    kwargs = {} if binary else {"encoding": "utf-8", "newline": newline}
+    return open(path, mode, **kwargs)
 
 # ------------------------ Writers ------------------------
 
-def write_csv_flat(txns: List[Dict[str, Any]], out_path: Path, newline: str = "") -> None:
-    """One row per transaction; splits flattened into pipe-delimited columns."""
+def write_csv_flat(txns, out_path: Path, newline: str = "") -> None:
+    """
+    Write a flat CSV - One row per transaction; splits flattened into pipe-delimited columns.
+    Uses _open_for_write so tests can redirect to an in-memory stream.
+    """
+    import csv
+
     fieldnames = [
         "account","type","date","amount","payee","memo","category","transfer_account",
         "checknum","cleared","address","action","security","quantity","price","commission",
-        "split_count","split_categories","split_memos","split_amounts",
+        "split_count","split_category","split_memo","split_amount",
     ]
-    with out_path.open("w", encoding="utf-8", newline=newline) as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-        w.writeheader()
+
+    with _open_for_write(out_path, binary=False, newline=newline) as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
         for t in txns:
             splits = t.get("splits", [])
             row = dict(t)
             row["split_count"] = str(len(splits))
-            row["split_categories"] = " | ".join(s.get("category", "") for s in splits) if splits else ""
-            row["split_memos"] = " | ".join(s.get("memo", "") for s in splits) if splits else ""
-            row["split_amounts"] = " | ".join(s.get("amount", "") for s in splits) if splits else ""
-            w.writerow({k: row.get(k, "") for k in fieldnames})
+            row["split_category"] = " | ".join(s.get("category", "") for s in splits) if splits else ""
+            row["split_memo"] = " | ".join(s.get("memo", "") for s in splits) if splits else ""
+            row["split_amount"] = " | ".join(s.get("amount", "") for s in splits) if splits else ""
+            writer.writerow({k: row.get(k, "") for k in fieldnames})
 
 
-def write_csv_exploded(txns: List[Dict[str, Any]], out_path: Path, newline: str = "") -> None:
-    """One row per split; non-split transactions produce a single row with empty split_* fields."""
+def write_csv_exploded(txns, out_path: Path, newline: str = "") -> None:
+    """
+    Write an exploded CSV (one row per split; transactions without splits
+    still produce a single row). Uses _open_for_write for testable I/O.
+    """
+    import csv
+
     fieldnames = [
         "account","type","date","amount","payee","memo","category","transfer_account",
         "checknum","cleared","address","action","security","quantity","price","commission",
         "split_category","split_memo","split_amount",
     ]
-    with out_path.open("w", encoding="utf-8", newline=newline) as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-        w.writeheader()
+
+    with _open_for_write(out_path, binary=False, newline=newline) as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+
         for t in txns:
             splits = t.get("splits", [])
             base = {k: t.get(k, "") for k in fieldnames if not k.startswith("split_")}
@@ -263,9 +305,9 @@ def write_csv_exploded(txns: List[Dict[str, Any]], out_path: Path, newline: str 
                     row["split_category"] = s.get("category", "")
                     row["split_memo"] = s.get("memo", "")
                     row["split_amount"] = s.get("amount", "")
-                    w.writerow(row)
+                    writer.writerow(row)
             else:
-                w.writerow(base)
+                writer.writerow(base)
 
 
 def _safe_float(s: str) -> Optional[float]:
@@ -281,7 +323,7 @@ def write_csv_quicken_windows(txns: List[Dict[str, Any]], out_path: Path, newlin
     Date, Payee, FI Payee, Amount, Debit/Credit, Category, Account, Tag, Memo, Chknum
     """
     fieldnames = ["Date","Payee","FI Payee","Amount","Debit/Credit","Category","Account","Tag","Memo","Chknum"]
-    with out_path.open("w", encoding="utf-8", newline=newline) as f:
+    with _open_for_write(out_path,binary=False) as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
         for t in txns:
@@ -308,7 +350,7 @@ def write_csv_quicken_mac(txns: List[Dict[str, Any]], out_path: Path, newline: s
     Amount must be positive; direction in Transaction Type: debit/credit
     """
     fieldnames = ["Date","Description","Original Description","Amount","Transaction Type","Category","Account Name","Labels","Notes"]
-    with out_path.open("w", encoding="utf-8", newline=newline) as f:
+    with _open_for_write(out_path, binary=False) as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
         for t in txns:
@@ -352,33 +394,106 @@ def write_qif(txns: list[dict], out: Union[str, os.PathLike, TextIO], encoding: 
 
 def _write_qif_to_stream(txns: list[dict], fp: TextIO) -> None:
     """
-    The core writer that emits to a text stream.
-    Keep all your existing QIF formatting logic here.
+    Core QIF writer that emits to a text stream.
+
+    Behavior:
+      - Emits an !Account block whenever the transaction's 'account' changes.
+        Includes:
+          * N<account name>
+          * T<account type> (e.g., TBank) derived from txn["type"] or default 'Bank'
+      - Emits the proper !Type:<TypeName> header when the transaction 'type' changes.
+      - Writes address lines correctly by splitting a single string on newlines,
+        or iterating a pre-split sequence of lines.
+      - Preserves existing behavior for memo: a single 'M' line may contain embedded
+        newlines if the memo is multi-line.
     """
-    # Example skeleton; keep your actual field order/formatting rules unchanged.
-    fp.write("!Type:Bank\n")
+    current_account: str | None = None
+    current_type: str | None = None
+
     for r in txns:
-        # date line (D), main amount (T), payee (P), memo (M), category (L), address lines (A)
+        # Derive txn_type early since we may need it for the !Account block.
+        txn_type = (r.get("type") or "Bank").strip()
+
+        # 1) Account block (when account changes and account is non-empty)
+        acct = (r.get("account") or "").strip()
+        if acct and acct != current_account:
+            fp.write("!Account\n")
+            fp.write(f"N{acct}\n")
+            # Include account type in the account list block (what the test expects)
+            fp.write(f"T{txn_type}\n")
+            fp.write("^\n")
+            current_account = acct
+            # Reset the current_type so we re-emit the !Type header after switching accounts
+            current_type = None
+
+        # 2) Type header (when type changes; default to Bank)
+        if txn_type != current_type:
+            fp.write(f"!Type:{txn_type}\n")
+            current_type = txn_type
+
+        # 3) Transaction body
         d = r.get("date", "")
         if d:
             fp.write(f"D{d}\n")
+
         amt = r.get("amount", "")
         if amt != "":
-            fp.write(f"T{amt}\n")  # main txn amount uses 'T'
+            fp.write(f"T{amt}\n")
+
         payee = r.get("payee", "")
         if payee:
             fp.write(f"P{payee}\n")
+
         memo = r.get("memo", "")
         if memo:
-            fp.write(f"M{memo}\n")
+            _emit_multiline_field(fp, "M", memo)
+
         cat = r.get("category", "")
         if cat:
             fp.write(f"L{cat}\n")
-        for a in r.get("address", []) or []:
-            fp.write(f"A{a}\n")
 
-        # splits (if you support them): each split line uses $ for amount, S for category, E for memo
-        for s in r.get("splits", []) or []:
+        # Optional scalar fields
+        checknum = r.get("checknum", "")
+        if checknum:
+            fp.write(f"N{checknum}\n")
+
+        cleared = r.get("cleared", "")
+        if cleared:
+            fp.write(f"C{cleared}\n")
+
+        # Address can be a single string (splitlines) or a sequence of lines
+        addr = r.get("address", "")
+        if isinstance(addr, str):
+            addr_lines = [line for line in addr.splitlines() if line != ""]
+        elif addr:
+            try:
+                addr_lines = list(addr)
+            except TypeError:
+                addr_lines = []
+        else:
+            addr_lines = []
+        for line in addr_lines:
+            fp.write(f"A{line}\n")
+
+        # Investment fields (pass-through if present)
+        action = r.get("action", "")
+        if action:
+            fp.write(f"N{action}\n")
+        security = r.get("security", "")
+        if security:
+            fp.write(f"Y{security}\n")
+        quantity = r.get("quantity", "")
+        if quantity != "":
+            fp.write(f"Q{quantity}\n")
+        price = r.get("price", "")
+        if price != "":
+            fp.write(f"I{price}\n")
+        commission = r.get("commission", "")
+        if commission != "":
+            fp.write(f"O{commission}\n")
+
+        # 4) Splits
+        for s in (r.get("splits") or []):
             sc = s.get("category", "")
             if sc:
                 fp.write(f"S{sc}\n")
@@ -389,8 +504,8 @@ def _write_qif_to_stream(txns: list[dict], fp: TextIO) -> None:
             if sa != "":
                 fp.write(f"${sa}\n")
 
+        # 5) Record terminator
         fp.write("^\n")
-
 
 
 # ------------------------ CLI ------------------------

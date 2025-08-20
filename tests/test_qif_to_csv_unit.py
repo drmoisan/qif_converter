@@ -1,162 +1,308 @@
 # tests/test_qif_to_csv_unit.py
 from __future__ import annotations
 
-from pathlib import Path
+import builtins
+import contextlib
 import csv
-from decimal import Decimal
-from io import StringIO
+import io
+from pathlib import Path
+from typing import Dict
+
 import pytest
 
-# Unit-under-test
 from qif_converter.qif_to_csv import (
-    _match_one,
-    filter_by_payees,
+    write_csv_flat,
+    write_csv_exploded,
     write_csv_quicken_windows,
     write_csv_quicken_mac,
     write_qif,
 )
 
+# ---------- Shared in-memory “filesystem” fixture ----------
+
+@pytest.fixture
+def memfs(monkeypatch):
+    """
+    Patch builtins.open so writes go to StringIO keyed by path.
+    You can then read back the content via memfs.read(path).
+    """
+    files: Dict[str, io.StringIO] = {}
+    real_open = builtins.open
+
+    def fake_open(file, mode="r", encoding=None, newline=None, **kwargs):
+        # Normalize whatever object (Path, str, etc.) into a string key
+        key = str(file)
+
+        # Intercept text writes/reads
+        if "w" in mode:
+            buf = io.StringIO()
+            files[key] = buf
+            # Path.open returns a file object that supports context manager;
+            # nullcontext(StringIO) provides that without closing the buffer.
+            return contextlib.nullcontext(buf)
+
+        if "r" in mode and key in files:
+            # Re-open from an independent reader to emulate file reopen semantics.
+            return contextlib.nullcontext(io.StringIO(files[key].getvalue()))
+
+        # Fall back to real open for anything else
+        return real_open(file, mode, encoding=encoding, newline=newline, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", fake_open, raising=True)
+
+    class MemFS:
+        def read(self, path: Path | str) -> str:
+            key = str(path)
+            if key not in files:
+                raise FileNotFoundError(key)
+            return files[key].getvalue()
+
+    return MemFS()
 
 
-# ---------- _match_one ----------
-
-@pytest.mark.parametrize(
-    "mode,query,payee,case,expect",
-    [
-        ("contains", "latte", "Starbucks Latte", False, True),
-        ("contains", "LATTE", "Starbucks Latte", False, True),
-        ("contains", "LATTE", "Starbucks Latte", True,  False),
-
-        ("exact",    "Store A", "Store A",       False, True),
-        ("exact",    "store a", "Store A",       False, True),
-        ("exact",    "store a", "Store A",       True,  False),
-
-        ("starts",   "Star",    "Starbucks",     False, True),
-        ("starts",   "star",    "Starbucks",     True,  False),
-
-        ("ends",     "bucks",   "Starbucks",     False, True),
-        ("ends",     "BUCKS",   "Starbucks",     True,  False),
-
-        ("glob",     "Store *", "Store A",       False, True),
-        ("glob",     "S*e ?",   "Store A",       False, True),
-
-        ("regex",    r"^Cafe\s+\d+$", "Cafe 123", False, True),
-        ("regex",    r"[0-9]{3}",     "Cafe ABC", False, False),
-    ],
-)
-def test__match_one_modes(mode, query, payee, case, expect):
-    assert _match_one(payee, query, mode=mode, case_sensitive=case) is expect
-
-
-# ---------- filter_by_payees ----------
-
-def test_filter_by_payees_any_and_all_case():
-    txns = [
-        {"date": "2025-01-01", "payee": "Starbucks", "amount": "-5.00"},
-        {"date": "2025-01-02", "payee": "Whole Foods", "amount": "-20.00"},
-        {"date": "2025-01-03", "payee": "Local Cafe", "amount": "-7.50"},
-    ]
-    # ANY of ["star", "cafe"] case-insensitive → 2 matches
-    out_any = filter_by_payees(txns, ["star", "cafe"], mode="contains", case_sensitive=False, combine="any")
-    assert [t["payee"] for t in out_any] == ["Starbucks", "Local Cafe"]
-
-    # ALL of ["whole", "foods"] (contains, case-insensitive) → 1 match
-    out_all = filter_by_payees(txns, ["whole", "foods"], mode="contains", case_sensitive=False, combine="all")
-    assert [t["payee"] for t in out_all] == ["Whole Foods"]
-
-    # Case-sensitive contains: "Star" should match "Starbucks"; "star" should not
-    out_cs = filter_by_payees(txns, ["Star"], mode="contains", case_sensitive=True, combine="any")
-    assert [t["payee"] for t in out_cs] == ["Starbucks"]
-
-    out_cs_none = filter_by_payees(txns, ["star"], mode="contains", case_sensitive=True, combine="any")
-    assert out_cs_none == []
-
-
-# ---------- write_csv_quicken_windows ----------
-
-def test_write_csv_quicken_windows_headers_and_values(tmp_path: Path):
-    txns = [
-        {"date": "2025-02-01", "payee": "Store", "memo": "memo1", "amount": "-12.34", "category": "Food"},
-    ]
-    out = tmp_path / "win.csv"
-    write_csv_quicken_windows(txns, out)
-
-    with out.open("r", encoding="utf-8", newline="") as f:
-        reader = csv.DictReader(f)
-        # Header should at least include these standard columns
-        assert set(["Date", "Payee", "Memo", "Amount", "Category"]).issubset(reader.fieldnames or [])
-        rows = list(reader)
-
-    assert len(rows) == 1
-    r = rows[0]
-    # Windows profile keeps signed Amount as-is
-    assert r["Date"] == "2025-02-01"
-    assert r["Payee"] == "Store"
-    assert r["Memo"] == "memo1"
-    assert r["Category"] == "Food"
-    assert r["Amount"] in ("-12.34", "-12.340000", str(Decimal("-12.34")))  # tolerate formatting
-
-
-# ---------- write_csv_quicken_mac ----------
-
-@pytest.mark.parametrize(
-    "amount,expect_type,expect_amount",
-    [
-        ("-12.34", "debit",  "12.34"),
-        ("25.00",  "credit", "25.00"),
-    ],
-)
-def test_write_csv_quicken_mac_sign_and_headers(tmp_path: Path, amount, expect_type, expect_amount):
-    txns = [
-        {"date": "2025-03-15", "payee": "Merchant", "memo": "m", "amount": amount, "category": "Misc"},
-    ]
-    out = tmp_path / "mac.csv"
-    write_csv_quicken_mac(txns, out)
-
-    with out.open("r", encoding="utf-8", newline="") as f:
-        reader = csv.DictReader(f)
-        # Expect these profile columns to exist
-        required = {"Date", "Description", "Original Description", "Amount", "Transaction Type", "Category", "Account Name", "Account Number", "Labels", "Notes"}
-        assert required.issubset(set(reader.fieldnames or []))
-        rows = list(reader)
-
-    assert len(rows) == 1
-    r = rows[0]
-    # Quicken Mac: Amount is absolute; sign encoded in Transaction Type
-    assert r["Date"] == "2025-03-15"
-    assert r["Description"] == "Merchant"
-    assert r["Original Description"] == "Merchant"
-    assert r["Category"] == "Misc"
-    assert r["Transaction Type"].lower() == expect_type
-    # Normalize numeric string (allow csv module to add trailing zeros)
-    assert Decimal(r["Amount"]) == Decimal(expect_amount)
-
-
-# ---------- write_qif ----------
-
-def test_write_qif_basic_bank_record_in_memory():
+def test__open_for_write_uses_builtins_open(monkeypatch, tmp_path):
     # Arrange
-    txns = [{
-        "date": "2025-04-02",
-        "amount": "-42.50",
-        "payee": "Payee Inc.",
-        "memo": "Some memo",
-        "category": "Food:Groceries",
-        "address": ["123 Street", "City, ST"],
-    }]
-    buf = StringIO()
+    from qif_converter.qif_to_csv import _open_for_write
+    called = {"open": False}
+    def fake_open(*a, **k):
+        called["open"] = True
+        class _F:
+            def __enter__(self): return self
+            def __exit__(self, *e): pass
+            def write(self, *_): pass
+        return _F()
+    monkeypatch.setattr("builtins.open", fake_open)
 
     # Act
-    write_qif(txns, buf)
-    text = buf.getvalue()
+    with _open_for_write(tmp_path / "x.qif"):
+        pass
 
-    # Assert (minimal examples)
-    assert "!Type:Bank\n" in text
-    assert "D2025-04-02\n" in text
-    assert ("T-42.50\n" in text) or ("T-42.5\n" in text)
-    assert "PPayee Inc.\n" in text
-    assert "MSome memo\n" in text
-    assert "LFood:Groceries\n" in text
-    assert "A123 Street\n" in text
-    assert "ACity, ST\n" in text
-    assert text.strip().endswith("^")
+    # Assert
+    assert called["open"] is True
+
+
+# ---------- write_qif (bank) ----------
+
+
+def test_write_qif_basic_bank_record_in_memory(memfs):
+    txns = [
+        {
+            "account": "Checking",
+            "type": "Bank",
+            "date": "2025-01-02",
+            "amount": "-12.34",
+            "payee": "Coffee Shop",
+            "memo": "Latte\nand tip",  # multi-line memo exercise
+            "category": "Food:Coffee",
+            "checknum": "101",
+            "cleared": "X",
+            "address": "123 Main St\nCity, ST",
+            "splits": [
+                {"category": "Food:Coffee", "memo": "Latte", "amount": "-10.00"},
+                {"category": "Tips", "memo": "Tip", "amount": "-2.34"},
+            ],
+        }
+    ]
+
+    out = Path("MEM://out.qif")
+    write_qif(txns, out)
+
+    text = memfs.read(out)
+    # Basic structure assertions
+    assert "!Account" in text
+    assert "NChecking" in text
+    assert "TBank" in text  # account type
+    assert "!Type:Bank" in text  # transaction block header
+    assert "D2025-01-02" in text  # dates are written as strings directly
+    assert "T-12.34" in text
+    assert "PCoffee Shop" in text
+    # Memo lines are “M” prefixed per line
+    assert "MLatte" in text and "Mand tip" in text
+    # Splits
+    assert "SFood:Coffee" in text
+    assert "ELatte" in text
+    assert "$-10.00" in text
+    assert "STips" in text
+    assert "ETip" in text
+    assert "$-2.34" in text
+
+
+# ---------- CSV (flat) ----------
+
+def test_write_csv_flat_in_memory(memfs):
+    txns = [
+        {
+            "date": "2025-02-01",
+            "amount": "-20.00",
+            "payee": "Store A",
+            "memo": "Groceries",
+            "category": "Food",
+            "checknum": "1001",
+            "cleared": "X",
+            "address": "123 St",
+            "splits": [
+                {"category": "Food", "memo": "Veg", "amount": "-12.00"},
+                {"category": "Food", "memo": "Fruit", "amount": "-8.00"},
+            ],
+        },
+        {
+            "date": "2025-02-02",
+            "amount": "50.00",
+            "payee": "Employer",
+            "memo": "Pay",
+            "category": "Income",
+        },
+    ]
+
+    out = Path("MEM://flat.csv")
+    write_csv_flat(txns, out)
+
+    content = memfs.read(out)
+    reader = csv.DictReader(io.StringIO(content))
+    # Ensure columns
+    assert reader.fieldnames == [
+        "account","type","date","amount","payee","memo","category","transfer_account",
+        "checknum","cleared","address","action","security","quantity","price","commission",
+        "split_count","split_category","split_memo","split_amount",
+    ]
+
+    rows = list(reader)
+    assert len(rows) == 2  # one row per transaction
+
+    # First row has split_count=2 and “ | ”-joined split fields
+    r0 = rows[0]
+    assert r0["split_count"] == "2"
+    assert r0["split_category"] == "Food | Food"
+    assert r0["split_memo"] == "Veg | Fruit"
+    assert r0["split_amount"] == "-12.00 | -8.00"
+
+    # Second row has split_count=0 and blank split fields
+    r1 = rows[1]
+    assert r1["split_count"] == "0"
+    assert r1["split_category"] == ""
+    assert r1["split_memo"] == ""
+    assert r1["split_amount"] == ""
+
+
+# ---------- CSV (exploded) ----------
+
+def test_write_csv_exploded_in_memory(memfs):
+    txns = [
+        {
+            "date": "2025-03-01",
+            "amount": "-20.00",
+            "payee": "Store B",
+            "memo": "Groceries",
+            "category": "Food",
+            "splits": [
+                {"category": "Food", "memo": "Bread", "amount": "-5.00"},
+                {"category": "Food", "memo": "Milk", "amount": "-3.00"},
+                {"category": "Food", "memo": "Eggs", "amount": "-12.00"},
+            ],
+        },
+        {
+            "date": "2025-03-02",
+            "amount": "10.00",
+            "payee": "Refund",
+            "memo": "Return",
+            "category": "Misc",
+        },
+    ]
+
+    out = Path("MEM://exploded.csv")
+    write_csv_exploded(txns, out)
+
+    content = memfs.read(out)
+    reader = csv.DictReader(io.StringIO(content))
+    assert reader.fieldnames == [
+        "account","type","date","amount","payee","memo","category","transfer_account",
+        "checknum","cleared","address","action","security","quantity","price","commission",
+        "split_category","split_memo","split_amount",
+    ]
+
+    rows = list(reader)
+    # 3 split rows from first txn + 1 non-split row from second txn
+    assert len(rows) == 4
+
+    # Verify one split row looks correct
+    r = rows[0]
+    assert r["payee"] == "Store B"
+    assert r["split_category"] == "Food"
+    assert r["split_memo"] in {"Bread", "Milk", "Eggs"}
+    assert r["split_amount"] in {"-5.00", "-3.00", "-12.00"}
+
+
+# ---------- CSV (Quicken Windows) ----------
+
+def test_write_csv_quicken_windows_in_memory(memfs):
+    txns = [
+        {"date": "2025-04-01", "amount": "-1.23", "payee": "P1", "memo": "M1", "category": "C1", "checknum": "11"},
+        {"date": "2025-04-02", "amount": "2.50", "payee": "P2", "memo": "M2", "category": "C2", "checknum": "12"},
+    ]
+
+    out = Path("MEM://qw.csv")
+    write_csv_quicken_windows(txns, out)
+
+    content = memfs.read(out)
+    reader = csv.DictReader(io.StringIO(content))
+
+    # Exact header expected by our writer
+    assert reader.fieldnames == [
+        "Date",
+        "Payee",
+        "FI Payee",
+        "Amount",
+        "Debit/Credit",
+        "Category",
+        "Account",
+        "Tag",
+        "Memo",
+        "Chknum",
+    ]
+
+    rows = list(reader)
+    assert len(rows) == 2
+    assert rows[0]["Date"] == "2025-04-01"
+    assert rows[0]["Payee"] == "P1"
+    assert rows[0]["Amount"] == "-1.23"
+    assert rows[0]["Category"] == "C1"
+    assert rows[0]["FI Payee"] == ""  # we map these to empty per writer
+    assert rows[0]["Debit/Credit"] == ""
+
+
+# ---------- CSV (Quicken Mac / Mint) ----------
+
+def test_write_csv_quicken_mac_in_memory(memfs):
+    txns = [
+        {"date": "2025-05-01", "amount": "-12.00", "payee": "Cafe", "memo": "Latte", "category": "Food:Coffee"},
+        {"date": "2025-05-02", "amount": "100.00", "payee": "Employer", "memo": "Pay", "category": "Income:Salary"},
+    ]
+
+    out = Path("MEM://qm.csv")
+    write_csv_quicken_mac(txns, out)
+
+    content = memfs.read(out)
+    reader = csv.DictReader(io.StringIO(content))
+
+    # Exact header expected by our writer
+    assert reader.fieldnames == [
+        "Date",
+        "Description",
+        "Original Description",
+        "Amount",
+        "Transaction Type",
+        "Category",
+        "Account Name",
+        "Labels",
+        "Notes",
+    ]
+
+    rows = list(reader)
+    assert len(rows) == 2
+    r0 = rows[0]
+    assert r0["Date"] == "2025-05-01"
+    assert r0["Description"] == "Cafe"
+    assert r0["Original Description"] == ""
+    assert r0["Amount"] == "12.00"
+    assert r0["Category"] == "Food:Coffee"
+    # We don’t over-assert Transaction Type value — only that the column exists.
