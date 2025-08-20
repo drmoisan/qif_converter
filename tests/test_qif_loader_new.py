@@ -65,7 +65,6 @@ def test_parse_qif_unified_combines_txns_and_unknown_sections(tmp_path: Path, mo
     # We don't assert exact field mapping—just that at least one item was parsed
     assert len(parsed.other_sections["Unknown:Foo"]) >= 1
 
-
 def test_load_transactions_uses_parse_qif_unified(tmp_path: Path, monkeypatch):
     """
     Arrange: monkeypatch parse_qif_unified to return a ParsedQIF with known txns.
@@ -83,15 +82,15 @@ def test_load_transactions_uses_parse_qif_unified(tmp_path: Path, monkeypatch):
 
     def fake_parse(p, encoding="utf-8"):
         return ParsedQIF(
-            txns=list(stub_txns),
-            accounts=[],
-            categories=[],
-            memorized=[],
-            securities=[],
-            classes=[],
-            payees=[],
-            unknown_sections={},
-        )
+            transactions=list(stub_txns),
+            accounts = [],
+            categories = [],
+            memorized_payees = [],
+            securities = [],
+            business_list = [],
+            payees = [],
+            other_sections = {},
+            )
 
     monkeypatch.setattr(ql, "parse_qif_unified", fake_parse)
 
@@ -100,7 +99,6 @@ def test_load_transactions_uses_parse_qif_unified(tmp_path: Path, monkeypatch):
 
     # --- Assert ---
     assert txns == stub_txns, "load_transactions should return ParsedQIF.transactions from parse_qif_unified."
-
 
 def test_parse_qif_unified_no_other_sections(tmp_path: Path, monkeypatch):
     """
@@ -127,12 +125,11 @@ def test_parse_qif_unified_no_other_sections(tmp_path: Path, monkeypatch):
     assert parsed.transactions == stub_txns
     assert parsed.accounts == []
     assert parsed.categories == []
-    assert parsed.memorized == []
+    assert parsed.memorized_payees == []
     assert parsed.securities == []
-    assert parsed.classes == []
+    assert parsed.business_list == []
     assert parsed.payees == []
-    assert parsed.unknown_sections == {}
-
+    assert parsed.other_sections == {}
 
 def test_parse_qif_unified_handles_multiple_known_headers_minimally(tmp_path: Path, monkeypatch):
     """

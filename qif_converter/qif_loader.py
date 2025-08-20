@@ -43,7 +43,6 @@ def parse_qif_unified(path: Path, encoding: str = "utf-8") -> ParsedQIF:
         other_sections=other_sections,
     )
 
-
 def load_transactions(path: Path, encoding: str = "utf-8") -> List[Dict[str, Any]]:
     """Convenience: return only transactions from a unified parse."""
     return parse_qif_unified(path, encoding=encoding).transactions
@@ -105,7 +104,6 @@ _FIELD_MAP = {
         "M": "memo",
     },
 }
-
 
 def _parse_non_txn_sections(
     path: Path, encoding: str = "utf-8"

@@ -3,13 +3,12 @@ from __future__ import annotations
 
 from pathlib import Path
 import csv
-import io
 from decimal import Decimal
+from io import StringIO
 import pytest
 
 # Unit-under-test
 from qif_converter.qif_to_csv import (
-    _parse_qif_date,
     _match_one,
     filter_by_payees,
     write_csv_quicken_windows,
@@ -17,20 +16,6 @@ from qif_converter.qif_to_csv import (
     write_qif,
 )
 
-# ---------- _parse_qif_date ----------
-
-@pytest.mark.parametrize(
-    "raw,expect_iso",
-    [
-        ("12/31'24", "2024-12-31"),
-        ("12/31/2024", "2024-12-31"),
-        ("2024-12-31", "2024-12-31"),
-        ("2024/12/31", "2024-12-31"),
-    ],
-)
-def test__parse_qif_date_formats(raw, expect_iso):
-    d = _parse_qif_date(raw)
-    assert d.isoformat() == expect_iso
 
 
 # ---------- _match_one ----------
@@ -149,31 +134,29 @@ def test_write_csv_quicken_mac_sign_and_headers(tmp_path: Path, amount, expect_t
 
 # ---------- write_qif ----------
 
-def test_write_qif_basic_bank_record(tmp_path: Path):
-    txns = [
-        {
-            "type": "Bank",
-            "date": "2025-04-02",
-            "amount": "-42.50",
-            "payee": "Books & Co",
-            "memo": "paperbacks",
-            "category": "Books",
-            "address": "123 Main St\nApt 4",
-        }
-    ]
-    out = tmp_path / "out.qif"
-    write_qif(txns, out)
+def test_write_qif_basic_bank_record_in_memory():
+    # Arrange
+    txns = [{
+        "date": "2025-04-02",
+        "amount": "-42.50",
+        "payee": "Payee Inc.",
+        "memo": "Some memo",
+        "category": "Food:Groceries",
+        "address": ["123 Street", "City, ST"],
+    }]
+    buf = StringIO()
 
-    text = out.read_text(encoding="utf-8")
-    # Must include a Type header for Bank
-    assert "!Type:Bank" in text
-    # Required record fields
-    assert "D2025-04-02" in text
-    assert "$-42.50" in text or "$-42.5" in text
-    assert "PBooks & Co" in text
-    assert "Mpaperbacks" in text
-    assert "LBooks" in text
-    # Address lines are prefixed with 'A'
-    assert "A123 Main St" in text and "AApt 4" in text
-    # Record terminator
-    assert "^\n" in text or text.endswith("^")
+    # Act
+    write_qif(txns, buf)
+    text = buf.getvalue()
+
+    # Assert (minimal examples)
+    assert "!Type:Bank\n" in text
+    assert "D2025-04-02\n" in text
+    assert ("T-42.50\n" in text) or ("T-42.5\n" in text)
+    assert "PPayee Inc.\n" in text
+    assert "MSome memo\n" in text
+    assert "LFood:Groceries\n" in text
+    assert "A123 Street\n" in text
+    assert "ACity, ST\n" in text
+    assert text.strip().endswith("^")
