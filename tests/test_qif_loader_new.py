@@ -55,15 +55,15 @@ def test_parse_qif_unified_combines_txns_and_unknown_sections(tmp_path: Path, mo
     # Non-txn lists exist and default to empty
     assert parsed.accounts == []
     assert parsed.categories == []
-    assert parsed.memorized == []
+    assert parsed.memorized_payees == []
     assert parsed.securities == []
-    assert parsed.classes == []
+    assert parsed.business_list == []
     assert parsed.payees == []
 
     # Unknown section preserved
-    assert "Unknown:Foo" in parsed.unknown_sections, "Unknown section header should be preserved."
+    assert "Unknown:Foo" in parsed.other_sections, "Unknown section header should be preserved."
     # We don't assert exact field mapping—just that at least one item was parsed
-    assert len(parsed.unknown_sections["Unknown:Foo"]) >= 1
+    assert len(parsed.other_sections["Unknown:Foo"]) >= 1
 
 
 def test_load_transactions_uses_parse_qif_unified(tmp_path: Path, monkeypatch):
