@@ -16,36 +16,8 @@ from .qif_txn_view import QIFTxnView
 # We re-use your parser and writer
 #from . import qif_to_csv as base
 import qif_converter as base
-
-# --- Small helpers -----------------------------------------------------------
-_DATE_FORMATS = ["%m/%d'%y", "%m/%d/%Y", "%Y-%m-%d"]
-
-def _parse_date(s: str) -> date:
-    s = (s or "").strip().replace("’", "'").replace("`", "'")
-    for fmt in _DATE_FORMATS:
-        try:
-            return datetime.strptime(s, fmt).date()
-        except ValueError:
-            pass
-    # Fallback: allow ISO-like "YYYY/MM/DD"
-    try:
-        return datetime.strptime(s, "%Y/%m/%d").date()
-    except ValueError:
-        raise ValueError(f"Unrecognized date: {s!r}")
-
-def _qif_date_to_date(s: str) -> date:
-    return _parse_date(s)
-
-def _to_decimal(s: str | float | int | Decimal) -> Decimal:
-    if isinstance(s, Decimal):
-        return s
-    if isinstance(s, (int, float)):
-        return Decimal(str(s))
-    txt = str(s or "").replace(",", "").replace("$", "").strip()
-    if txt in {"", "+", "-"}:
-        raise InvalidOperation(f"Empty amount: {s!r}")
-    return Decimal(txt)
-
+from .match_helpers import _DATE_FORMATS, _parse_date, _qif_date_to_date, _to_decimal
+from .match_session import MatchSession
 
 # --- Loading Excel (rows, then grouped by TxnID) ----------------------------
 

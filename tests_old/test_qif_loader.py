@@ -6,6 +6,7 @@ import builtins
 import io
 import pytest
 
+import qif_converter.qif_parsed
 from qif_converter import qif_loader as loader
 
 
@@ -133,7 +134,7 @@ def test_load_transactions_uses_unified(monkeypatch, tmp_path: Path):
     qif_file = tmp_path / "only_txns.qif"
     _write_qif(qif_file, "!Type:Bank\n^\n")
 
-    fake = loader.ParsedQIF(
+    fake = qif_converter.qif_parsed.ParsedQIF(
         transactions=[{"date": "2020-01-02", "amount": "10.00"}],
         accounts=[],
         categories=[],
