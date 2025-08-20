@@ -1,16 +1,14 @@
 # tests/test_excel_match.py
 # Tests updated for TxnID-grouped Excel splits and transaction-level matching.
+import pytest
 
-from qif_converter.match_excel import (
-    MatchSession,
-    load_excel_rows,
-    group_excel_rows,
-    build_matched_only_txns,
-)
+#from .. import qif_converter
+#import qif_converter
 from qif_converter import qif_to_csv as mod
+from qif_converter.match_session import MatchSession
+from qif_converter.match_excel import group_excel_rows, load_excel_rows, run_excel_qif_merge
 from pathlib import Path
 from decimal import Decimal
-
 
 def _mk_tx(date, amount, payee="P", memo="", category="", splits=None):
     t = {"date": date, "amount": amount, "payee": payee, "memo": memo, "category": category}
@@ -69,7 +67,6 @@ def test_manual_match_and_reason(tmp_path: Path):
     pd.DataFrame(rows, columns=[
         "TxnID","Date","Amount","Item","Canonical MECE Category","Categorization Rationale"
     ]).to_excel(xlsx, index=False)
-
     excel_groups = group_excel_rows(load_excel_rows(xlsx))
     session = MatchSession(txns, excel_groups=excel_groups)
     session.auto_match()
@@ -112,7 +109,10 @@ def test_unmatch_roundtrip(tmp_path: Path):
     assert len(session.matched_pairs()) == 1
 
     # Match back manually
-    ok, msg = session.manual_match(qkey=q.key, excel_group_index=gi)
+    #ok, msg = session.manual_match(qkey=q.key, excel_group_index=gi)
+    qkey = q.key
+    egi = gi
+    ok, msg = session.manual_match(qkey=qkey, excel_idx=egi)
     assert ok
     assert len(session.matched_pairs()) == 2
 
@@ -138,7 +138,6 @@ def test_end_to_end_helper_writes_new_file(tmp_path: Path):
     ]).to_excel(xlsx, index=False)
 
     # Merge and write
-    from qif_converter.match_excel import run_excel_qif_merge
     pairs, uq, ue = run_excel_qif_merge(qif_in, xlsx, qif_out)
     assert qif_out.exists()
     # Should have one pair, no unmatched

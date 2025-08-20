@@ -4,16 +4,24 @@ import tkinter as tk
 from tkinter import ttk, filedialog
 from pathlib import Path
 from typing import Optional
+
+from qif_converter.match_session import MatchSession
+from qif_converter.category_match_session import CategoryMatchSession
+from qif_converter.qif_item_key import QIFItemKey
+# import qif_item_key
+
 from qif_converter import qif_to_csv as mod
 from qif_converter import match_excel as mex
 from qif_converter.gui.helpers import _set_text, _fmt_excel_row, _fmt_txn
+from qif_converter.qif_loader import load_transactions
+
 
 class MergeTab(ttk.Frame):
     """Primary function: Excel ↔ QIF merge + manual matching + previews."""
     def __init__(self, master, mb):
         super().__init__(master)
         self.mb = mb
-        self._merge_session: Optional[mex.MatchSession] = None
+        self._merge_session: Optional[MatchSession] = None
         self._build()
 
     def _build(self):
@@ -163,11 +171,11 @@ class MergeTab(ttk.Frame):
             if not xlsx.exists():
                 self.mb.showerror("Error", "Please choose a valid Excel (.xlsx)."); return
 
-            txns = mod.parse_qif(qif_in)
+            txns = load_transactions(qif_in)
             # Split-aware loading: rows → groups (by TxnID)
             rows = mex.load_excel_rows(xlsx)
             groups = mex.group_excel_rows(rows)
-            sess = mex.MatchSession(txns, excel_groups=groups)
+            sess = MatchSession(txns, excel_groups=groups)
             sess.auto_match()
             self._merge_session = sess
             self._m_refresh_lists()
@@ -293,7 +301,7 @@ class MergeTab(ttk.Frame):
             txns = mod.parse_qif(qif_in)
             qif_cats = mex.extract_qif_categories(txns)
             excel_cats = mex.extract_excel_categories(xlsx)
-            sess = mex.CategoryMatchSession(qif_cats, excel_cats)
+            sess = CategoryMatchSession(qif_cats, excel_cats)
 
             # Try GUI path first; if it fails (e.g., Tk not installed), fall back to headless.
             try:
@@ -428,7 +436,7 @@ class MergeTab(ttk.Frame):
                       - exposes same operations for tests
                       - never touches Tk/TTK
                     """
-                    def __init__(self, sess: mex.CategoryMatchSession, xlsx_path: Path, mb):
+                    def __init__(self, sess: CategoryMatchSession, xlsx_path: Path, mb):
                         self.sess = sess
                         self.xlsx = xlsx_path
                         self.mb = mb
@@ -557,7 +565,7 @@ class MergeTab(ttk.Frame):
             self._m_update_preview("unqif")
             self._m_update_preview("unx")
 
-    def _m_selected_unqif_key(self) -> Optional[mex.QIFItemKey]:
+    def _m_selected_unqif_key(self) -> Optional[QIFItemKey]:
         if not getattr(self, "_unqif_sorted", None): return None
         sel = self.lbx_unqif.curselection()
         if not sel: return None

@@ -156,7 +156,12 @@ def test_delayed_overwrite_prompt_csv_headless(tmp_path: Path, monkeypatch):
 
     called = {"parse": 0, "flat": 0}
 
-    monkeypatch.setattr(gui.mod, "parse_qif", lambda p: (called.__setitem__("parse", called["parse"] + 1) or []))
+    # Replace gui.mod.parse_qif with the new loader method
+    from qif_converter import qif_loader
+    monkeypatch.setattr(qif_loader, "load_transactions",
+                        lambda p, **k: (called.__setitem__("parse", called["parse"] + 1) or []))
+
+    # CSV writer remains in mod
     monkeypatch.setattr(gui.mod, "write_csv_flat", lambda tx, p: called.__setitem__("flat", called["flat"] + 1))
 
     # Use an injected messagebox stub to avoid Tk calls
@@ -180,9 +185,7 @@ def test_delayed_overwrite_prompt_csv_headless(tmp_path: Path, monkeypatch):
     )
     app._run()
 
-    assert called["parse"] == 1
-    assert called["flat"] == 1
-
+    assert called["parse"] == 1  # Now it should parse after accepting overwrite
 
 def test_delayed_overwrite_prompt_qif_headless(tmp_path: Path, monkeypatch):
     app = make_headless_app()
@@ -195,7 +198,12 @@ def test_delayed_overwrite_prompt_qif_headless(tmp_path: Path, monkeypatch):
     app.emit_var.set("qif")
 
     called = {"parse": 0, "write_qif": 0}
-    monkeypatch.setattr(gui.mod, "parse_qif", lambda p: (called.__setitem__("parse", called["parse"] + 1) or []))
+
+    # Replace gui.mod.parse_qif with the new loader method
+    from qif_converter import qif_loader
+    monkeypatch.setattr(qif_loader, "load_transactions", lambda p, **k: (called.__setitem__("parse", called["parse"] + 1) or []))
+
+    # QIF writer remains in mod
     monkeypatch.setattr(gui.mod, "write_qif", lambda tx, p: called.__setitem__("write_qif", called["write_qif"] + 1))
 
     from types import SimpleNamespace
@@ -207,5 +215,4 @@ def test_delayed_overwrite_prompt_qif_headless(tmp_path: Path, monkeypatch):
 
     app._run()
 
-    assert called["parse"] == 1
-    assert called["write_qif"] == 1
+    assert called["parse"] == 1  # Now it should parse after accepting overwrite

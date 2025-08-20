@@ -4,10 +4,10 @@ import pandas as pd
 import pytest
 import tkinter as tk
 
+from qif_converter.category_match_session import CategoryMatchSession
+from qif_converter.match_excel import extract_qif_categories
 from qif_converter import qif_to_csv as mod
-from qif_converter import match_excel as mex
 from qif_converter.gui import App
-
 
 # Skip entirely if tkinter isn’t importable (e.g., headless CI without Tk)
 pytest.importorskip("tkinter")
@@ -110,9 +110,9 @@ def headless_normalize():
     class Factory:
         def open(self, qif_in: Path, xlsx: Path):
             txns = mod.parse_qif(qif_in)
-            qif_cats = mex.extract_qif_categories(txns)
-            excel_cats = mex.extract_excel_categories(xlsx)
-            sess = mex.CategoryMatchSession(qif_cats, excel_cats)
+            qif_cats = extract_qif_categories(txns)
+            excel_cats = extract_excel_categories(xlsx)
+            sess = CategoryMatchSession(qif_cats, excel_cats)
 
             class HeadlessModal:
                 def auto_match(self, threshold: float = 0.84):
@@ -145,12 +145,15 @@ def headless_normalize():
 # Core extraction/fuzzy tests
 # --------------------------------------------------------------------------------------
 
+
+
 from qif_converter.match_excel import (
     extract_qif_categories,
     extract_excel_categories,
     fuzzy_autopairs,
-    CategoryMatchSession,
 )
+from qif_converter.category_match_session import CategoryMatchSession
+
 
 def test_extract_qif_categories_collects_txn_and_splits_and_sorts():
     txns = [

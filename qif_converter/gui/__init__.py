@@ -23,7 +23,7 @@ from .scaling import (
 )
 
 __all__ = [
-    "App",
+    #"App",
     "parse_date_maybe",
     "filter_date_range",
     "local_filter_by_payee",

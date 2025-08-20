@@ -1,10 +1,10 @@
 # tests/test_excel_only_matched.py
 from qif_converter.match_excel import (
-    MatchSession,
     build_matched_only_txns,
     load_excel_rows,
     group_excel_rows,
 )
+from qif_converter.match_session import MatchSession
 from decimal import Decimal
 from pathlib import Path
 import pandas as pd
