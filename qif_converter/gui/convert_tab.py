@@ -4,7 +4,9 @@ import tkinter as tk
 from tkinter import ttk, filedialog
 from pathlib import Path
 from typing import List
-from qif_converter import qif_to_csv as mod
+
+import qif_converter.qif_loader
+from qif_converter import qif_writer as mod
 from qif_converter.gui.helpers import filter_date_range, apply_multi_payee_filters
 from qif_converter.gui.csv_profiles import (
     write_csv_quicken_windows, write_csv_quicken_mac,)
@@ -193,7 +195,7 @@ class ConvertTab(ttk.Frame):
                         txns = qfx.parse_qfx(in_path)
                     else:
                         self.logln("Parsing QIF…")
-                        txns = mod.parse_qif(in_path)
+                        txns = qif_converter.qif_loader.parse_qif(in_path)
 
             if df or dt:
                 self.logln(f"Filtering by date range: from={df or 'MIN'} to={dt or 'MAX'}")

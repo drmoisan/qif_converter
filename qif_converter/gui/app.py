@@ -10,7 +10,7 @@ from typing import List
 from .scaling import apply_global_font_scaling
 
 # project modules
-from qif_converter import qif_to_csv as mod
+from qif_converter import qif_writer as mod
 from qif_converter.gui.merge_tab import MergeTab
 from qif_converter.gui.convert_tab import ConvertTab
 from qif_converter.gui.probe_tab import ProbeTab
@@ -200,7 +200,7 @@ class App(tk.Tk):
                                                      combine=combine)
 
                 self.logln(f"Transactions after filters: {len(txns)}")
-                from qif_converter import qif_to_csv as mod
+                from qif_converter import qif_writer as mod
 
                 if emit == "qif":
                     self.logln(f"Writing QIF → {out_path}")

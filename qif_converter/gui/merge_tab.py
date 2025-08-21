@@ -5,12 +5,13 @@ from tkinter import ttk, filedialog
 from pathlib import Path
 from typing import Optional
 
+import qif_converter.qif_loader
 from qif_converter.match_session import MatchSession
 from qif_converter.category_match_session import CategoryMatchSession
 from qif_converter.qif_item_key import QIFItemKey
 # import qif_item_key
 
-from qif_converter import qif_to_csv as mod
+from qif_converter import qif_writer as mod
 from qif_converter import match_excel as mex
 from qif_converter.gui.helpers import _set_text, _fmt_excel_row, _fmt_txn
 from qif_converter.qif_loader import load_transactions
@@ -298,7 +299,7 @@ class MergeTab(ttk.Frame):
                 return
 
             # Build session
-            txns = mod.parse_qif(qif_in)
+            txns = qif_converter.qif_loader.parse_qif(qif_in)
             qif_cats = mex.extract_qif_categories(txns)
             excel_cats = mex.extract_excel_categories(xlsx)
             sess = CategoryMatchSession(qif_cats, excel_cats)

@@ -4,9 +4,10 @@ import pandas as pd
 import pytest
 import tkinter as tk
 
+import qif_converter.qif_loader
 from qif_converter.category_match_session import CategoryMatchSession
 from qif_converter.match_excel import extract_qif_categories
-from qif_converter import qif_to_csv as mod
+from qif_converter import qif_writer as mod
 from qif_converter.gui import App
 
 # Skip entirely if tkinter isn’t importable (e.g., headless CI without Tk)
@@ -109,7 +110,7 @@ def headless_normalize():
     """
     class Factory:
         def open(self, qif_in: Path, xlsx: Path):
-            txns = mod.parse_qif(qif_in)
+            txns = qif_converter.qif_loader.parse_qif(qif_in)
             qif_cats = extract_qif_categories(txns)
             excel_cats = extract_excel_categories(xlsx)
             sess = CategoryMatchSession(qif_cats, excel_cats)

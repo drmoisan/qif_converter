@@ -1,7 +1,9 @@
 import csv
 import sys
 from pathlib import Path
-from qif_converter import qif_to_csv as mod
+
+import qif_converter.qif_loader
+from qif_converter import qif_writer as mod
 
 
 def write(tmp_path: Path, name: str, text: str) -> Path:
@@ -48,7 +50,7 @@ LFood:Coffee
 
 def test_filter_contains_case_insensitive(tmp_path: Path):
     qif_path = write(tmp_path, "sample.qif", SAMPLE_QIF)
-    txns = mod.parse_qif(qif_path)
+    txns = qif_converter.qif_loader.parse_qif(qif_path)
     out = mod.filter_by_payee(txns, "starbucks", mode="contains", case_sensitive=False)
     names = [t.get("payee") for t in out]
     assert len(out) == 2
@@ -58,7 +60,7 @@ def test_filter_contains_case_insensitive(tmp_path: Path):
 
 def test_filter_exact_case_sensitive(tmp_path: Path):
     qif_path = write(tmp_path, "sample.qif", SAMPLE_QIF)
-    txns = mod.parse_qif(qif_path)
+    txns = qif_converter.qif_loader.parse_qif(qif_path)
     out = mod.filter_by_payee(txns, "STARBUCKS 456", mode="exact", case_sensitive=True)
     assert len(out) == 1
     assert out[0]["payee"] == "STARBUCKS 456"
@@ -68,7 +70,7 @@ def test_filter_exact_case_sensitive(tmp_path: Path):
 
 def test_filter_startswith_endswith(tmp_path: Path):
     qif_path = write(tmp_path, "sample.qif", SAMPLE_QIF)
-    txns = mod.parse_qif(qif_path)
+    txns = qif_converter.qif_loader.parse_qif(qif_path)
     out = mod.filter_by_payee(txns, "Starbucks", mode="startswith", case_sensitive=True)
     assert len(out) == 1  # Only "Starbucks #123" when case-sensitive
     out2 = mod.filter_by_payee(txns, "Cafe", mode="endswith", case_sensitive=False)
@@ -78,7 +80,7 @@ def test_filter_startswith_endswith(tmp_path: Path):
 
 def test_filter_regex_and_glob(tmp_path: Path):
     qif_path = write(tmp_path, "sample.qif", SAMPLE_QIF)
-    txns = mod.parse_qif(qif_path)
+    txns = qif_converter.qif_loader.parse_qif(qif_path)
     out = mod.filter_by_payee(txns, r"(dunkin|joe's\s+cafe)", mode="regex", case_sensitive=False)
     names = [t["payee"] for t in out]
     assert set(names) == {"Dunkin Donuts", "Joe's Cafe"}
@@ -90,7 +92,7 @@ def test_filter_regex_and_glob(tmp_path: Path):
 
 def test_filter_multi_any_all(tmp_path: Path):
     qif_path = write(tmp_path, "sample.qif", SAMPLE_QIF)
-    txns = mod.parse_qif(qif_path)
+    txns = qif_converter.qif_loader.parse_qif(qif_path)
     # any: Starbucks or Dunkin (case-insensitive contains)
     out_any = mod.filter_by_payees(txns, ["starbucks", "dunkin"], mode="contains", case_sensitive=False, combine="any")
     assert set(t["payee"] for t in out_any) == {"Starbucks #123", "STARBUCKS 456", "Dunkin Donuts"}
@@ -140,7 +142,7 @@ LOther
 
 def test_date_range_filter(tmp_path: Path):
     src = write(tmp_path, "range.qif", ROUNDTRIP_QIF)
-    txns = mod.parse_qif(src)
+    txns = qif_converter.qif_loader.parse_qif(src)
     # range: include only 08/05'25..08/09'25 -> should exclude both
     filtered = mod.filter_by_date_range(txns, "08/05/2025", "2025-08-09")
     assert filtered == []

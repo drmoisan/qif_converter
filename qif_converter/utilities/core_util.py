@@ -5,8 +5,12 @@ Core Utilities
 Features:
 - Date Parsing support
 """
+from __future__ import annotations
+
 from datetime import datetime, date, timedelta
 import re
+from pathlib import Path
+
 
 def parse_date_string(s: object) -> date | None:
     """
@@ -117,3 +121,15 @@ def parse_date_string(s: object) -> date | None:
     # Nothing matched
     return None
 
+
+def _open_for_read(path: Path, binary: bool = False, **kwargs):
+    mode = "rb" if binary else "r"
+    return open(path, mode, **kwargs)
+
+
+QIF_SECTION_PREFIX = "!Type:"
+QIF_ACCOUNT_HEADER = "!Account"
+TRANSFER_RE = re.compile(
+    r"^\[(?:transfer:?\s*)?(?P<acct>.+?)]$",
+    re.IGNORECASE,
+)  # e.g., [Savings]

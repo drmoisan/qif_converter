@@ -10,7 +10,7 @@ from typing import Dict
 
 import pytest
 
-from qif_converter.qif_to_csv import (
+from qif_converter.qif_writer import (
     write_csv_flat,
     write_csv_exploded,
     write_csv_quicken_windows,
@@ -62,7 +62,7 @@ def memfs(monkeypatch):
 
 def test__open_for_write_uses_builtins_open(monkeypatch, tmp_path):
     # Arrange
-    from qif_converter.qif_to_csv import _open_for_write
+    from qif_converter.qif_writer import _open_for_write
     called = {"open": False}
     def fake_open(*a, **k):
         called["open"] = True

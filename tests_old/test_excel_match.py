@@ -4,7 +4,7 @@ import pytest
 
 #from .. import qif_converter
 #import qif_converter
-from qif_converter import qif_to_csv as mod
+from qif_converter import qif_writer as mod
 from qif_converter.match_session import MatchSession
 from qif_converter.match_excel import group_excel_rows, load_excel_rows, run_excel_qif_merge
 from pathlib import Path

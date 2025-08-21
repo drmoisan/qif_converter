@@ -1,7 +1,9 @@
 import csv
 from pathlib import Path
 import sys
-from qif_converter import qif_to_csv as mod
+
+import qif_converter.qif_loader
+from qif_converter import qif_writer as mod
 
 
 def write_qif(tmp_path: Path, text: str, name: str = "in.qif", encoding="utf-8") -> Path:
@@ -24,7 +26,7 @@ LShopping:General
 ^
 """
     p = write_qif(tmp_path, qif)
-    txns = mod.parse_qif(p)
+    txns = qif_converter.qif_loader.parse_qif(p)
     assert len(txns) == 1
     t = txns[0]
     assert t["type"] == "Bank"
@@ -48,7 +50,7 @@ LIncome:Salary
 ^
 """
     p = write_qif(tmp_path, qif)
-    txns = mod.parse_qif(p)
+    txns = qif_converter.qif_loader.parse_qif(p)
     assert len(txns) == 1
     t = txns[0]
     assert t["account"] == "Checking"
@@ -65,7 +67,7 @@ L[Savings]
 ^
 """
     p = write_qif(tmp_path, qif)
-    t = mod.parse_qif(p)[0]
+    t = qif_converter.qif_loader.parse_qif(p)[0]
     assert t["category"] == "[Savings]"
     assert t["transfer_account"] == "Savings"
 
@@ -85,7 +87,7 @@ $-25.32
 ^
 """
     p = write_qif(tmp_path, qif)
-    txns = mod.parse_qif(p)
+    txns = qif_converter.qif_loader.parse_qif(p)
     assert len(txns) == 1
     t = txns[0]
     assert len(t["splits"]) == 2
@@ -115,7 +117,7 @@ $-20.00
 ^
 """
     p = write_qif(tmp_path, qif)
-    txns = mod.parse_qif(p)
+    txns = qif_converter.qif_loader.parse_qif(p)
     out = tmp_path / "out_exploded.csv"
     mod.write_csv_exploded(txns, out)
     rows = read_csv(out)
@@ -138,7 +140,7 @@ O1.00
 ^
 """
     p = write_qif(tmp_path, qif)
-    t = mod.parse_qif(p)[0]
+    t = qif_converter.qif_loader.parse_qif(p)[0]
     assert t.get("action") == "Buy"
     assert t.get("checknum", "") == ""
     assert t["security"] == "ACME Corp"
@@ -160,7 +162,7 @@ LFood:Coffee
 ^
 """
     p = write_qif(tmp_path, qif)
-    t = mod.parse_qif(p)[0]
+    t = qif_converter.qif_loader.parse_qif(p)[0]
     assert t["address"] == "123 Main St\nSuite 456"
     assert t["memo"] == "Line1\nLine2"
 
@@ -174,7 +176,7 @@ LOther
 Zignored
 """
     p = write_qif(tmp_path, qif)
-    txns = mod.parse_qif(p)
+    txns = qif_converter.qif_loader.parse_qif(p)
     assert len(txns) == 1
     t = txns[0]
     assert t["payee"] == "Test"
