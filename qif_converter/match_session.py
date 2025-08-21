@@ -167,7 +167,8 @@ class MatchSession:
 
     def unmatched_qif(self) -> List[QIFTxnView]:
         if self.excel_groups:
-            return [tv for ti, tv in enumerate(self.txn_views) if ti not in self.qif_to_excel_group]
+            matched_keys = set(self.qif_to_excel_group.keys())
+            return [tv for tv in self.txn_views if tv.key not in matched_keys]
         # Legacy row-mode
         matched_ti = {k.txn_index for k in self.qif_to_excel.keys()}
         return [tv for ti, tv in enumerate(self.txn_views) if ti not in matched_ti]
@@ -194,10 +195,18 @@ class MatchSession:
             c = _candidate_cost(q.date, grp.date)
             if c is None:
                 return f"Date outside ±3 days (QIF {q.date.isoformat()} vs Excel group {grp.date.isoformat()})."
-            if q.key in self.qif_to_excel_group and self.qif_to_excel_group[q.key] is not grp:
-                return "QIF txn is already matched."
-            if grp in self.excel_group_to_qif and self.excel_group_to_qif[grp] is not q.key:
-                return "Excel group is already matched."
+
+            gi = self._group_index(grp)
+            if gi >= 0:
+                # Is this QIF txn already matched to a different group?
+                gi_for_q = self.qif_to_excel_group.get(q.key)
+                if gi_for_q is not None and gi_for_q != gi:
+                    return "QIF txn is already matched."
+                # Is this Excel group already matched to a different QIF txn?
+                q_for_g = self.excel_group_to_qif.get(gi)
+                if q_for_g is not None and q_for_g != q.key:
+                    return "Excel group is already matched."
+
             if c > 0:
                 return f"Auto-match preferred a closer date (day diff = {c})."
             return "Auto-match selected another candidate."
@@ -324,12 +333,9 @@ class MatchSession:
 
     # ----- THIS IS ONLY FOR ROW MODE. WILL DELETE SOON -----
     def _unmatch_excel(self, excel_idx: int) -> bool:
-        # Group mode: excel_idx refers to group index
+        # Group mode: excel_idx refers to group index (dict is keyed by int)
         if self.excel_groups is not None:
-            if excel_idx < 0 or excel_idx >= len(self.excel_groups):
-                return False
-            grp = self.excel_groups[excel_idx]
-            qkey = self.excel_group_to_qif.pop(grp, None)
+            qkey = self.excel_group_to_qif.pop(excel_idx, None)
             if qkey is None:
                 return False
             self.qif_to_excel_group.pop(qkey, None)
@@ -356,31 +362,28 @@ class MatchSession:
 
     def apply_updates(self) -> None:
         """
-        For each matched TRANSACTION:
-          - Replace QIF txn's splits with Excel group's rows, 1:1,
-            mapping to {"category", "memo", "amount"} from Excel
-            (Item -> memo, Canonical MECE Category -> category, Amount -> amount).
-          - If a txn previously had no splits, it becomes split with one row per Excel item.
+        For each matched pair (QIF txn ↔ Excel group), overwrite the txn's splits
+        with the group's row details. Transactions are matched at the transaction
+        level; split details come exclusively from Excel rows.
+
+        - category  ← Excel row category
+        - memo      ← Excel row item
+        - amount    ← Excel row amount (Decimal)
         """
-        if self.excel_groups:
-            for ti, gi in self.qif_to_excel_group.items():
-                t = self.txns[ti]
-                g = self.excel_groups[gi]
-                # Overwrite splits with the group's rows
+        for q_view, grp_or_row, _cost in self.matched_pairs():
+            # In group-mode we get an ExcelTxnGroup; in legacy mode it's an ExcelRow.
+            # The split-aware behavior only applies to groups. Legacy mode leaves splits untouched.
+            if hasattr(grp_or_row, "rows"):  # ExcelTxnGroup
+                grp = grp_or_row
+                txn = self.txns[q_view.key.txn_index]
+
+                # Build new splits from the group's rows, replacing any existing splits.
                 new_splits = []
-                for r in g.rows:
+                for r in grp.rows:
                     new_splits.append({
                         "category": r.category,
                         "memo": r.item,
-                        "amount": r.amount,
+                        "amount": r.amount,  # already a Decimal
                     })
-                t["splits"] = new_splits
-            return
 
-        # Legacy row-mode (minimal behavior): set category/memo on matched transactions
-        for key, ei in self.qif_to_excel.items():
-            ti = key.txn_index
-            t = self.txns[ti]
-            er = self.excel_rows[ei]
-            t["category"] = er.category
-            t["memo"] = er.item
+                txn["splits"] = new_splits
