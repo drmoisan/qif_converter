@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional
 import re
 
 # Project module is optional here; we use hasattr-guard in apply_multi_payee_filters
-from qif_converter import qif_to_csv as mod
+from qif_converter import qif_writer as mod
 
 _DATE_FORMATS = ["%m/%d'%y", "%m/%d/%Y", "%Y-%m-%d"]
 

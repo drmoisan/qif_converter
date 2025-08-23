@@ -1,6 +1,6 @@
 
 # Tests import/monkeypatch these off `qif_converter.gui`
-from qif_converter import qif_to_csv as mod  # e.g., tests monkeypatch gui.mod.parse_qif
+from qif_converter import qif_writer as mod  # e.g., tests monkeypatch gui.mod.parse_qif
 
 # Re-export shared helpers used by tests (you already have these in your new split code)
 from .helpers import (
@@ -23,7 +23,7 @@ from .scaling import (
 )
 
 __all__ = [
-    "App",
+    #"App",
     "parse_date_maybe",
     "filter_date_range",
     "local_filter_by_payee",
