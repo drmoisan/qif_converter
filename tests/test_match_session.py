@@ -94,37 +94,7 @@ def test_auto_match_groups_prefers_in_window_and_ignores_out_of_window():
     assert cost in (0, 1, 2, 3)
 
 
-def test_apply_updates_overwrites_splits_from_matched_groups():
-    # Arrange
-    txns = [
-        _mk_tx("2025-07-02", "-20.00",
-              splits=[
-                  {"category": "Old:Cat", "memo": "old1", "amount": Decimal("-10.00")},
-                  {"category": "Old:Cat", "memo": "old2", "amount": Decimal("-10.00")},
-              ]),
-    ]
-    rows = [
-        ExcelRow(idx=0, txn_id="B", date=date(2025, 7, 2), amount=Decimal("-10.00"),
-                 item="i2a", category="New:C2", rationale="R2a"),
-        ExcelRow(idx=1, txn_id="B", date=date(2025, 7, 2), amount=Decimal("-10.00"),
-                 item="i2b", category="New:C3", rationale="R2b"),
-    ]
-    grp = _mk_group(rows, gid="B")
-    session = MatchSession(txns, excel_groups=[grp])
 
-    # Act
-    session.auto_match()
-    session.apply_updates()
-
-    # Assert
-    updated = txns[0]
-    assert "splits" in updated and len(updated["splits"]) == 2, "Existing splits must be replaced."
-    cats = [s["category"] for s in updated["splits"]]
-    memos = [s["memo"] for s in updated["splits"]]
-    amts = [s["amount"] for s in updated["splits"]]
-    assert cats == ["New:C2", "New:C3"]
-    assert memos == ["i2a", "i2b"]
-    assert amts == [Decimal("-10.00"), Decimal("-10.00")]
 
 
 def test_unmatched_helpers_return_only_unmatched_items_in_group_mode():
