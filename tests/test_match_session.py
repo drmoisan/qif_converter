@@ -5,7 +5,8 @@ from decimal import Decimal
 from qif_converter.match_session import MatchSession
 from qif_converter.excel_row import ExcelRow
 from qif_converter.excel_txn_group import ExcelTxnGroup
-from qif_converter.qif_txn_view import QIFTxnView
+#from qif_converter.qif_txn_view import QIFTxnView
+from qif_converter.match_session import TxnLegacyView
 
 
 def _mk_tx(d: str, amt: str, **extras):
@@ -59,7 +60,8 @@ def test_auto_match_groups_matches_by_total_and_date_window():
     # Assert
     assert len(pairs) == 2, "Both transactions should auto-match by total and ±3 day window."
     for q, grp, cost in pairs:
-        assert isinstance(q, QIFTxnView)
+        #assert isinstance(q, QIFTxnView)
+        assert isinstance(q, TxnLegacyView)
         assert isinstance(grp, ExcelTxnGroup)
         assert q.amount == grp.total_amount, "Transaction must match its group's total amount."
         assert cost in (0, 1, 2, 3), "Date cost should be within ±3 days."

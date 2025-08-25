@@ -150,3 +150,69 @@ def _candidate_cost(qif_date: date, excel_date: date) -> Optional[int]:
     if delta > 3:
         return None
     return delta  # 0 preferred, then 1,2,3
+
+
+from dataclasses import dataclass
+from decimal import Decimal
+from datetime import date
+from typing import Optional, Iterable
+
+from qif_converter.qif.protocols import QifTxnLike, QifSplitLike, QifAcctLike, ClearedStatus
+from qif_converter.qif_item_key import QIFItemKey
+
+@dataclass(frozen=True)
+class TxnLegacyView:
+    """
+    Transitional view so matching code can consume either model objects
+    or legacy dict-shaped transactions with a consistent interface.
+    """
+    key: QIFItemKey
+    date: date
+    amount: Decimal
+    payee: str
+    memo: str
+    category: str  # top-level category (may be "")
+    account_name: Optional[str] = None
+    splits: tuple[QifSplitLike, ...] = ()
+
+def _view_from_model(txn: QifTxnLike, idx: int) -> TxnLegacyView:
+    return TxnLegacyView(
+        key=QIFItemKey(txn_index=idx, split_index=None),
+        date=txn.date,
+        amount=txn.amount,
+        payee=txn.payee or "",
+        memo=txn.memo or "",
+        category=txn.category or "",
+        account_name=(txn.account.name if isinstance(txn.account, QifAcctLike) else None),
+        splits=tuple(txn.splits or ()),
+    )
+
+def _view_from_legacy_dict(txn: dict, idx: int) -> TxnLegacyView:
+    # best-effort normalization of legacy fields
+    from decimal import Decimal
+    from datetime import date as _date
+    from qif_converter.utilities import parse_date_string as _parse
+    amt = txn.get("amount", "0")
+    return TxnLegacyView(
+        key=QIFItemKey(txn_index=idx, split_index=None),
+        date=txn["date"] if isinstance(txn.get("date"), _date) else _parse(str(txn.get("date", ""))) or _parse("1970-01-01"),
+        amount=amt if isinstance(amt, Decimal) else Decimal(str(amt)),
+        payee=str(txn.get("payee", "")),
+        memo=str(txn.get("memo", "")),
+        category=str(txn.get("category", "")),
+        account_name=str(txn.get("account", "")) or None,
+        # leave splits as empty here; for matching we don’t need split-level
+        splits=tuple(),
+    )
+
+def make_txn_views(txns: Iterable[object]) -> list[TxnLegacyView]:
+    """
+    Accepts list of QifTransaction *or* legacy dicts, returns uniform views.
+    """
+    views: list[TxnLegacyView] = []
+    for i, t in enumerate(txns):
+        if isinstance(t, QifTxnLike):
+            views.append(_view_from_model(t, i))
+        else:
+            views.append(_view_from_legacy_dict(t, i))
+    return views

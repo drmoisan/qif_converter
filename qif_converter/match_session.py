@@ -4,11 +4,12 @@ from typing import List, Dict, Any, Tuple, Optional
 
 from _decimal import Decimal
 
-from qif_converter.match_helpers import _to_decimal, _candidate_cost, _flatten_qif_txns
+from qif_converter.match_helpers import _to_decimal, _candidate_cost, TxnLegacyView #,_flatten_qif_txns
+from qif_converter.match_helpers import make_txn_views
 from .excel_row import ExcelRow
 from .excel_txn_group import ExcelTxnGroup
 from .qif_item_key import QIFItemKey
-from .qif_txn_view import QIFTxnView
+#from .qif_txn_view import QIFTxnView
 
 
 class MatchSession:
@@ -32,7 +33,8 @@ class MatchSession:
         Matching is performed at the TRANSACTION level (not split).
         """
         self.txns = txns
-        self.txn_views = _flatten_qif_txns(txns)
+        #self.txn_views = _flatten_qif_txns(txns)
+        self.txn_views = make_txn_views(txns)
 
         # Prefer group-mode if provided; fall back to rows (legacy)
         self.excel_rows = excel_rows or []
@@ -137,12 +139,12 @@ class MatchSession:
 
     # --- Introspection
 
-    def matched_pairs(self) -> List[Tuple[QIFTxnView, ExcelTxnGroup | ExcelRow, int]]:
+    def matched_pairs(self) -> List[Tuple[TxnLegacyView, ExcelTxnGroup | ExcelRow, int]]:
         """
         Return list of matched (QIFTxnView, ExcelTxnGroup|ExcelRow, date_cost).
         Group-mode first, legacy row-mode as fallback.
         """
-        out: List[Tuple[QIFTxnView, ExcelTxnGroup | ExcelRow, int]] = []
+        out: List[Tuple[TxnLegacyView, ExcelTxnGroup | ExcelRow, int]] = []
 
         # --- Group mode (ExcelTxnGroup) ---
         if self.excel_groups:
@@ -165,7 +167,7 @@ class MatchSession:
             out.append((q, er, 0 if cost is None else cost))
         return out
 
-    def unmatched_qif(self) -> List[QIFTxnView]:
+    def unmatched_qif(self) -> List[TxnLegacyView]:
         if self.excel_groups:
             matched_keys = set(self.qif_to_excel_group.keys())
             return [tv for tv in self.txn_views if tv.key not in matched_keys]
@@ -181,7 +183,7 @@ class MatchSession:
 
     # --- Reasons / manual matching
 
-    def nonmatch_reason(self, q: QIFTxnView, target) -> str:
+    def nonmatch_reason(self, q: TxnLegacyView, target) -> str:
         """
         Explain why q (QIF txn) didn't match 'target', which is either:
           - ExcelTxnGroup (group mode), or
