@@ -27,11 +27,11 @@ def test_bank_and_split_codes_minimal_fields():
     # (No external deps; direct calls)
 
     # Act
-    adr = codes.Address()               # "A"
-    cat = codes.Category()              # "L"
-    split_cat = codes.CategorySplit()   # "S"
-    split_memo = codes.MemoSplit()      # "E"
-    split_amt = codes.AmountSplit()     # "$"
+    adr = codes.address()               # "A"
+    cat = codes.category()              # "L"
+    split_cat = codes.category_split()   # "S"
+    split_memo = codes.memo_split()      # "E"
+    split_amt = codes.amount_split()     # "$"
     #split_pct = codes.PercentSplit()    # "%"
 
     # Assert
@@ -55,12 +55,12 @@ def test_bank_and_split_codes_minimal_fields():
 @pytest.mark.parametrize(
     "factory, expect_code, must_contain",
     [
-        (codes.InvestmentAction, "N", "Investment"),
-        (codes.NameSecurity, "Y", "Security"),
-        (codes.PriceInvestment, "I", "Price"),
-        (codes.QuantityShares, "Q", "Quantity"),
-        (codes.CommissionCost, "O", "Commission"),
-        (codes.AmountTransfered, "$", "Amount"),
+        (codes.investment_action, "N", "Investment"),
+        (codes.name_security, "Y", "Security"),
+        (codes.price_investment, "I", "Price"),
+        (codes.quantity_shares, "Q", "Quantity"),
+        (codes.commission_cost, "O", "Commission"),
+        (codes.amount_transfered, "$", "Amount"),
     ]
 )
 def test_investment_codes(factory, expect_code, must_contain):
@@ -79,7 +79,7 @@ def test_investment_codes(factory, expect_code, must_contain):
 
 def test_budget_code_is_categories_scoped():
     # Arrange / Act
-    b = codes.BudgetedAmount()
+    b = codes.budgeted_amount()
 
     # Assert
     _assert_qifcode(b, "B")
@@ -94,18 +94,18 @@ def test_budget_code_is_categories_scoped():
 @pytest.mark.parametrize(
     "factory, expect_code",
     [
-        (codes.X, "X"),
-        (codes.XIvoiceShipToAddress, "XA"),
-        (codes.XInvoiceType, "XI"),
-        (codes.XInvoiceDueDate, "XE"),
-        (codes.XInvoiceTaxAccount, "XC"),
-        (codes.XInvoiceTaxRate, "XR"),
-        (codes.XInvoiceTaxAmount, "XT"),
-        (codes.XInvoiceItemDescription, "XS"),
-        (codes.XInvoiceCategory, "XN"),
-        (codes.XInvoiceUnits, "X#"),
-        (codes.XInvoicePricePerUnit, "X$"),
-        (codes.XInvoiceTaxableFlag, "XF"),
+        (codes.x, "X"),
+        (codes.x_ivoice_ship_to_address, "XA"),
+        (codes.x_invoice_type, "XI"),
+        (codes.x_invoice_due_date, "XE"),
+        (codes.x_invoice_tax_account, "XC"),
+        (codes.x_invoice_tax_rate, "XR"),
+        (codes.x_invoice_tax_amount, "XT"),
+        (codes.x_invoice_item_description, "XS"),
+        (codes.x_invoice_category, "XN"),
+        (codes.x_invoice_units, "X#"),
+        (codes.x_invoice_price_per_unit, "X$"),
+        (codes.x_invoice_taxable_flag, "XF"),
     ]
 )
 def test_invoice_subcodes(factory, expect_code):

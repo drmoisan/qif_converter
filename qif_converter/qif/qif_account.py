@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from ..qif import QifHeader
-from ..qif import qif_codes as emitQ
+from ..qif import qif_codes as emit_q
 
 @dataclass
 class QifAcct:
@@ -21,7 +21,7 @@ class QifAcct:
         h = QifHeader("!Account","Account list or which account follows","Account")
         return h
 
-    def QifEntry(self, with_header = False) -> str:
+    def qif_entry(self, with_header = False) -> str:
         if with_header:
             return f"{self.header.code}\nN{self.name}\nT{self.type}\nD{self.description}\n^"
         return f"N{self.name}\nT{self.type}\nD{self.description}\n^"

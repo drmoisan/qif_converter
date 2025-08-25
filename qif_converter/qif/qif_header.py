@@ -10,7 +10,7 @@ class QifHeader(QifHeaderLike):
     description: str
     type: str
 
-    def QifEntry(self) -> str:
+    def qif_entry(self) -> str:
         return f"{self.code}\n^"
 
 

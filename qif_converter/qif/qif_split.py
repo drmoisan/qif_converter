@@ -26,12 +26,12 @@ class QifSplit(QifSplitLike):
         """
         lines = []
         if self.tag != "":
-            lines.append(f"{emitQ.CategorySplit().code}{self.category}/{self.tag}")
+            lines.append(f"{emitQ.category_split().code}{self.category}/{self.tag}")
         else:
-            lines.append(f"{emitQ.CategorySplit().code}{self.category}")
+            lines.append(f"{emitQ.category_split().code}{self.category}")
         if self.memo != "":
-            lines.append(f"{emitQ.MemoSplit().code}{self.memo}")
-        lines.append(f"{emitQ.AmountSplit().code}{self.amount}")
+            lines.append(f"{emitQ.memo_split().code}{self.memo}")
+        lines.append(f"{emitQ.amount_split().code}{self.amount}")
         return "\n".join(lines)
 
     def __eq__(self, other: object) -> bool:

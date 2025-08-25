@@ -41,7 +41,7 @@ class QifTxn(QifTxnLike):
 
     def emit_category(self) -> str:
         """Return the QIF Category line for this transaction."""
-        code = emit_q.Category().code
+        code = emit_q.category().code
         category = "--Split--" if self.splits else (self.category or "")
         tag = (self.tag or "").strip()
 
@@ -56,26 +56,26 @@ class QifTxn(QifTxnLike):
         Returns the QIF representation of this transaction.
         """
         parts = [
-            self.account.QifEntry(with_header=True) if with_account else "",
+            self.account.qif_entry(with_header=True) if with_account else "",
             self.type.code if with_type else "",
-            f"{emit_q.Date().code}{self.date.month}/{self.date.day}'{self.date:%y}",
-            f"{emit_q.CheckNumber().code}{self.action_chk}" if self.action_chk else "",
+            f"{emit_q.date().code}{self.date.month}/{self.date.day}'{self.date:%y}",
+            f"{emit_q.check_number().code}{self.action_chk}" if self.action_chk else "",
         ]
         if self.security_exists():
             parts.extend([
-                f"{emit_q.NameSecurity().code}{self.security.name}" if self.security.name else "",
-                f"{emit_q.PriceInvestment().code}{self.security.price}" if self.security.price != 0 else "",
-                f"{emit_q.QuantityShares().code}{self.security.quantity}" if self.security.quantity != 0 else "",
-                f"{emit_q.CommissionCost().code}{self.security.commission}" if self.security.commission != 0 else "",
-                f"{emit_q.AmountTransfered().code}{self.security.transfer_amount}" if self.security.transfer_amount != 0 else "",
+                f"{emit_q.name_security().code}{self.security.name}" if self.security.name else "",
+                f"{emit_q.price_investment().code}{self.security.price}" if self.security.price != 0 else "",
+                f"{emit_q.quantity_shares().code}{self.security.quantity}" if self.security.quantity != 0 else "",
+                f"{emit_q.commission_cost().code}{self.security.commission}" if self.security.commission != 0 else "",
+                f"{emit_q.amount_transfered().code}{self.security.transfer_amount}" if self.security.transfer_amount != 0 else "",
             ])
         parts.extend([
-            f"{emit_q.AmountTransaction1().code}{self.amount}",
-            f"{emit_q.AmountTransaction2().code}{self.amount}",
-            f"{emit_q.ClearedStatus().code}{self.cleared}" if self.cleared != ClearedStatus.NOT_CLEARED and self.cleared != ClearedStatus.UNKNOWN else "",
+            f"{emit_q.amount_transaction1().code}{self.amount}",
+            f"{emit_q.amount_transaction2().code}{self.amount}",
+            f"{emit_q.cleared_status().code}{self.cleared}" if self.cleared != ClearedStatus.NOT_CLEARED and self.cleared != ClearedStatus.UNKNOWN else "",
             #self.cleared.emit_qif(),
-            f"{emit_q.Payee().code}{self.payee}" if self.payee else "",
-            f"{emit_q.Memo().code}{self.memo}" if self.memo else "",
+            f"{emit_q.payee().code}{self.payee}" if self.payee else "",
+            f"{emit_q.memo().code}{self.memo}" if self.memo else "",
             self.emit_category(),
         ])
 

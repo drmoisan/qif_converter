@@ -51,8 +51,7 @@ def test_qif_code_hash_uses_code_only_and_dedupes_in_sets_and_dicts():
 
     # Act
     s = {a, b, c}  # should dedupe a & b by code
-    d = {a: "first", c: "second"}
-    d[b] = "overwrites_first"  # same hash/equality key as 'a'
+    d = {a: "first", c: "second", b: "overwrites_first"}
 
     # Assert
     assert a == b

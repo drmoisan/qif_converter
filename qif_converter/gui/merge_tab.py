@@ -293,10 +293,10 @@ class MergeTab(ttk.Frame):
             xlsx = Path(self.m_xlsx.get().strip())
             if not qif_in.exists():
                 self.mb.showerror("Error", "Please choose a valid input QIF.")
-                return
+                return None
             if not xlsx.exists():
                 self.mb.showerror("Error", "Please choose a valid Excel (.xlsx).")
-                return
+                return None
 
             # Build session
             txns = qif_converter.qif_loader.parse_qif(qif_in)

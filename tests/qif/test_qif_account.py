@@ -24,7 +24,7 @@ def test_qifentry_without_header_emits_fields_and_caret():
     acct = QifAcct(name="Checking", type="Bank", description="My checking")
 
     # Act
-    out = acct.QifEntry(with_header=False)
+    out = acct.qif_entry(with_header=False)
 
     # Assert
     assert out == "NChecking\nTBank\nDMy checking\n^"
@@ -35,7 +35,7 @@ def test_qifentry_with_header_includes_header_code_first():
     acct = QifAcct(name="Checking", type="Bank", description="My checking")
 
     # Act
-    out = acct.QifEntry(with_header=True)
+    out = acct.qif_entry(with_header=True)
 
     # Assert
     expected = "!Account\nNChecking\nTBank\nDMy checking\n^"
@@ -67,8 +67,8 @@ def test_defaults_emit_empty_fields_and_caret():
     acct = QifAcct()  # all defaults: empty strings
 
     # Act
-    out_no_header = acct.QifEntry(with_header=False)
-    out_with_header = acct.QifEntry(with_header=True)
+    out_no_header = acct.qif_entry(with_header=False)
+    out_with_header = acct.qif_entry(with_header=True)
 
     # Assert
     assert out_no_header == "N\nT\nD\n^"

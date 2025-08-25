@@ -7,7 +7,7 @@ def test_qifentry_formats_record_exactly():
     # Arrange
     h = QifHeader(code="!Type:Bank", description="Bank section", type="Type")  # :contentReference[oaicite:0]{index=0}
     # Act
-    out = h.QifEntry()
+    out = h.qif_entry()
     # Assert
     assert out == "!Type:Bank\n^", "QifEntry should be 'code' + newline + '^' exactly."  # :contentReference[oaicite:1]{index=1}
 
