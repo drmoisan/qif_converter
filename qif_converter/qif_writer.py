@@ -21,6 +21,7 @@ import argparse
 import re
 from typing import List, Dict, Any, Optional, Iterable, TextIO, Union, IO
 import fnmatch
+from qif_converter.qif import QifTxnLike
 
 import os
 
@@ -248,7 +249,14 @@ def write_csv_quicken_mac(txns: List[Dict[str, Any]], out_path: Path, newline: s
 
 # ... keep your existing imports and helpers ...
 
-def write_qif(txns: list[dict], out: Union[str, os.PathLike, TextIO], encoding: str = "utf-8") -> None:
+def _iter_as_legacy(txns):
+    for t in txns:
+        if isinstance(t, QifTxnLike):
+            yield t.to_dict()  # implement to_dict() on model or convert inline
+        else:
+            yield t
+
+def write_qif(txns, out: Union[str, os.PathLike, TextIO], encoding: str = "utf-8") -> None:
     """
     Write QIF to either:
       - a filesystem path (str/PathLike), or
@@ -262,6 +270,16 @@ def write_qif(txns: list[dict], out: Union[str, os.PathLike, TextIO], encoding: 
     # Otherwise treat as a path
     with open(out, "w", encoding=encoding, newline="") as fp:
         _write_qif_to_stream(txns, fp)
+
+# def write_qif(txns, out: Union[str, os.PathLike, TextIO], encoding: str = "utf-8"):
+#     # detect model and use proper emitter if desired
+#     if txns and isinstance(txns[0], QifTxnLike):
+#         # build a QifFile and emit using model’s emitters
+#         _iter_as_legacy(txns)  # convert to legacy dicts for now
+#     else:
+#         # current legacy dict writing path
+#         _iter_as_legacy(txns)
+
 
 
 def _write_qif_to_stream(txns: list[dict], fp: TextIO) -> None:
@@ -283,100 +301,95 @@ def _write_qif_to_stream(txns: list[dict], fp: TextIO) -> None:
     current_type: str | None = None
 
     for r in txns:
+        if isinstance(r, QifTxnLike):
+            # Convert model to dict if initially
+            # Will eventually replace with emitter methods on the model
+            r = r.to_dict()
         # Derive txn_type early since we may need it for the !Account block.
-        txn_type = (r.get("type") or "Bank").strip()
+        legacy_write(current_account, current_type, fp, r)
 
-        # 1) Account block (when account changes and account is non-empty)
-        acct = (r.get("account") or "").strip()
-        if acct and acct != current_account:
-            fp.write("!Account\n")
-            fp.write(f"N{acct}\n")
-            # Include account type in the account list block (what the test expects)
-            fp.write(f"T{txn_type}\n")
-            fp.write("^\n")
-            current_account = acct
-            # Reset the current_type so we re-emit the !Type header after switching accounts
-            current_type = None
 
-        # 2) Type header (when type changes; default to Bank)
-        if txn_type != current_type:
-            fp.write(f"!Type:{txn_type}\n")
-            current_type = txn_type
-
-        # 3) Transaction body
-        d = r.get("date", "")
-        if d:
-            fp.write(f"D{d}\n")
-
-        amt = r.get("amount", "")
-        if amt != "":
-            fp.write(f"T{amt}\n")
-
-        payee = r.get("payee", "")
-        if payee:
-            fp.write(f"P{payee}\n")
-
-        memo = r.get("memo", "")
-        if memo:
-            _emit_multiline_field(fp, "M", memo)
-
-        cat = r.get("category", "")
-        if cat:
-            fp.write(f"L{cat}\n")
-
-        # Optional scalar fields
-        checknum = r.get("checknum", "")
-        if checknum:
-            fp.write(f"N{checknum}\n")
-
-        cleared = r.get("cleared", "")
-        if cleared:
-            fp.write(f"C{cleared}\n")
-
-        # Address can be a single string (splitlines) or a sequence of lines
-        addr = r.get("address", "")
-        if isinstance(addr, str):
-            addr_lines = [line for line in addr.splitlines() if line != ""]
-        elif addr:
-            try:
-                addr_lines = list(addr)
-            except TypeError:
-                addr_lines = []
-        else:
-            addr_lines = []
-        for line in addr_lines:
-            fp.write(f"A{line}\n")
-
-        # Investment fields (pass-through if present)
-        action = r.get("action", "")
-        if action:
-            fp.write(f"N{action}\n")
-        security = r.get("security", "")
-        if security:
-            fp.write(f"Y{security}\n")
-        quantity = r.get("quantity", "")
-        if quantity != "":
-            fp.write(f"Q{quantity}\n")
-        price = r.get("price", "")
-        if price != "":
-            fp.write(f"I{price}\n")
-        commission = r.get("commission", "")
-        if commission != "":
-            fp.write(f"O{commission}\n")
-
-        # 4) Splits
-        for s in (r.get("splits") or []):
-            sc = s.get("category", "")
-            if sc:
-                fp.write(f"S{sc}\n")
-            sm = s.get("memo", "")
-            if sm:
-                fp.write(f"E{sm}\n")
-            sa = s.get("amount", "")
-            if sa != "":
-                fp.write(f"${sa}\n")
-
-        # 5) Record terminator
+def legacy_write(current_account, current_type, fp, r):
+    txn_type = (r.get("type") or "Bank").strip()
+    # 1) Account block (when account changes and account is non-empty)
+    acct = (r.get("account") or "").strip()
+    if acct and acct != current_account:
+        fp.write("!Account\n")
+        fp.write(f"N{acct}\n")
+        # Include account type in the account list block (what the test expects)
+        fp.write(f"T{txn_type}\n")
         fp.write("^\n")
+        current_account = acct
+        # Reset the current_type so we re-emit the !Type header after switching accounts
+        current_type = None
+    # 2) Type header (when type changes; default to Bank)
+    if txn_type != current_type:
+        fp.write(f"!Type:{txn_type}\n")
+        current_type = txn_type
+    # 3) Transaction body
+    d = r.get("date", "")
+    if d:
+        fp.write(f"D{d}\n")
+    amt = r.get("amount", "")
+    if amt != "":
+        fp.write(f"T{amt}\n")
+    payee = r.get("payee", "")
+    if payee:
+        fp.write(f"P{payee}\n")
+    memo = r.get("memo", "")
+    if memo:
+        _emit_multiline_field(fp, "M", memo)
+    cat = r.get("category", "")
+    if cat:
+        fp.write(f"L{cat}\n")
+    # Optional scalar fields
+    checknum = r.get("checknum", "")
+    if checknum:
+        fp.write(f"N{checknum}\n")
+    cleared = r.get("cleared", "")
+    if cleared:
+        fp.write(f"C{cleared}\n")
+    # Address can be a single string (splitlines) or a sequence of lines
+    addr = r.get("address", "")
+    if isinstance(addr, str):
+        addr_lines = [line for line in addr.splitlines() if line != ""]
+    elif addr:
+        try:
+            addr_lines = list(addr)
+        except TypeError:
+            addr_lines = []
+    else:
+        addr_lines = []
+    for line in addr_lines:
+        fp.write(f"A{line}\n")
+    # Investment fields (pass-through if present)
+    action = r.get("action", "")
+    if action:
+        fp.write(f"N{action}\n")
+    security = r.get("security", "")
+    if security:
+        fp.write(f"Y{security}\n")
+    quantity = r.get("quantity", "")
+    if quantity != "":
+        fp.write(f"Q{quantity}\n")
+    price = r.get("price", "")
+    if price != "":
+        fp.write(f"I{price}\n")
+    commission = r.get("commission", "")
+    if commission != "":
+        fp.write(f"O{commission}\n")
+    # 4) Splits
+    for s in (r.get("splits") or []):
+        sc = s.get("category", "")
+        if sc:
+            fp.write(f"S{sc}\n")
+        sm = s.get("memo", "")
+        if sm:
+            fp.write(f"E{sm}\n")
+        sa = s.get("amount", "")
+        if sa != "":
+            fp.write(f"${sa}\n")
+    # 5) Record terminator
+    fp.write("^\n")
 
 

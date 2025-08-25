@@ -10,6 +10,7 @@ from .excel_row import ExcelRow
 from .excel_txn_group import ExcelTxnGroup
 from .qif_item_key import QIFItemKey
 #from .qif_txn_view import QIFTxnView
+from .qif import QifTxn, QifSplit
 
 
 class MatchSession:
@@ -388,4 +389,28 @@ class MatchSession:
                         "amount": r.amount,  # already a Decimal
                     })
 
-                txn["splits"] = new_splits
+                self._set_splits_from_group(q_view.key.txn_index, grp)
+                #txn["splits"] = new_splits
+
+    def _set_splits_from_group(self, txn_idx: int, group) -> None:
+        base = self.txns[txn_idx]
+
+        # Excel rows → new split objects/dicts
+        new_splits_model = [
+            QifSplit(category=r.category or "", memo=r.item or "", amount=r.amount, tag="")
+            for r in group.rows
+        ]
+        new_splits_dicts = [
+            {"category": r.category or "", "memo": r.item or "", "amount": r.amount}
+            for r in group.rows
+        ]
+
+        if isinstance(base, QifTxn):
+            # replace model splits
+            base.splits = new_splits_model
+            # optional: clear top-level category when splits exist
+            base.category = ""
+        else:
+            # legacy dict path
+            base["splits"] = new_splits_dicts
+            base["category"] = ""

@@ -48,3 +48,15 @@ class QifSecurityTxn:
         elif self.commission > other.commission:
             return False
         return self.transfer_amount < other.transfer_amount
+
+    def to_dict(self) -> dict:
+        """
+        Convert the QifSecurityTxn instance to a dictionary representation.
+        """
+        return {
+            "name": self.name,
+            "price": str(self.price) if self.price is not None else "0",
+            "quantity": str(self.quantity) if self.quantity is not None else "0",
+            "commission": str(self.commission) if self.commission is not None else "0",
+            "transfer_amount": str(self.transfer_amount) if self.transfer_amount is not None else "0",
+        }

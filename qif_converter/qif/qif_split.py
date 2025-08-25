@@ -62,3 +62,14 @@ class QifSplit(QifSplitLike):
         elif self.amount > other.amount:
             return False
         return self.memo < other.memo
+
+    def to_dict(self) -> dict:
+        """
+        Convert the QifSplit to a dictionary representation.
+        """
+        return {
+            "category": self.category,
+            "amount": str(self.amount),  # Convert Decimal to string for JSON serialization
+            "memo": self.memo,
+            "tag": self.tag
+        }

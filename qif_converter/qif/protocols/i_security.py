@@ -13,3 +13,5 @@ class QifSecurityTxnLike(Protocol):
     quantity: Decimal
     commission: Decimal
     transfer_amount: Decimal
+
+    def to_dict(self) -> dict: ...

@@ -130,3 +130,22 @@ class QifTxn(QifTxnLike):
         elif self.memo > other.memo:
             return False
         return tuple(sorted(self.splits)) < tuple(sorted(other.splits))
+
+    def to_dict(self) -> dict:
+        """
+        Convert the QifTxn instance to a dictionary representation.
+        """
+        return {
+            "account": self.account.name if self.account else "",
+            "type": self.type.description if self.type else "",
+            "date": self.date.isoformat() if self.date else "",
+            "action_chk": self.action_chk,
+            "amount": str(self.amount) if self.amount is not None else "0",
+            "cleared": self.cleared.name if self.cleared else "NOT_CLEARED",
+            "payee": self.payee,
+            "memo": self.memo,
+            "category": self.category,
+            "tag": self.tag,
+            "splits": [split.to_dict() for split in self.splits] if self.splits else [],
+            "security": self.security.to_dict() if self.security_exists() else None,
+        }
