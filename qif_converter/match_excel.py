@@ -183,7 +183,6 @@ def _ratio(a: str, b: str) -> float:
     return SequenceMatcher(a=a.lower().strip(), b=b.lower().strip()).ratio()
 
 def fuzzy_autopairs(
-    self,
     qif_cats: List[str],
     excel_cats: List[str],
     threshold: float = 0.84,

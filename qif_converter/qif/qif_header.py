@@ -7,8 +7,8 @@ from ..qif.protocols import QifHeaderLike
 @dataclass
 class QifHeader(QifHeaderLike):
     code: str
-    description: str
-    type: str
+    description: str = ""
+    type: str = ""
 
     def qif_entry(self) -> str:
         return f"{self.code}\n^"

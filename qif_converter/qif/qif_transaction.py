@@ -149,3 +149,23 @@ class QifTxn(QifTxnLike):
             "splits": [split.to_dict() for split in self.splits] if self.splits else [],
             "security": self.security.to_dict() if self.security_exists() else None,
         }
+
+    @classmethod
+    def from_legacy(cls, d: dict) -> "QifTxn":
+        from decimal import Decimal
+        from ..utilities import parse_date_string
+        return cls(
+            account=QifAcct(name=d.get("account", "")),
+            type=QifHeader(d.get("type", "")),
+            date=parse_date_string(d.get("date", "")) or parse_date_string("1985-11-05"),
+            amount=Decimal(str(d.get("amount", "0"))),
+            payee=d.get("payee"),
+            memo=d.get("memo"),
+            category=d.get("category") or "",
+            action_chk=d.get("checknum") or "",
+            tag=d.get("tag") or "",
+            cleared=ClearedStatus.from_char(d.get("cleared", "")),
+            splits=[QifSplit(category=s.get("category", ""), memo=s.get("memo", ""),
+                             amount=Decimal(str(s.get("amount", "0"))), tag=s.get("tag", ""))
+                    for s in (d.get("splits") or [])],
+        )

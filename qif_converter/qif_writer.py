@@ -196,8 +196,9 @@ def write_csv_quicken_windows(txns: List[Dict[str, Any]], out_path: Path, newlin
     Date, Payee, FI Payee, Amount, Debit/Credit, Category, Account, Tag, Memo, Chknum
     """
     fieldnames = ["Date","Payee","FI Payee","Amount","Debit/Credit","Category","Account","Tag","Memo","Chknum"]
-    with _open_for_write(out_path,binary=False) as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames)
+    with _open_for_write(out_path, binary=False, newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\r\n")  # Windows
+
         w.writeheader()
         for t in txns:
             amt = t.get("amount","")
@@ -223,8 +224,8 @@ def write_csv_quicken_mac(txns: List[Dict[str, Any]], out_path: Path, newline: s
     Amount must be positive; direction in Transaction Type: debit/credit
     """
     fieldnames = ["Date","Description","Original Description","Amount","Transaction Type","Category","Account Name","Labels","Notes"]
-    with _open_for_write(out_path, binary=False) as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames)
+    with _open_for_write(out_path, binary=False, newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
         w.writeheader()
         for t in txns:
             amt_s = t.get("amount","")
@@ -248,13 +249,6 @@ def write_csv_quicken_mac(txns: List[Dict[str, Any]], out_path: Path, newline: s
 
 
 # ... keep your existing imports and helpers ...
-
-def _iter_as_legacy(txns):
-    for t in txns:
-        if isinstance(t, QifTxnLike):
-            yield t.to_dict()  # implement to_dict() on model or convert inline
-        else:
-            yield t
 
 def write_qif(txns, out: Union[str, os.PathLike, TextIO], encoding: str = "utf-8") -> None:
     """

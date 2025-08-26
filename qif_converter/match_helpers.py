@@ -193,6 +193,10 @@ def _view_from_legacy_dict(txn: dict, idx: int) -> TxnLegacyView:
     from datetime import date as _date
     from qif_converter.utilities import parse_date_string as _parse
     amt = txn.get("amount", "0")
+    try:
+        amt = _to_decimal(amt)
+    except Exception:
+        amt = Decimal("0")
     return TxnLegacyView(
         key=QIFItemKey(txn_index=idx, split_index=None),
         date=txn["date"] if isinstance(txn.get("date"), _date) else _parse(str(txn.get("date", ""))) or _parse("1970-01-01"),
