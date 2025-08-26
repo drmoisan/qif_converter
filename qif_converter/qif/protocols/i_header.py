@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 @runtime_checkable
-class QifHeaderLike(Protocol):
+class IHeader(Protocol):
     # data attributes
     code: str
     description: str

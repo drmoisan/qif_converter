@@ -4,14 +4,14 @@ from dataclasses import dataclass
 from functools import total_ordering
 from typing import runtime_checkable
 
-from . import QifSplitLike
+from . import ISplit
 from ..qif import qif_codes as emitQ
 
 from _decimal import Decimal
 
 @total_ordering
 @dataclass
-class QifSplit(QifSplitLike):
+class QifSplit(ISplit):
     """
     Represents a single QIF split transaction.
     """
@@ -35,7 +35,7 @@ class QifSplit(QifSplitLike):
         return "\n".join(lines)
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, QifSplitLike):
+        if not isinstance(other, ISplit):
             return NotImplemented
         return (self.category == other.category
                 and self.amount == other.amount
@@ -47,7 +47,7 @@ class QifSplit(QifSplitLike):
         return hash((self.category, self.amount, self.tag, self.memo))
 
     def __lt__(self, other: object) -> bool:
-        if not isinstance(other, QifSplitLike):
+        if not isinstance(other, ISplit):
             return NotImplemented
         if self.category < other.category:
             return True

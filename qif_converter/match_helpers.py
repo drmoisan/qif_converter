@@ -157,7 +157,7 @@ from decimal import Decimal
 from datetime import date
 from typing import Optional, Iterable
 
-from qif_converter.qif.protocols import QifTxnLike, QifSplitLike, QifAcctLike, ClearedStatus
+from qif_converter.qif.protocols import ITransaction, ISplit, IAccount, ClearedStatus
 from qif_converter.qif_item_key import QIFItemKey
 
 @dataclass(frozen=True)
@@ -173,9 +173,9 @@ class TxnLegacyView:
     memo: str
     category: str  # top-level category (may be "")
     account_name: Optional[str] = None
-    splits: tuple[QifSplitLike, ...] = ()
+    splits: tuple[ISplit, ...] = ()
 
-def _view_from_model(txn: QifTxnLike, idx: int) -> TxnLegacyView:
+def _view_from_model(txn: ITransaction, idx: int) -> TxnLegacyView:
     return TxnLegacyView(
         key=QIFItemKey(txn_index=idx, split_index=None),
         date=txn.date,
@@ -183,7 +183,7 @@ def _view_from_model(txn: QifTxnLike, idx: int) -> TxnLegacyView:
         payee=txn.payee or "",
         memo=txn.memo or "",
         category=txn.category or "",
-        account_name=(txn.account.name if isinstance(txn.account, QifAcctLike) else None),
+        account_name=(txn.account.name if isinstance(txn.account, IAccount) else None),
         splits=tuple(txn.splits or ()),
     )
 
@@ -215,7 +215,7 @@ def make_txn_views(txns: Iterable[object]) -> list[TxnLegacyView]:
     """
     views: list[TxnLegacyView] = []
     for i, t in enumerate(txns):
-        if isinstance(t, QifTxnLike):
+        if isinstance(t, ITransaction):
             views.append(_view_from_model(t, i))
         else:
             views.append(_view_from_legacy_dict(t, i))

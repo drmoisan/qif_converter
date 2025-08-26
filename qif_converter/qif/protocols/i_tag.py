@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from typing import runtime_checkable, Protocol
-from ..protocols import HasEmitQifWithHeader, QifHeaderLike
+from ..protocols import HasEmitQifWithHeader, IHeader
 
 
 @runtime_checkable
-class TagLike(HasEmitQifWithHeader, Protocol):
+class ITag(HasEmitQifWithHeader, Protocol):
     """
     Protocol for objects that behave like QifTag.
 
@@ -29,7 +29,7 @@ class TagLike(HasEmitQifWithHeader, Protocol):
 
     # read-only property
     @property
-    def header(self) -> QifHeaderLike: ...
+    def header(self) -> IHeader: ...
 
     # behavior
     #def emit_qif(self, with_header: bool = False) -> str: ...

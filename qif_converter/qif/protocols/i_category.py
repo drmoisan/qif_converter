@@ -5,7 +5,7 @@ from ..protocols import HasEmitQifWithHeader
 
 
 @runtime_checkable
-class CategoryLike(HasEmitQifWithHeader, Protocol):
+class ICategory(HasEmitQifWithHeader, Protocol):
     """
     Protocol for QIF Category list entries (i.e., records in !Type:Cat).
 

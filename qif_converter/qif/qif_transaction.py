@@ -6,13 +6,13 @@ from functools import total_ordering
 from _decimal import Decimal
 
 from ..qif import qif_codes as emit_q, QifAcct, QifSplit, QifHeader, QifSecurityTxn
-from ..qif.protocols import ClearedStatus, QifSplitLike, QifSecurityTxnLike, QifTxnLike
+from ..qif.protocols import ClearedStatus, ISplit, ISecurity, ITransaction
 
 _MISSING = QifSecurityTxn("", Decimal(0), Decimal(0), Decimal(0), Decimal(0))  # sentinel for "not set"
 
 @total_ordering
 @dataclass
-class QifTxn(QifTxnLike):
+class QifTxn(ITransaction):
     """
     Represents a single QIF transaction.
     """
@@ -27,11 +27,11 @@ class QifTxn(QifTxnLike):
     category: str
     tag: str
 
-    splits: list[QifSplitLike] = field(default_factory=list[QifSplit])
-    _security: QifSecurityTxnLike = field(default=_MISSING, init=False, repr=False, compare=False)
+    splits: list[ISplit] = field(default_factory=list[QifSplit])
+    _security: ISecurity = field(default=_MISSING, init=False, repr=False, compare=False)
 
     @property
-    def security(self) -> QifSecurityTxnLike:
+    def security(self) -> ISecurity:
         if self._security is _MISSING:
             self._security = QifSecurityTxn(name="", price=Decimal(0), quantity=Decimal(0), commission=Decimal(0), transfer_amount=Decimal(0))
         return self._security
@@ -85,7 +85,7 @@ class QifTxn(QifTxnLike):
         return "\n".join(lines)
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, QifTxnLike):
+        if not isinstance(other, ITransaction):
             return NotImplemented
         return (self.account == other.account
             and self.type == other.type
@@ -103,7 +103,7 @@ class QifTxn(QifTxnLike):
                      self.memo, self.category, self.tag, tuple(sorted(self.splits))))
 
     def __lt__(self, other: object) -> bool:
-        if not isinstance(other, QifTxnLike):
+        if not isinstance(other, ITransaction):
             return NotImplemented
         if self.date < other.date:
             return True

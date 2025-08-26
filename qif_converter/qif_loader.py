@@ -6,7 +6,8 @@ from typing import Any, Dict, List, Optional, Tuple
 # Re-use your established transaction parser (handles splits etc.)
 from .qif_parsed import ParsedQIF
 from .utilities.core_util import _open_for_read, QIF_SECTION_PREFIX, QIF_ACCOUNT_HEADER, TRANSFER_RE
-
+from typing import Iterable
+from .qif.protocols import ITransaction
 
 # --------------------------
 # Unified, robust QIF loader

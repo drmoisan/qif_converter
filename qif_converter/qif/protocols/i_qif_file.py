@@ -2,17 +2,17 @@
 from __future__ import annotations
 from typing import Protocol, Iterable, runtime_checkable
 
-from ..protocols import EnumQifSections, TagLike, CategoryLike, HasEmitQifWithHeader, QifTxnLike, QifAcctLike
+from ..protocols import EnumQifSections, ITag, ICategory, HasEmitQifWithHeader, ITransaction, IAccount
 
 
 @runtime_checkable
-class QifFileLike(Protocol):
+class IQifFile(Protocol):
     # --- data ---
     sections: EnumQifSections
-    tags: list[TagLike]
-    categories: list[CategoryLike]
-    accounts: list[QifAcctLike]
-    transactions: list[QifTxnLike]
+    tags: list[ITag]
+    categories: list[ICategory]
+    accounts: list[IAccount]
+    transactions: list[ITransaction]
 
     # --- behavior ---
     def emit_section(self, xs: Iterable[HasEmitQifWithHeader]) -> str: ...

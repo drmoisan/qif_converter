@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import pytest
-from qif_converter.qif import QifFile, QifAcct, QifFileLike, QifAcctLike, QifTxnLike
+from qif_converter.qif import QifFile, QifAcct, IQifFile, IAccount, ITransaction
 
 
-class _StubTxn(QifTxnLike):
+class _StubTxn(ITransaction):
     """Minimal txn stub that records how emit_qif() was called and returns a body."""
     def __init__(self, account: QifAcct, body: str):
         self.account = account

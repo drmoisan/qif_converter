@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..qif.protocols import TagLike, QifHeaderLike
+from ..qif.protocols import ITag, IHeader
 from ..qif import QifHeader
 
 @dataclass
-class QifTag(TagLike):
+class QifTag(ITag):
     """
     Represents an account in QIF format.
     """
@@ -14,7 +14,7 @@ class QifTag(TagLike):
     description: str = ""
 
     @property
-    def header(self) -> QifHeaderLike:
+    def header(self) -> IHeader:
         """
         Returns the type of the account.
         """
@@ -27,7 +27,7 @@ class QifTag(TagLike):
         return f"N{self.name}\nD{self.description}"
 
     def __eq__(self, other: object, /) -> bool:
-        if not isinstance(other, TagLike):
+        if not isinstance(other, ITag):
             return False
         return (self.name == other.name
                 and self.header == other.header)

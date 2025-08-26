@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 from typing import cast
-from qif_converter.qif import QifFile, EnumQifSections, TagLike, CategoryLike, HasEmitQifWithHeader
+from qif_converter.qif import QifFile, EnumQifSections, ITag, ICategory, HasEmitQifWithHeader
 
 
 class _StubCategory:
@@ -110,10 +110,10 @@ def test_emit_qif_concatenates_selected_sections_in_order_and_ends_with_newline(
 
     t1, t2 = _StubTag("tag1"), _StubTag("tag2")
     items = [t1, t2]
-    proto_items = cast(list[TagLike], items)
+    proto_items = cast(list[ITag], items)
 
     c1 =  _StubCategory("cat1")
-    c1_proto = cast(CategoryLike, c1)
+    c1_proto = cast(ICategory, c1)
 
     f.tags = proto_items
     f.categories = [c1_proto]
@@ -138,7 +138,7 @@ def test_emit_qif_can_emit_any_subset_of_sections_independently():
     # Only CATEGORIES selected
     f.sections = EnumQifSections.CATEGORIES
     c1, c2 = _StubCategory("c1"), _StubCategory("c2")
-    f.categories = cast(list[CategoryLike], [c1, c2])
+    f.categories = cast(list[ICategory], [c1, c2])
 
     # Act
     out = f.emit_qif()

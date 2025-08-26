@@ -1,11 +1,11 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
-from ..qif.protocols import QifHeaderLike
+from ..qif.protocols import IHeader
 
 
 @dataclass
-class QifHeader(QifHeaderLike):
+class QifHeader(IHeader):
     code: str
     description: str = ""
     type: str = ""
@@ -15,7 +15,7 @@ class QifHeader(QifHeaderLike):
 
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, QifHeaderLike):
+        if not isinstance(other, IHeader):
             return False
         return self.code == other.code
 

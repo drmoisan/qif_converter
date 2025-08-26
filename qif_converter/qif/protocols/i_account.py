@@ -1,12 +1,12 @@
 from __future__ import annotations
 from typing import Protocol, runtime_checkable
-from ..protocols import QifHeaderLike
+from ..protocols import IHeader
 
 # Assumes you’ve defined QifHeaderLike elsewhere.
 # If not, replace "QifHeaderLike" below with the concrete QifHeader.
 
 @runtime_checkable
-class QifAcctLike(Protocol):
+class IAccount(Protocol):
     # --- data attributes ---
     name: str
     type: str
@@ -14,7 +14,7 @@ class QifAcctLike(Protocol):
 
     # --- header (read-only) ---
     @property
-    def header(self) -> QifHeaderLike: ...
+    def header(self) -> IHeader: ...
 
     # --- QIF emission ---
     def qif_entry(self, with_header: bool = False) -> str: ...

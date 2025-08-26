@@ -21,7 +21,7 @@ import argparse
 import re
 from typing import List, Dict, Any, Optional, Iterable, TextIO, Union, IO
 import fnmatch
-from qif_converter.qif import QifTxnLike
+from qif_converter.qif import ITransaction
 
 import os
 
@@ -295,7 +295,7 @@ def _write_qif_to_stream(txns: list[dict], fp: TextIO) -> None:
     current_type: str | None = None
 
     for r in txns:
-        if isinstance(r, QifTxnLike):
+        if isinstance(r, ITransaction):
             # Convert model to dict if initially
             # Will eventually replace with emitter methods on the model
             r = r.to_dict()

@@ -5,7 +5,7 @@ from _decimal import Decimal
 
 
 @runtime_checkable
-class QifSplitLike(Protocol):
+class ISplit(Protocol):
     """Structural shape of a split row (S/E/$) that can be sorted and emitted."""
     category: str
     amount: Decimal

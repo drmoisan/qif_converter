@@ -6,7 +6,7 @@ from _decimal import Decimal
 
 
 @runtime_checkable
-class QifSecurityTxnLike(Protocol):
+class ISecurity(Protocol):
     """Structural shape of an investment/security adornment on a txn."""
     name: str
     price: Decimal

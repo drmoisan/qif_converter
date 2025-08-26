@@ -7,7 +7,7 @@ from collections.abc import Iterable
 import inspect
 import io
 
-from ..qif.protocols import EnumQifSections, HasEmitQifWithHeader, TagLike, CategoryLike, QifTxnLike, QifFileLike, QifAcctLike
+from ..qif.protocols import EnumQifSections, HasEmitQifWithHeader, ITag, ICategory, ITransaction, IQifFile, IAccount
 from ..qif import QifAcct
 
 
@@ -90,16 +90,16 @@ def _emit_qif_text(item: object, with_header: bool) -> str:
     raise AttributeError("Item does not implement an emit method compatible with emit_section().")
 
 
-class QifFile(QifFileLike):
+class QifFile(IQifFile):
     """
     Represents a complete QIF file, including header and multiple transactions.
     """
     def __init__(self):
         self.sections: EnumQifSections = EnumQifSections.NONE
-        self.tags: list[TagLike] = []
-        self.categories: list[CategoryLike] = []
-        self.accounts: list[QifAcctLike] = []
-        self.transactions: list[QifTxnLike] = []
+        self.tags: list[ITag] = []
+        self.categories: list[ICategory] = []
+        self.accounts: list[IAccount] = []
+        self.transactions: list[ITransaction] = []
 
 
     def emit_section(self, xs: Iterable[HasEmitQifWithHeader]) -> str:
@@ -118,7 +118,7 @@ class QifFile(QifFileLike):
         """
         if not self.transactions:
             return ""
-        current_account : QifAcctLike = field(default_factory=QifAcct)
+        current_account : IAccount = field(default_factory=QifAcct)
 
         texts: list[str] = []
         for i, item in enumerate(self.transactions):
