@@ -6,7 +6,7 @@ from functools import total_ordering
 from _decimal import Decimal
 
 from ..qif import qif_codes as emit_q, QifAcct, QifSplit, QifHeader, QifSecurityTxn
-from ..qif.protocols import ClearedStatus, ISplit, ISecurity, ITransaction
+from ..qif.protocols import EnumClearedStatus, ISplit, ISecurity, ITransaction
 
 _MISSING = QifSecurityTxn("", Decimal(0), Decimal(0), Decimal(0), Decimal(0))  # sentinel for "not set"
 
@@ -21,7 +21,7 @@ class QifTxn(ITransaction):
     date: date
     action_chk: str
     amount: Decimal
-    cleared: ClearedStatus
+    cleared: EnumClearedStatus
     payee: str
     memo: str
     category: str
@@ -72,7 +72,7 @@ class QifTxn(ITransaction):
         parts.extend([
             f"{emit_q.amount_transaction1().code}{self.amount}",
             f"{emit_q.amount_transaction2().code}{self.amount}",
-            f"{emit_q.cleared_status().code}{self.cleared}" if self.cleared != ClearedStatus.NOT_CLEARED and self.cleared != ClearedStatus.UNKNOWN else "",
+            f"{emit_q.cleared_status().code}{self.cleared}" if self.cleared != EnumClearedStatus.NOT_CLEARED and self.cleared != EnumClearedStatus.UNKNOWN else "",
             #self.cleared.emit_qif(),
             f"{emit_q.payee().code}{self.payee}" if self.payee else "",
             f"{emit_q.memo().code}{self.memo}" if self.memo else "",
@@ -164,7 +164,7 @@ class QifTxn(ITransaction):
             category=d.get("category") or "",
             action_chk=d.get("checknum") or "",
             tag=d.get("tag") or "",
-            cleared=ClearedStatus.from_char(d.get("cleared", "")),
+            cleared=EnumClearedStatus.from_char(d.get("cleared", "")),
             splits=[QifSplit(category=s.get("category", ""), memo=s.get("memo", ""),
                              amount=Decimal(str(s.get("amount", "0"))), tag=s.get("tag", ""))
                     for s in (d.get("splits") or [])],

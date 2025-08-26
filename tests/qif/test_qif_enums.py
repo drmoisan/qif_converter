@@ -1,7 +1,7 @@
 # tests/test_qif_enums.py
 import pytest
 
-from qif_converter.qif import EnumQifSections, ClearedStatus
+from qif_converter.qif import EnumQifSections, EnumClearedStatus
 
 
 # ---------- QifSections (IntFlag) ----------
@@ -61,20 +61,24 @@ def test_qifsections_unique_values_and_none_zero():
 
 def test_clearedstatus_from_char_valid_and_invalid():
     # Arrange / Act
-    cleared = ClearedStatus.from_char('*')
-    not_cleared = ClearedStatus.from_char('N')
-    reconciled = ClearedStatus.from_char('R')
-    unknown = ClearedStatus.from_char('?')
+    cleared = EnumClearedStatus.from_char('*')
+    not_cleared1 = EnumClearedStatus.from_char('N')
+    not_cleared2 = EnumClearedStatus.from_char('  ')
+    reconciled1 = EnumClearedStatus.from_char('R')
+    reconciled2 = EnumClearedStatus.from_char('X')
+    unknown = EnumClearedStatus.from_char('?')
 
     # Assert
-    assert cleared is ClearedStatus.CLEARED
-    assert not_cleared is ClearedStatus.NOT_CLEARED
-    assert reconciled is ClearedStatus.RECONCILED
-    assert unknown is ClearedStatus.UNKNOWN
+    assert cleared is EnumClearedStatus.CLEARED
+    assert not_cleared1 is EnumClearedStatus.NOT_CLEARED
+    assert not_cleared2 is EnumClearedStatus.NOT_CLEARED
+    assert reconciled1 is EnumClearedStatus.RECONCILED
+    assert reconciled2 is EnumClearedStatus.RECONCILED
+    assert unknown is EnumClearedStatus.UNKNOWN
 
     # Arrange / Act / Assert (invalid)
     with pytest.raises(ValueError):
-        ClearedStatus.from_char('X')
+        EnumClearedStatus.from_char('A')
 
 
 # def test_clearedstatus_emit_qif_codes():
@@ -96,10 +100,10 @@ def test_clearedstatus_from_char_valid_and_invalid():
 
 def test_clearedstatus_ordering_and_equality():
     # Arrange
-    r = ClearedStatus.RECONCILED
-    c = ClearedStatus.CLEARED
-    n = ClearedStatus.NOT_CLEARED
-    u = ClearedStatus.UNKNOWN
+    r = EnumClearedStatus.RECONCILED
+    c = EnumClearedStatus.CLEARED
+    n = EnumClearedStatus.NOT_CLEARED
+    u = EnumClearedStatus.UNKNOWN
 
     # Act / Assert — ordering contract defined in __lt__:
     # RECONCILED < CLEARED < (NOT_CLEARED and UNKNOWN)
@@ -110,9 +114,9 @@ def test_clearedstatus_ordering_and_equality():
     assert c < u
 
     # Equality is by value
-    assert ClearedStatus.CLEARED == c
-    assert ClearedStatus.CLEARED is c
-    assert ClearedStatus.RECONCILED != ClearedStatus.CLEARED
+    assert EnumClearedStatus.CLEARED == c
+    assert EnumClearedStatus.CLEARED is c
+    assert EnumClearedStatus.RECONCILED != EnumClearedStatus.CLEARED
 
     # We intentionally do not assert a relative order between NOT_CLEARED and UNKNOWN,
     # because __lt__ returns NotImplemented/False for that comparison in both directions.

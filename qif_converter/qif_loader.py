@@ -1,13 +1,22 @@
 # qif_converter/qif_loader.py
 from __future__ import annotations
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Iterator
 
 # Re-use your established transaction parser (handles splits etc.)
 from .qif_parsed import ParsedQIF
 from .utilities.core_util import _open_for_read, QIF_SECTION_PREFIX, QIF_ACCOUNT_HEADER, TRANSFER_RE
-from typing import Iterable
-from .qif.protocols import ITransaction
+
+# --- ADD near the top of the file (after existing imports) ---
+from dataclasses import dataclass
+from decimal import Decimal
+from datetime import date, datetime
+import warnings
+
+# Protocols (structural typing) and enums
+from .qif.protocols import ITransaction, ISplit, EnumClearedStatus, IAccount, IHeader
+from .qif import QifAcct, QifHeader
+
 
 # --------------------------
 # Unified, robust QIF loader
@@ -45,8 +54,26 @@ def parse_qif_unified(path: Path, encoding: str = "utf-8") -> ParsedQIF:
     )
 
 def load_transactions(path: Path, encoding: str = "utf-8") -> List[Dict[str, Any]]:
-    """Convenience: return only transactions from a unified parse."""
+    """
+    DEPRECATED: Use `load_transactions_protocol` to get protocol-based transaction objects.
+    This function returns a List[Dict[str, Any]] for backward compatibility.
+    """
+    warnings.warn(
+        "qif_loader.load_transactions is deprecated; use load_transactions_protocol "
+        "to get protocol-based objects.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return parse_qif_unified(path, encoding=encoding).transactions
+
+
+def load_transactions_protocol(path: Path, encoding: str = "utf-8") -> List[ITransaction]:
+    """
+    Return transactions adapted to the ITransaction/ISplit protocols.
+    Delegates parsing to parse_qif(...) and adapts each dict record.
+    """
+    raw = parse_qif(path, encoding=encoding)
+    return [_adapt_txn(rec) for rec in raw]
 
 
 # --------------------------------------
@@ -326,3 +353,135 @@ def parse_qif(path: Path, encoding: str = "utf-8") -> List[Dict[str, Any]]:
         if rec:
             finalize_tx(rec)
     return txns
+
+
+# --- ADD: protocol-conformant adapter classes and mappers (place below existing helpers) ---
+
+@dataclass
+class _Split(ISplit):  # conforms structurally; inheriting is optional but convenient for type checkers
+    amount: Decimal
+    category: str
+    memo: str = ""
+
+@dataclass
+class _Txn(ITransaction):
+    date: date
+    amount: Decimal
+    payee: str
+    memo: str
+    checknum: Optional[str]
+    category: str
+    tag: Optional[str]
+    cleared: EnumClearedStatus
+    splits: List[_Split]
+
+    # Protocol-compatible:
+    account: Optional[IAccount] = None
+    type: Optional[IHeader] = None   # keep the attribute name 'type' to match the protocol
+
+    # Extra fields you might carry along (fine to keep):
+    address: str = ""
+    transfer_account: str = ""
+    action: Optional[str] = None  # for !Type:Invst
+
+def _make_account(name: str | None) -> Optional[IAccount]:
+    if not name:
+        return None
+    # Adjust args to what QifAccount actually expects
+    return QifAcct(name=name)
+
+def _make_header(raw_type: str | None) -> Optional[IHeader]:
+    if not raw_type:
+        return None
+    # raw_type might be like "!Type:Bank" → normalize as needed
+    code = raw_type.replace("!Type:", "").strip()
+    # Adjust to QifHeader’s API (e.g., QifHeader(code=code))
+    return QifHeader(code=code)
+
+def _parse_qif_date(s: str) -> date:
+    """QIF dates like 7/4'25, 07/04/25, 07/04/2025 → datetime.date."""
+    raw = (s or "").strip()
+    if not raw:
+        raise ValueError("Empty date")
+    # Normalize 7/4'25 → 7/4/25
+    norm = raw.replace("'", "/")
+    for fmt in ("%m/%d/%Y", "%m/%d/%y", "%m-%d-%Y", "%m-%d-%y"):
+        try:
+            return datetime.strptime(norm, fmt).date()
+        except ValueError:
+            pass
+    # As a last resort, try day-first variants (rare in QIF, but seen “in the wild”)
+    for fmt in ("%d/%m/%Y", "%d/%m/%y"):
+        try:
+            return datetime.strptime(norm, fmt).date()
+        except ValueError:
+            pass
+    raise ValueError(f"Unrecognized QIF date: {s!r}")
+
+def _to_decimal(s: str) -> Decimal:
+    """Robust QIF money/quantity parsing: handles commas and parentheses."""
+    t = (s or "").strip()
+    if not t:
+        return Decimal("0")
+    neg = False
+    if t.startswith("(") and t.endswith(")"):
+        neg = True
+        t = t[1:-1]
+    t = t.replace(",", "")
+    d = Decimal(t)
+    return -d if neg else d
+
+def _split_category_and_tag(cat: str) -> Tuple[str, Optional[str]]:
+    """
+    QIF uses 'Category/Tag'. '/' is not valid in category names (':' is the subcategory delimiter).
+    """
+    if not cat:
+        return "", None
+    if "/" in cat:
+        c, tag = cat.split("/", 1)
+        return c.strip(), (tag.strip() or None)
+    return cat.strip(), None
+
+def _map_cleared(ch: Optional[str]) -> EnumClearedStatus:
+    return EnumClearedStatus.from_char(ch) if ch else EnumClearedStatus.NOT_CLEARED
+
+def _adapt_txn(d: Dict[str, Any]) -> _Txn:
+    """
+    Convert one dict from parse_qif(...) into a protocol-conformant transaction object.
+    Expects keys: date, amount, payee, memo, category, splits (list of dicts), cleared, checknum, etc.
+    """
+    # Dates & amounts
+    dt = _parse_qif_date(d.get("date", ""))
+    amt = _to_decimal(d.get("amount", ""))
+
+    # Category & tag split
+    cat_raw = (d.get("category") or "").strip()
+    category, tag = _split_category_and_tag(cat_raw)
+
+    # Splits
+    split_dicts = d.get("splits") or []
+    splits = [
+        _Split(
+            amount=_to_decimal(s.get("amount", "")),
+            category=(s.get("category") or "").strip(),
+            memo=(s.get("memo") or "").strip(),
+        )
+        for s in split_dicts
+    ]
+
+    return _Txn(
+        date=dt,
+        amount=amt,
+        payee=(d.get("payee") or "").strip(),
+        memo=(d.get("memo") or "").strip(),
+        checknum=(d.get("checknum") or None),
+        category=category,
+        tag=tag,
+        cleared=_map_cleared(d.get("cleared")),
+        splits=splits,
+        account=_make_account(d.get("account")),
+        type=_make_header(d.get("type")),
+        address=(d.get("address") or ""),
+        transfer_account=(d.get("transfer_account") or ""),
+        action=d.get("action"),
+    )

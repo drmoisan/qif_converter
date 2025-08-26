@@ -5,7 +5,7 @@ from functools import total_ordering
 
 
 @total_ordering
-class ClearedStatus(Enum):
+class EnumClearedStatus(Enum):
     """
     Enum representing the cleared status of a transaction.
     """
@@ -15,13 +15,17 @@ class ClearedStatus(Enum):
     UNKNOWN = '?'  # Unknown status
 
     @classmethod
-    def from_char(cls, char: str) -> 'ClearedStatus':
+    def from_char(cls, char: str) -> 'EnumClearedStatus':
         """
         Convert a single character to a ClearedStatus enum.
         """
         for status in cls:
             if status.value == char:
                 return status
+        if char.strip() == "":
+            return cls.NOT_CLEARED
+        if char.lower() == "x":
+            return cls.RECONCILED
         raise ValueError(f"Unknown cleared status character: {char}")
 
     # def emit_qif(self) -> str:
@@ -37,7 +41,7 @@ class ClearedStatus(Enum):
         """
         Check equality with another ClearedStatus.
         """
-        if not isinstance(other, ClearedStatus):
+        if not isinstance(other, EnumClearedStatus):
             return NotImplemented
         return self.value == other.value
 
@@ -45,15 +49,15 @@ class ClearedStatus(Enum):
         """
         Compare two ClearedStatus enums based on their order.
         """
-        if not isinstance(other, ClearedStatus):
+        if not isinstance(other, EnumClearedStatus):
             return NotImplemented
         if self.value == other.value:
             return False
-        elif self == ClearedStatus.RECONCILED:
+        elif self == EnumClearedStatus.RECONCILED:
             return True
-        elif other == ClearedStatus.RECONCILED:
+        elif other == EnumClearedStatus.RECONCILED:
             return False
-        elif self == ClearedStatus.CLEARED:
+        elif self == EnumClearedStatus.CLEARED:
             return True
         else:
             return False

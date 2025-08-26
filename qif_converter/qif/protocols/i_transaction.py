@@ -5,7 +5,7 @@ from decimal import Decimal
 from datetime import date
 from typing import Protocol, runtime_checkable
 
-from ..protocols import ISplit, ISecurity, IAccount, IHeader, ClearedStatus
+from ..protocols import ISplit, ISecurity, IAccount, IHeader, EnumClearedStatus
 
 @runtime_checkable
 class ITransaction(Protocol):
@@ -15,7 +15,7 @@ class ITransaction(Protocol):
     date: date
     action_chk: str
     amount: Decimal
-    cleared: ClearedStatus
+    cleared: EnumClearedStatus
     payee: str
     memo: str
     category: str

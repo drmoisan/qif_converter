@@ -8,7 +8,7 @@ from qif_converter.qif.qif_transaction import QifTxn
 from qif_converter.qif.qif_account import QifAcct
 from qif_converter.qif.qif_header import QifHeader
 from qif_converter.qif.qif_split import QifSplit
-from qif_converter.qif import ClearedStatus
+from qif_converter.qif import EnumClearedStatus
 
 
 def _mk_txn(
@@ -20,7 +20,7 @@ def _mk_txn(
     category="Food:Coffee",
     tag="",
     checknum="101",
-    cleared=ClearedStatus.CLEARED,
+    cleared=EnumClearedStatus.CLEARED,
     account_name="Checking",
     account_type="Bank",
     type_code="!Type:Bank",
@@ -99,7 +99,7 @@ def test_emit_qif_includes_headers_when_requested_and_emits_core_fields_and_spli
         category="Groceries",
         tag="",
         checknum="1001",
-        cleared=ClearedStatus.CLEARED,
+        cleared=EnumClearedStatus.CLEARED,
         splits=[
             QifSplit(category="Groceries:Veg", memo="Veg", amount=Decimal("-12.00"),tag=""),
             QifSplit(category="Groceries:Fruit", memo="Fruit", amount=Decimal("-8.00"), tag=""),

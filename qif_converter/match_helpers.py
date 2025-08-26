@@ -157,7 +157,7 @@ from decimal import Decimal
 from datetime import date
 from typing import Optional, Iterable
 
-from qif_converter.qif.protocols import ITransaction, ISplit, IAccount, ClearedStatus
+from qif_converter.qif.protocols import ITransaction, ISplit, IAccount, EnumClearedStatus
 from qif_converter.qif_item_key import QIFItemKey
 
 @dataclass(frozen=True)

@@ -1,5 +1,5 @@
 
-from .enum_cleared_status import ClearedStatus
+from .enum_cleared_status import EnumClearedStatus
 from .enum_qif_section import EnumQifSections
 from .i_has_emit_qif import HasEmitQifWithHeader, HasEmitQifNoHeader, HasEmitQif
 from .i_header import IHeader
