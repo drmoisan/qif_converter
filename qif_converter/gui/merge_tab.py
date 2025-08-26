@@ -20,6 +20,11 @@ from qif_converter.qif_loader import load_transactions
 class MergeTab(ttk.Frame):
     """Primary function: Excel ↔ QIF merge + manual matching + previews."""
     def __init__(self, master, mb):
+        """Initialize UI state, bind actions, and prepare empty `MatchSession`.
+
+        Does not perform any I/O. File selection or drag-drop handlers call
+        the loader methods to populate the session.
+        """
         super().__init__(master)
         self.mb = mb
         self._merge_session: Optional[MatchSession] = None
