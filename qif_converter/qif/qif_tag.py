@@ -23,7 +23,7 @@ class QifTag(TagLike):
 
     def emit_qif(self, with_header = False) -> str:
         if with_header:
-            return f"{self.header.code}\nN{self.name}\nD{self.description}\n\^"
+            return f"{self.header.code}\nN{self.name}\nD{self.description}\n^"
         return f"N{self.name}\nD{self.description}"
 
     def __eq__(self, other: object, /) -> bool:
