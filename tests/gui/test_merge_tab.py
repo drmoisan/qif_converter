@@ -348,6 +348,8 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
       - qif_converter.qif_writer.write_qif
     """
     import types, sys, datetime
+    from datetime import date
+    from decimal import Decimal
     pkg = types.ModuleType("qif_converter")
     monkeypatch.setitem(sys.modules, "qif_converter", pkg)
 
@@ -378,6 +380,68 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
     ql.parse_qif = parse_qif
     monkeypatch.setitem(sys.modules, "qif_converter.qif_loader", ql)
     setattr(pkg, "qif_loader", ql)
+
+    # Minimal enum-ish object with .name used by MergeTab._cleared_to_char
+    class _Enum:
+        def __init__(self, name): self.name = name
+
+    # Minimal split/txn "protocol-ish" objects
+    class _Split:
+        def __init__(self, amount="0.00", category="", memo=""):
+            self.amount = Decimal(str(amount))
+            self.category = category
+            self.memo = memo
+
+    class _Txn:
+        def __init__(self, **kw):
+            self.date = kw.get("date", date(2025, 1, 1))
+            self.amount = Decimal(str(kw.get("amount", "0.00")))
+            self.payee = kw.get("payee", "")
+            self.memo = kw.get("memo", "")
+            self.category = kw.get("category", "")
+            self.tag = kw.get("tag")
+            self.checknum = kw.get("checknum")
+            # MergeTab maps by cleared.name: "CLEARED"→"X", "RECONCILED"→"*"
+            self.cleared = kw.get("cleared", _Enum("UNCLEARED"))
+            self.splits = kw.get("splits", [])
+            # optional carry-throughs:
+            self.address = ""
+            self.transfer_account = ""
+            self.action = None
+
+    def fake_load_transactions_protocol(path):
+        return [
+            _Txn(
+                amount="12.34",
+                category="Groceries",
+                tag="Costco",
+                cleared=_Enum("RECONCILED"),
+                splits=[_Split("10.00", "Groceries", "Apples"),
+                        _Split("2.34", "Groceries", "Bananas")],
+            )
+        ]
+
+    def fake_load_transactions(path):
+        # legacy dict-shaped fallback, if any tests still use it
+        return [{
+            "date": "01/01/2025",
+            "amount": "12.34",
+            "payee": "Acme",
+            "memo": "",
+            "category": "Groceries/Costco",
+            "checknum": None,
+            "cleared": "*",
+            "splits": [
+                {"amount": "10.00", "category": "Groceries", "memo": "Apples"},
+                {"amount": "2.34", "category": "Groceries", "memo": "Bananas"},
+            ],
+        }]
+
+    ql.load_transactions_protocol = fake_load_transactions_protocol
+    ql.load_transactions = fake_load_transactions
+
+    # install stub module BEFORE importing merge_tab
+    monkeypatch.setitem(sys.modules, "qif_converter.qif_loader", ql)
 
     # ---- match_excel ----
     mex = types.ModuleType("qif_converter.match_excel")

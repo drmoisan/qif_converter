@@ -6,7 +6,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from tkinter import font as tkfont
-from typing import List
+from typing import List, Dict, Any, Optional
 from .scaling import apply_global_font_scaling
 
 # project modules
@@ -18,7 +18,14 @@ from qif_converter.gui.utils import (
     filter_date_range, apply_multi_payee_filters,
 )
 from qif_converter import qfx_to_txns as qfx
-from qif_converter.qif_loader import load_transactions
+from qif_converter.qif_loader import load_transactions_protocol
+# from qif_converter.qif_loader import (
+#     load_transactions,                  # legacy (dicts) — kept for back-compat
+#     load_transactions_protocol,         # new (protocols)
+# )
+from qif_converter.qif.protocols import ITransaction
+from qif_converter.qif.protocols import EnumClearedStatus
+from datetime import date
 
 class App(tk.Tk):
     """
@@ -145,89 +152,6 @@ class App(tk.Tk):
 
         def logln(self, msg: str):          return self.convert_tab.logln(msg)
 
-        #def _run(self):                     return self.convert_tab._run()
-        # ------------ Temporary Fix. Need to map tests directly to convert_tab._run() ----------
-        def _run(self):
-            """Headless/test-friendly 'Convert' action handler using the unified loader."""
-            mb = self._get_mb()
-            try:
-                in_path = Path(self.in_path.get().strip())
-                out_path = Path(self.out_path.get().strip())
-
-                if not in_path or not in_path.exists():
-                    mb.showerror("Error", "Please select a valid input QIF file.")
-                    return
-                if not out_path:
-                    mb.showerror("Error", "Please choose an output file.")
-                    return
-                if out_path.exists():
-                    if not mb.askyesno("Confirm Overwrite", f"The file already exists:\n\n{out_path}\n\nOverwrite?"):
-                        return
-
-                emit = self.emit_var.get()
-                csv_profile = self.csv_profile.get()
-                explode = self.explode_var.get()
-                match_mode = self.match_var.get()
-                case_sensitive = self.case_var.get()
-                combine = self.combine_var.get()
-                payees = self._parse_payee_filters()
-                df = self.date_from.get().strip()
-                dt = self.date_to.get().strip()
-
-                self.log.delete("1.0", "end")
-
-                in_ext = in_path.suffix.lower()
-                if in_ext in (".qfx", ".ofx"):
-                    self.logln("Parsing QFX/OFX…")
-                    from qif_converter import qfx_to_txns as qfx
-                    txns = qfx.parse_qfx(in_path)
-                else:
-                    self.logln("Parsing QIF…")
-                    from qif_converter import qif_loader as qloader
-                    txns = qloader.load_transactions(in_path)
-
-                # Optional filters, same as before
-                if df or dt:
-                    self.logln(f"Filtering by date range: from={df or 'MIN'} to={dt or 'MAX'}")
-                    from qif_converter.gui.utils import filter_date_range
-                    txns = filter_date_range(txns, df, dt)
-
-                if payees:
-                    self.logln(
-                        f"Applying payee filters: {payees} (mode={match_mode}, case={'yes' if case_sensitive else 'no'}, combine={combine})")
-                    from qif_converter.gui.utils import apply_multi_payee_filters
-                    txns = apply_multi_payee_filters(txns, payees, mode=match_mode, case_sensitive=case_sensitive,
-                                                     combine=combine)
-
-                self.logln(f"Transactions after filters: {len(txns)}")
-                from qif_converter import qif_writer as mod
-
-                if emit == "qif":
-                    self.logln(f"Writing QIF → {out_path}")
-                    mod.write_qif(txns, out_path)
-                    mb.showinfo("Done", f"Filtered QIF written:\n{out_path}")
-                    return
-
-                if csv_profile == "quicken-windows":
-                    self.logln(f"Writing CSV (Quicken Windows profile) → {out_path}")
-                    from qif_converter.gui.utils import write_csv_quicken_windows
-                    write_csv_quicken_windows(txns, out_path)
-                elif csv_profile == "quicken-mac":
-                    self.logln(f"Writing CSV (Quicken Mac/Mint profile) → {out_path}")
-                    from qif_converter.gui.utils import write_csv_quicken_mac
-                    write_csv_quicken_mac(txns, out_path)
-                else:
-                    if explode:
-                        self.logln(f"Writing CSV (exploded splits) → {out_path}")
-                        mod.write_csv_exploded(txns, out_path)
-                    else:
-                        self.logln(f"Writing CSV (flattened) → {out_path}")
-                        mod.write_csv_flat(txns, out_path)
-
-                mb.showinfo("Done", f"CSV written:\n{out_path}")
-            except Exception as e:
-                mb.showerror("Error", str(e))
-                self.logln(f"ERROR: {e}")
 
         # ----- Merge tab shims (tests poke these on App) -----
         self.m_qif_in = self.merge_tab.m_qif_in
@@ -322,8 +246,10 @@ class App(tk.Tk):
                 self.logln("Parsing QFX/OFX…")
                 txns = qfx.parse_qfx(in_path)
             else:
-                self.logln("Parsing QIF…")
-                txns = load_transactions(in_path)
+                self.logln("Parsing QIF (protocol)…")
+                # New path: load protocol objects, then adapt to legacy dicts
+                txns_proto = load_transactions_protocol(in_path)
+                txns = [self._txn_to_dict(t) for t in txns_proto]
 
             if df or dt:
                 self.logln(f"Filtering by date range: from={df or 'MIN'} to={dt or 'MAX'}")
@@ -366,6 +292,50 @@ class App(tk.Tk):
         """Forward to the Merge tab’s normalize modal."""
         # The modal uses Toplevel(self), so passing self is correct.
         return self.merge_tab.open_normalize_modal()
+
+    # --------- Protocol→dict adapters (local, temporary during migration) ---------
+    @staticmethod
+    def _format_date(d: date) -> str:
+        # Legacy utils/writers commonly expect 'MM/DD/YYYY'
+        return f"{d.month:02d}/{d.day:02d}/{d.year:04d}"
+
+    @staticmethod
+    def _cleared_to_char(cleared: EnumClearedStatus) -> str:
+        if cleared == EnumClearedStatus.CLEARED:
+            return "X"
+        if cleared == EnumClearedStatus.RECONCILED:
+            return "*"
+        return ""
+
+    @classmethod
+    def _txn_to_dict(cls, t: ITransaction) -> Dict[str, Any]:
+        """Shape a protocol transaction into the legacy dict used by filters/writers."""
+        category = t.category or ""
+        if t.tag:
+            category = f"{category}/{t.tag}" if category else t.tag
+        return {
+            "date": cls._format_date(t.date),
+            "amount": str(t.amount),  # keep as str to match legacy writer expectations
+            "payee": t.payee or "",
+            "memo": t.memo or "",
+            "category": category,
+            "checknum": t.checknum or None,
+            "cleared": cls._cleared_to_char(t.cleared),
+            "splits": [
+                {
+                    "amount": str(s.amount),
+                    "category": s.category or "",
+                    "memo": s.memo or "",
+                }
+                for s in (t.splits or [])
+            ],
+            # carry-throughs that some writers/filters may inspect
+            "address": getattr(t, "address", "") or "",
+            "transfer_account": getattr(t, "transfer_account", "") or "",
+            "action": getattr(t, "action", None),
+            # NOTE: account/type are protocol objects; legacy dicts did not expose them
+        }
+
 
 if __name__ == "__main__":
     app = App()

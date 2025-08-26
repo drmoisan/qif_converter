@@ -3,7 +3,8 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk, filedialog
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
+from datetime import date
 
 import qif_converter.qif_loader
 from qif_converter.match_session import MatchSession
@@ -15,6 +16,8 @@ from qif_converter import qif_writer as mod
 from qif_converter import match_excel as mex
 from qif_converter.gui.helpers import _set_text, _fmt_excel_row, _fmt_txn
 from qif_converter.qif_loader import load_transactions
+from qif_converter.qif_loader import load_transactions_protocol
+from qif_converter.qif import ITransaction, EnumClearedStatus
 
 
 class MergeTab(ttk.Frame):
@@ -28,6 +31,12 @@ class MergeTab(ttk.Frame):
         super().__init__(master)
         self.mb = mb
         self._merge_session: Optional[MatchSession] = None
+
+        # Ensure test-visible lists always exist (even if load/refresh bails early)
+        self.m_pairs: list = []
+        self.m_unmatched_qif: list = []
+        self.m_unmatched_excel: list = []
+
         self._build()
 
     def _build(self):
@@ -148,6 +157,45 @@ class MergeTab(ttk.Frame):
         self.lbx_pairs.bind("<<ListboxSelect>>", lambda e: self._m_update_preview("pairs"))
         self.lbx_unx.bind("<<ListboxSelect>>", lambda e: self._m_update_preview("unx"))
 
+    # --------- Protocol→dict adapters (temporary during migration) ---------
+    @staticmethod
+    def _format_date(d: date) -> str:
+        # Legacy merge pipeline expects string dates; standardize as MM/DD/YYYY
+        return f"{d.month:02d}/{d.day:02d}/{d.year:04d}"
+
+    @staticmethod
+    def _cleared_to_char(cleared: EnumClearedStatus) -> str:
+        if cleared == EnumClearedStatus.CLEARED:
+            return "X"
+        if cleared == EnumClearedStatus.RECONCILED:
+            return "*"
+        return ""
+
+    @classmethod
+    def _txn_to_dict(cls, t: ITransaction) -> Dict[str, Any]:
+        """Shape a protocol transaction into the legacy dict used by MatchSession/mex helpers."""
+        category = t.category or ""
+        if t.tag:
+            category = f"{category}/{t.tag}" if category else t.tag
+        return {
+            "date": cls._format_date(t.date),
+            "amount": str(t.amount),  # keep as string to match legacy behavior
+            "payee": t.payee or "",
+            "memo": t.memo or "",
+            "category": category,
+            "checknum": t.checknum or None,
+            "cleared": cls._cleared_to_char(t.cleared),
+            "splits": [
+                {"amount": str(s.amount), "category": s.category or "", "memo": s.memo or ""}
+                for s in (t.splits or [])
+            ],
+            # carry-throughs occasionally inspected by helpers
+            "address": getattr(t, "address", "") or "",
+            "transfer_account": getattr(t, "transfer_account", "") or "",
+            "action": getattr(t, "action", None),
+        }
+
+
     # ---------- file pickers ----------
     def _m_browse_qif(self):
         p = filedialog.askopenfilename(title="Select input QIF", filetypes=[("QIF files","*.qif"),("All files","*.*")])
@@ -177,7 +225,9 @@ class MergeTab(ttk.Frame):
             if not xlsx.exists():
                 self.mb.showerror("Error", "Please choose a valid Excel (.xlsx)."); return
 
-            txns = load_transactions(qif_in)
+            txns_proto = load_transactions_protocol(qif_in)
+            txns = [self._txn_to_dict(t) for t in txns_proto]
+
             # Split-aware loading: rows → groups (by TxnID)
             rows = mex.load_excel_rows(xlsx)
             groups = mex.group_excel_rows(rows)
