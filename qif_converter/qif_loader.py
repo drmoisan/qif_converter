@@ -1,7 +1,7 @@
 # qif_converter/qif_loader.py
 from __future__ import annotations
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Iterator
+from typing import Any, Dict, List, Optional, Tuple, Iterator, Mapping
 
 # Re-use your established transaction parser (handles splits etc.)
 from .qif_parsed import ParsedQIF
@@ -16,6 +16,13 @@ import warnings
 # Protocols (structural typing) and enums
 from .qif.protocols import ITransaction, ISplit, EnumClearedStatus, IAccount, IHeader
 from .qif import QifAcct, QifHeader
+
+@dataclass
+class UnifiedQifProtocol:
+    transactions: List[ITransaction]
+    accounts: List[IAccount]
+    headers: List[IHeader]
+    other_sections: Mapping[str, Any]  # keep whatever structure you already use
 
 
 # --------------------------
@@ -52,6 +59,14 @@ def parse_qif_unified(path: Path, encoding: str = "utf-8") -> ParsedQIF:
         payees=payees,
         other_sections=other_sections,
     )
+
+def parse_qif_unified_protocol(path: Path, encoding: str = "utf-8") -> UnifiedQifProtocol:
+    u = parse_qif_unified(path, encoding=encoding)   # existing function
+    txns = [ _adapt_txn(rec) for rec in u.transactions ]  # reuse your adapter
+    # Optionally adapt non-txn parts to protocol, if useful to callers:
+    accs = list({ _make_account(getattr(getattr(t, "account", None), "name", None)) for t in txns if t.account })
+    hdrs = list({ _make_header(getattr(getattr(t, "type", None), "code", None)) for t in txns if t.type })
+    return UnifiedQifProtocol(transactions=txns, accounts=accs, headers=hdrs, other_sections=u.other_sections)
 
 def load_transactions(path: Path, encoding: str = "utf-8") -> List[Dict[str, Any]]:
     """
