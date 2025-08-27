@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from ..qif import QifHeader
-from ..qif import qif_codes as emit_q
+from ..data_model import QifHeader
+from ..data_model import qif_codes as emit_q
 
 @dataclass
-class QifAcct:
+class QAccount:
     """
     Represents an account in QIF format.
     """
@@ -27,7 +27,7 @@ class QifAcct:
         return f"N{self.name}\nT{self.type}\nD{self.description}\n^"
 
     def __eq__(self, other: object, /) -> bool:
-        if not isinstance(other, QifAcct):
+        if not isinstance(other, QAccount):
             return False
         return (self.name == other.name
                 and self.type == other.type

@@ -5,18 +5,18 @@ from datetime import date
 from functools import total_ordering
 from _decimal import Decimal
 
-from ..qif import qif_codes as emit_q, QifAcct, QifSplit, QifHeader, QifSecurityTxn
-from ..qif.protocols import EnumClearedStatus, ISplit, ISecurity, ITransaction
+from ..data_model import qif_codes as emit_q, QAccount, QSplit, QifHeader, QSecurity
+from ..data_model.protocols import EnumClearedStatus, ISplit, ISecurity, ITransaction
 
-_MISSING = QifSecurityTxn("", Decimal(0), Decimal(0), Decimal(0), Decimal(0))  # sentinel for "not set"
+_MISSING = QSecurity("", Decimal(0), Decimal(0), Decimal(0), Decimal(0))  # sentinel for "not set"
 
 @total_ordering
 @dataclass
-class QifTxn(ITransaction):
+class QTransaction(ITransaction):
     """
     Represents a single QIF transaction.
     """
-    account: QifAcct
+    account: QAccount
     type: QifHeader
     date: date
     action_chk: str
@@ -27,13 +27,13 @@ class QifTxn(ITransaction):
     category: str
     tag: str
 
-    splits: list[ISplit] = field(default_factory=list[QifSplit])
+    splits: list[ISplit] = field(default_factory=list[QSplit])
     _security: ISecurity = field(default=_MISSING, init=False, repr=False, compare=False)
 
     @property
     def security(self) -> ISecurity:
         if self._security is _MISSING:
-            self._security = QifSecurityTxn(name="", price=Decimal(0), quantity=Decimal(0), commission=Decimal(0), transfer_amount=Decimal(0))
+            self._security = QSecurity(name="", price=Decimal(0), quantity=Decimal(0), commission=Decimal(0), transfer_amount=Decimal(0))
         return self._security
 
     def security_exists(self) -> bool:
@@ -151,11 +151,11 @@ class QifTxn(ITransaction):
         }
 
     @classmethod
-    def from_legacy(cls, d: dict) -> "QifTxn":
+    def from_legacy(cls, d: dict) -> "QTransaction":
         from decimal import Decimal
         from ..utilities import parse_date_string
         return cls(
-            account=QifAcct(name=d.get("account", "")),
+            account=QAccount(name=d.get("account", "")),
             type=QifHeader(d.get("type", "")),
             date=parse_date_string(d.get("date", "")) or parse_date_string("1985-11-05"),
             amount=Decimal(str(d.get("amount", "0"))),
@@ -165,7 +165,7 @@ class QifTxn(ITransaction):
             action_chk=d.get("checknum") or "",
             tag=d.get("tag") or "",
             cleared=EnumClearedStatus.from_char(d.get("cleared", "")),
-            splits=[QifSplit(category=s.get("category", ""), memo=s.get("memo", ""),
-                             amount=Decimal(str(s.get("amount", "0"))), tag=s.get("tag", ""))
+            splits=[QSplit(category=s.get("category", ""), memo=s.get("memo", ""),
+                           amount=Decimal(str(s.get("amount", "0"))), tag=s.get("tag", ""))
                     for s in (d.get("splits") or [])],
         )

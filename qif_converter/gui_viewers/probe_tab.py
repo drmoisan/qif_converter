@@ -1,4 +1,4 @@
-# qif_converter/gui/probe_tab.py
+# qif_converter/gui_viewers/probe_tab.py
 from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk, filedialog
@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 import os, sys, subprocess
 from qif_converter import qdx_probe
-from qif_converter.gui.helpers import decode_best_effort
+from qif_converter.gui_viewers.helpers import decode_best_effort
 
 class ProbeTab(ttk.Frame):
     """Primary function: Run QDX probe and preview artifacts."""

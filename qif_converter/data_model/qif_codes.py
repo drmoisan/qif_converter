@@ -1,5 +1,5 @@
 from __future__ import annotations
-from qif_converter.qif.qif_code import QifCode
+from qif_converter.data_model.qif_code import QifCode
 
 def date() -> QifCode: return QifCode("D", "Date. Leading zeroes on month and day can be skipped. Year can be either 4 digits or 2 digits or '6 (=2006).", "All", "D25 December 2006")
 def amount_transaction1() -> QifCode: return QifCode("U", "Seems identical to T field (amount of item.) Both T and U are present in QIF files exported from Quicken 2015.", "All", "U-1,234.50")

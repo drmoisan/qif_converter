@@ -1,4 +1,4 @@
-# qif_converter/gui/convert_tab.py
+# qif_converter/gui_viewers/convert_tab.py
 from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk, filedialog
@@ -7,8 +7,8 @@ from typing import List
 
 import qif_converter.qif_loader
 from qif_converter import qif_writer as mod
-from qif_converter.gui.helpers import filter_date_range, apply_multi_payee_filters
-from qif_converter.gui.csv_profiles import (
+from qif_converter.gui_viewers.helpers import filter_date_range, apply_multi_payee_filters
+from qif_converter.gui_viewers.csv_profiles import (
     write_csv_quicken_windows, write_csv_quicken_mac,)
 from qif_converter import qfx_to_txns as qfx
 

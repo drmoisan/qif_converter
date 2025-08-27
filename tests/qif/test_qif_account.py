@@ -1,11 +1,11 @@
 # tests/test_qif_account.py
-from qif_converter.qif.qif_account import QifAcct
-from qif_converter.qif.qif_header import QifHeader
+from qif_converter.data_model.q_account import QAccount
+from qif_converter.data_model.qif_header import QifHeader
 
 
 def test_header_returns_expected_qifheader():
     # Arrange
-    acct = QifAcct(name="Checking", type="Bank", description="Primary Checking")
+    acct = QAccount(name="Checking", type="Bank", description="Primary Checking")
 
     # Act
     h = acct.header
@@ -21,7 +21,7 @@ def test_header_returns_expected_qifheader():
 
 def test_qifentry_without_header_emits_fields_and_caret():
     # Arrange
-    acct = QifAcct(name="Checking", type="Bank", description="My checking")
+    acct = QAccount(name="Checking", type="Bank", description="My checking")
 
     # Act
     out = acct.qif_entry(with_header=False)
@@ -32,7 +32,7 @@ def test_qifentry_without_header_emits_fields_and_caret():
 
 def test_qifentry_with_header_includes_header_code_first():
     # Arrange
-    acct = QifAcct(name="Checking", type="Bank", description="My checking")
+    acct = QAccount(name="Checking", type="Bank", description="My checking")
 
     # Act
     out = acct.qif_entry(with_header=True)
@@ -44,9 +44,9 @@ def test_qifentry_with_header_includes_header_code_first():
 
 def test_equality_and_hash_semantics():
     # Arrange
-    a1 = QifAcct(name="Checking", type="Bank", description="desc A")
-    a2 = QifAcct(name="Checking", type="Bank", description="desc B")  # desc differs, but __eq__ ignores it
-    a3 = QifAcct(name="Savings", type="Bank", description="desc A")
+    a1 = QAccount(name="Checking", type="Bank", description="desc A")
+    a2 = QAccount(name="Checking", type="Bank", description="desc B")  # desc differs, but __eq__ ignores it
+    a3 = QAccount(name="Savings", type="Bank", description="desc A")
     not_acct = object()
 
     # Act / Assert
@@ -64,7 +64,7 @@ def test_equality_and_hash_semantics():
 
 def test_defaults_emit_empty_fields_and_caret():
     # Arrange
-    acct = QifAcct()  # all defaults: empty strings
+    acct = QAccount()  # all defaults: empty strings
 
     # Act
     out_no_header = acct.qif_entry(with_header=False)

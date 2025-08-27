@@ -1,4 +1,4 @@
-# qif_converter/gui/csv_profiles.py
+# qif_converter/gui_viewers/csv_profiles.py
 from __future__ import annotations
 from pathlib import Path
 from typing import List, Dict, Any

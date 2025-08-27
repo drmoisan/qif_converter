@@ -1,4 +1,4 @@
-# qif_converter/gui/utils.py
+# qif_converter/gui_viewers/utils.py
 from __future__ import annotations
 import csv
 import re

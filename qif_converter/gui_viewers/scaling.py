@@ -1,4 +1,4 @@
-# qif_converter/gui/scaling.py
+# qif_converter/gui_viewers/scaling.py
 from __future__ import annotations
 import os
 

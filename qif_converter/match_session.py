@@ -10,7 +10,7 @@ from .excel_row import ExcelRow
 from .excel_txn_group import ExcelTxnGroup
 from .qif_item_key import QIFItemKey
 #from .qif_txn_view import QIFTxnView
-from .qif import QifTxn, QifSplit
+from .data_model import QTransaction, QSplit
 
 
 class MatchSession:
@@ -397,7 +397,7 @@ class MatchSession:
 
         # Excel rows → new split objects/dicts
         new_splits_model = [
-            QifSplit(category=r.category or "", memo=r.item or "", amount=r.amount, tag="")
+            QSplit(category=r.category or "", memo=r.item or "", amount=r.amount, tag="")
             for r in group.rows
         ]
         new_splits_dicts = [
@@ -405,7 +405,7 @@ class MatchSession:
             for r in group.rows
         ]
 
-        if isinstance(base, QifTxn):
+        if isinstance(base, QTransaction):
             # replace model splits
             base.splits = new_splits_model
             # optional: clear top-level category when splits exist

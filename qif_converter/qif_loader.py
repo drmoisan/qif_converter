@@ -14,8 +14,8 @@ from datetime import date, datetime
 import warnings
 
 # Protocols (structural typing) and enums
-from .qif.protocols import ITransaction, ISplit, EnumClearedStatus, IAccount, IHeader, IQuickenFile, ITag, ICategory, ISecurity
-from .qif import QifAcct, QifHeader, QuickenFile
+from .data_model.protocols import ITransaction, ISplit, EnumClearedStatus, IAccount, IHeader, IQuickenFile, ITag, ICategory, ISecurity
+from .data_model import QAccount, QifHeader, QuickenFile
 
 
 @dataclass
@@ -404,7 +404,7 @@ def _make_account(name: str | None) -> Optional[IAccount]:
     if not name:
         return None
     # Adjust args to what QifAccount actually expects
-    return QifAcct(name=name)
+    return QAccount(name=name)
 
 def _make_header(raw_type: str | None) -> Optional[IHeader]:
     if not raw_type:

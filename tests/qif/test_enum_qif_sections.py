@@ -1,6 +1,6 @@
 # tests/qif/test_qif_sections.py
 import pytest
-from qif_converter.qif import QuickenSections as QS
+from qif_converter.data_model import QuickenSections as QS
 
 
 # ---------------------------

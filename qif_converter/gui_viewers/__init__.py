@@ -1,6 +1,6 @@
 
-# Tests import/monkeypatch these off `qif_converter.gui`
-from qif_converter import qif_writer as mod  # e.g., tests monkeypatch gui.mod.parse_qif
+# Tests import/monkeypatch these off `qif_converter.gui_viewers`
+from qif_converter import qif_writer as mod  # e.g., tests monkeypatch gui_viewers.mod.parse_qif
 
 # Re-export shared helpers used by tests (you already have these in your new split code)
 from .helpers import (

@@ -1,7 +1,7 @@
 from enum import Enum
 from functools import total_ordering
 
-#from qif_converter.qif import qif_codes as codes
+#from qif_converter.data_model import qif_codes as codes
 
 
 @total_ordering

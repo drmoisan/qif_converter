@@ -1,7 +1,7 @@
 # tests/test_qif_enums.py
 import pytest
 
-from qif_converter.qif import QuickenSections, EnumClearedStatus
+from qif_converter.data_model import QuickenSections, EnumClearedStatus
 
 
 # ---------- QifSections (IntFlag) ----------

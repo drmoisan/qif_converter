@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
-from ..qif.protocols import IHeader
+from ..data_model.protocols import IHeader
 
 
 @dataclass

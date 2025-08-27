@@ -1,6 +1,6 @@
-# tests/gui/test_app.py
+# tests/gui_viewers/test_app.py
 """
-Unit tests for qif_converter.gui.app.App
+Unit tests for qif_converter.gui_viewers.app.App
 
 Policy adherence:
 - Independent & isolated: stubs for tkinter and GUI tabs avoid real display/state.
@@ -129,7 +129,7 @@ def _install_tk_stubs(monkeypatch):
 def _install_gui_submodule_stubs(monkeypatch):
     """Provide minimal stand-ins for GUI tabs so App wiring works without real UI."""
     # ConvertTab: expose variables and a Text-like log + payees_text
-    convert_tab = types.ModuleType("qif_converter.gui.convert_tab")
+    convert_tab = types.ModuleType("qif_converter.gui_viewers.convert_tab")
     class ConvertTab:
         def __init__(self, app, mb):
             self.app = app
@@ -151,10 +151,10 @@ def _install_gui_submodule_stubs(monkeypatch):
         def _parse_payee_filters(self): return []
         def logln(self, msg): self.log.insert("end", msg + "\n")
     convert_tab.ConvertTab = ConvertTab
-    monkeypatch.setitem(sys.modules, "qif_converter.gui.convert_tab", convert_tab)
+    monkeypatch.setitem(sys.modules, "qif_converter.gui_viewers.convert_tab", convert_tab)
 
     # MergeTab: only the normalize modal is exercised
-    merge_tab = types.ModuleType("qif_converter.gui.merge_tab")
+    merge_tab = types.ModuleType("qif_converter.gui_viewers.merge_tab")
     class MergeTab:
         def __init__(self, *a, **k):
             # attrs that App might shim out for tests in the future
@@ -166,21 +166,21 @@ def _install_gui_submodule_stubs(monkeypatch):
         def open_normalize_modal(self):
             return "normalized"
     merge_tab.MergeTab = MergeTab
-    monkeypatch.setitem(sys.modules, "qif_converter.gui.merge_tab", merge_tab)
+    monkeypatch.setitem(sys.modules, "qif_converter.gui_viewers.merge_tab", merge_tab)
 
     # ProbeTab: empty shell
-    probe_tab = types.ModuleType("qif_converter.gui.probe_tab")
+    probe_tab = types.ModuleType("qif_converter.gui_viewers.probe_tab")
     class ProbeTab:
         def __init__(self, *a, **k): pass
     probe_tab.ProbeTab = ProbeTab
-    monkeypatch.setitem(sys.modules, "qif_converter.gui.probe_tab", probe_tab)
+    monkeypatch.setitem(sys.modules, "qif_converter.gui_viewers.probe_tab", probe_tab)
 
     # scaling: __init__.py imports these symbols; provide no-op implementations
-    scaling = types.ModuleType("qif_converter.gui.scaling")
+    scaling = types.ModuleType("qif_converter.gui_viewers.scaling")
     scaling._safe_float = lambda x, d: d if isinstance(x, str) and not x.strip() else float(x)
     scaling.detect_system_font_scale = lambda root=None: 1.0
     scaling.apply_global_font_scaling = lambda *a, **k: None
-    monkeypatch.setitem(sys.modules, "qif_converter.gui.scaling", scaling)
+    monkeypatch.setitem(sys.modules, "qif_converter.gui_viewers.scaling", scaling)
 
 
 # --------------------------
@@ -190,7 +190,7 @@ def _install_gui_submodule_stubs(monkeypatch):
 @pytest.fixture
 def app_mod(monkeypatch):
     """
-    Import qif_converter.gui.app with tkinter and GUI submodules stubbed.
+    Import qif_converter.gui_viewers.app with tkinter and GUI submodules stubbed.
     Returns the imported app module.
     """
     _install_tk_stubs(monkeypatch)
@@ -198,11 +198,11 @@ def app_mod(monkeypatch):
 
     # Ensure a clean import of the target each time
     for key in list(sys.modules):
-        if key.endswith(".app") and key.split(".")[-2] == "gui":
+        if key.endswith(".app") and key.split(".")[-2] == "gui_viewers":
             sys.modules.pop(key, None)
 
     # Import canonical path
-    return importlib.import_module("qif_converter.gui.app")
+    return importlib.import_module("qif_converter.gui_viewers.app")
 
 
 # --------------------------
@@ -381,7 +381,7 @@ def test_run_writes_csv_windows_profile(app_mod, tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "qif_converter.qif_loader", qloader)
 
     # Replace utils function that _run imports at call time
-    utils_mod = importlib.import_module("qif_converter.gui.utils")
+    utils_mod = importlib.import_module("qif_converter.gui_viewers.utils")
     monkeypatch.setattr(utils_mod, "write_csv_quicken_windows",
                         lambda txns, p: Path(p).write_text("windows", encoding="utf-8"))
 

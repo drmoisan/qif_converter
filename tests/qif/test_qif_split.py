@@ -2,14 +2,14 @@
 from decimal import Decimal
 import pytest
 
-from qif_converter.qif.qif_split import QifSplit
+from qif_converter.data_model.q_split import QSplit
 
 
 def test_equality_and_hash_are_consistent():
     # Arrange
-    a1 = QifSplit(category="Food:Coffee", amount=Decimal("-10.00"), memo="Latte", tag="")
-    a2 = QifSplit(category="Food:Coffee", amount=Decimal("-10.00"), memo="Latte", tag="")  # identical
-    b  = QifSplit(category="Food:Coffee", amount=Decimal("-10.00"), memo="Latte!", tag="") # memo differs
+    a1 = QSplit(category="Food:Coffee", amount=Decimal("-10.00"), memo="Latte", tag="")
+    a2 = QSplit(category="Food:Coffee", amount=Decimal("-10.00"), memo="Latte", tag="")  # identical
+    b  = QSplit(category="Food:Coffee", amount=Decimal("-10.00"), memo="Latte!", tag="") # memo differs
 
     # Act
     eq_same   = (a1 == a2)
@@ -24,9 +24,9 @@ def test_equality_and_hash_are_consistent():
 
 def test_can_be_used_in_set_and_deduplicates_equal_items():
     # Arrange
-    s1 = QifSplit("Cat:A", Decimal("1.00"), "m", tag="")
-    s2 = QifSplit("Cat:A", Decimal("1.00"), "m", tag="")  # equal to s1
-    s3 = QifSplit("Cat:A", Decimal("1.00"), "m2", tag="") # different memo
+    s1 = QSplit("Cat:A", Decimal("1.00"), "m", tag="")
+    s2 = QSplit("Cat:A", Decimal("1.00"), "m", tag="")  # equal to s1
+    s3 = QSplit("Cat:A", Decimal("1.00"), "m2", tag="") # different memo
 
     # Act
     unique = {s1, s2, s3}
@@ -38,9 +38,9 @@ def test_can_be_used_in_set_and_deduplicates_equal_items():
 
 def test_can_be_used_as_dict_key():
     # Arrange
-    k1 = QifSplit("Cat:B", Decimal("-2.50"), "x", tag="T")
-    k2 = QifSplit("Cat:B", Decimal("-2.50"), "x", tag="T")  # equal key
-    k3 = QifSplit("Cat:B", Decimal("-2.50"), "y", tag="T")  # different memo
+    k1 = QSplit("Cat:B", Decimal("-2.50"), "x", tag="T")
+    k2 = QSplit("Cat:B", Decimal("-2.50"), "x", tag="T")  # equal key
+    k3 = QSplit("Cat:B", Decimal("-2.50"), "y", tag="T")  # different memo
 
     d = {k1: "value1"}
 
@@ -59,11 +59,11 @@ def test_ordering_primary_category_then_tag_then_amount_then_memo():
       1) category  2) tag  3) amount  4) memo
     """
     # Arrange
-    s_catA_tagA_amt1_memoA = QifSplit("A", Decimal("1.00"), "a", tag="A")
-    s_catA_tagA_amt1_memoB = QifSplit("A", Decimal("1.00"), "b", tag="A")
-    s_catA_tagA_amt2_memoA = QifSplit("A", Decimal("2.00"), "a", tag="A")
-    s_catA_tagB_amt1_memoA = QifSplit("A", Decimal("1.00"), "a", tag="B")
-    s_catB_tagA_amt1_memoA = QifSplit("B", Decimal("1.00"), "a", tag="A")
+    s_catA_tagA_amt1_memoA = QSplit("A", Decimal("1.00"), "a", tag="A")
+    s_catA_tagA_amt1_memoB = QSplit("A", Decimal("1.00"), "b", tag="A")
+    s_catA_tagA_amt2_memoA = QSplit("A", Decimal("2.00"), "a", tag="A")
+    s_catA_tagB_amt1_memoA = QSplit("A", Decimal("1.00"), "a", tag="B")
+    s_catB_tagA_amt1_memoA = QSplit("B", Decimal("1.00"), "a", tag="A")
 
     scrambled = [
         s_catA_tagB_amt1_memoA,  # tag B should come after tag A (with same category)
@@ -89,8 +89,8 @@ def test_ordering_primary_category_then_tag_then_amount_then_memo():
 
 def test_ordering_with_negative_and_positive_amounts():
     # Arrange: identical category/tag, amounts differ
-    p = QifSplit("Food", Decimal("5.00"),  "m", tag="")
-    n = QifSplit("Food", Decimal("-5.00"), "m", tag="")
+    p = QSplit("Food", Decimal("5.00"), "m", tag="")
+    n = QSplit("Food", Decimal("-5.00"), "m", tag="")
 
     # Act
     sorted_pair = sorted([p, n])
@@ -101,9 +101,9 @@ def test_ordering_with_negative_and_positive_amounts():
 
 def test_ordering_uses_memo_as_tiebreaker_only():
     # Arrange: same category/tag/amount; memo decides order
-    m1 = QifSplit("X", Decimal("1.00"), "aaa", tag="T")
-    m2 = QifSplit("X", Decimal("1.00"), "bbb", tag="T")
-    m3 = QifSplit("X", Decimal("1.00"), "ccc", tag="T")
+    m1 = QSplit("X", Decimal("1.00"), "aaa", tag="T")
+    m2 = QSplit("X", Decimal("1.00"), "bbb", tag="T")
+    m3 = QSplit("X", Decimal("1.00"), "ccc", tag="T")
 
     # Act
     result = sorted([m3, m1, m2])

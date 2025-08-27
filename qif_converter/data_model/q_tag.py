@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..qif.protocols import ITag, IHeader
-from ..qif import QifHeader
+from ..data_model.protocols import ITag, IHeader
+from ..data_model import QifHeader
 
 @dataclass
-class QifTag(ITag):
+class QTag(ITag):
     """
     Represents an account in QIF format.
     """

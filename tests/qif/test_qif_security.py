@@ -3,7 +3,7 @@
 from decimal import Decimal
 import pytest
 
-from qif_converter.qif import QifSecurityTxn
+from qif_converter.data_model import QSecurity
 
 
 def _mk_security_txn(
@@ -17,7 +17,7 @@ def _mk_security_txn(
     Helper to build a QifSecurityTxn with sensible defaults. Keeps tests concise
     and deterministic while centralizing object creation.
     """
-    return QifSecurityTxn(
+    return QSecurity(
         name=name,
         price=price,
         quantity=quantity,

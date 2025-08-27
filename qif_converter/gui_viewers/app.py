@@ -1,4 +1,4 @@
-# qif_converter/gui/app.py
+# qif_converter/gui_viewers/app.py
 from __future__ import annotations
 import os
 from types import SimpleNamespace
@@ -11,10 +11,10 @@ from .scaling import apply_global_font_scaling
 
 # project modules
 from qif_converter import qif_writer as mod
-from qif_converter.gui.merge_tab import MergeTab
-from qif_converter.gui.convert_tab import ConvertTab
-from qif_converter.gui.probe_tab import ProbeTab
-from qif_converter.gui.utils import (
+from qif_converter.gui_viewers.merge_tab import MergeTab
+from qif_converter.gui_viewers.convert_tab import ConvertTab
+from qif_converter.gui_viewers.probe_tab import ProbeTab
+from qif_converter.gui_viewers.utils import (
     filter_date_range, apply_multi_payee_filters,
 )
 from qif_converter import qfx_to_txns as qfx
@@ -23,8 +23,8 @@ from qif_converter.qif_loader import load_transactions_protocol
 #     load_transactions,                  # legacy (dicts) — kept for back-compat
 #     load_transactions_protocol,         # new (protocols)
 # )
-from qif_converter.qif.protocols import ITransaction
-from qif_converter.qif.protocols import EnumClearedStatus
+from qif_converter.data_model.protocols import ITransaction
+from qif_converter.data_model.protocols import EnumClearedStatus
 from datetime import date
 
 class App(tk.Tk):
@@ -268,11 +268,11 @@ class App(tk.Tk):
 
             if csv_profile == "quicken-windows":
                 self.logln(f"Writing CSV (Quicken Windows profile) → {out_path}")
-                from qif_converter.gui.utils import write_csv_quicken_windows
+                from qif_converter.gui_viewers.utils import write_csv_quicken_windows
                 write_csv_quicken_windows(txns, out_path)
             elif csv_profile == "quicken-mac":
                 self.logln(f"Writing CSV (Quicken Mac/Mint profile) → {out_path}")
-                from qif_converter.gui.utils import write_csv_quicken_mac
+                from qif_converter.gui_viewers.utils import write_csv_quicken_mac
                 write_csv_quicken_mac(txns, out_path)
             else:
                 if explode:

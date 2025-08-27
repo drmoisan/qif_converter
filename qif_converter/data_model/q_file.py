@@ -7,8 +7,8 @@ from collections.abc import Iterable
 import inspect
 import io
 
-from ..qif.protocols import QuickenSections, HasEmitQifWithHeader, ITag, ICategory, ITransaction, IQuickenFile, IAccount
-from ..qif import QifAcct
+from ..data_model.protocols import QuickenSections, HasEmitQifWithHeader, ITag, ICategory, ITransaction, IQuickenFile, IAccount
+from ..data_model import QAccount
 
 
 
@@ -118,7 +118,7 @@ class QuickenFile(IQuickenFile):
         """
         if not self.transactions:
             return ""
-        current_account : IAccount = field(default_factory=QifAcct)
+        current_account : IAccount = field(default_factory=QAccount)
 
         texts: list[str] = []
         for i, item in enumerate(self.transactions):

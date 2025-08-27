@@ -1,4 +1,4 @@
-# qif_converter/gui/merge_tab.py
+# qif_converter/gui_viewers/merge_tab.py
 from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk, filedialog
@@ -14,10 +14,10 @@ from qif_converter.qif_item_key import QIFItemKey
 
 from qif_converter import qif_writer as mod
 from qif_converter import match_excel as mex
-from qif_converter.gui.helpers import _set_text, _fmt_excel_row, _fmt_txn
-from qif_converter.qif_loader import load_transactions
+from qif_converter.gui_viewers.helpers import _set_text, _fmt_excel_row, _fmt_txn
+#from qif_converter.qif_loader import load_transactions
 from qif_converter.qif_loader import load_transactions_protocol
-from qif_converter.qif import ITransaction, EnumClearedStatus
+from qif_converter.data_model import ITransaction, EnumClearedStatus
 
 
 class MergeTab(ttk.Frame):
@@ -183,7 +183,7 @@ class MergeTab(ttk.Frame):
             "payee": t.payee or "",
             "memo": t.memo or "",
             "category": category,
-            "checknum": t.checknum or None,
+            "checknum": t.action_chk or None,
             "cleared": cls._cleared_to_char(t.cleared),
             "splits": [
                 {"amount": str(s.amount), "category": s.category or "", "memo": s.memo or ""}

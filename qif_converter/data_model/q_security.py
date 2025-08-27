@@ -5,7 +5,7 @@ from _decimal import Decimal
 
 @total_ordering
 @dataclass
-class QifSecurityTxn:
+class QSecurity:
     """
     Represents a QIF security transaction.
     """
@@ -16,7 +16,7 @@ class QifSecurityTxn:
     transfer_amount: Decimal
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, QifSecurityTxn):
+        if not isinstance(other, QSecurity):
             return NotImplemented
         return (self.name == other.name
                 and self.price == other.price
@@ -29,7 +29,7 @@ class QifSecurityTxn:
         return hash((self.name, self.price, self.quantity, self.commission, self.transfer_amount))
 
     def __lt__(self, other: object) -> bool:
-        if not isinstance(other, QifSecurityTxn):
+        if not isinstance(other, QSecurity):
             return NotImplemented
         if self.name < other.name:
             return True

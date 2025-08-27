@@ -1,6 +1,6 @@
-# tests/gui/test_merge_tab.py
+# tests/gui_viewers/test_merge_tab.py
 """
-Unit tests for qif_converter.gui.merge_tab.MergeTab
+Unit tests for qif_converter.gui_viewers.merge_tab.MergeTab
 
 Policy adherence:
 - Independent & isolated: tkinter and qif_converter deps are stubbed.
@@ -548,20 +548,20 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
 # def _install_project_stubs(monkeypatch):
 #     """Install stubs for modules that merge_tab imports or that package __init__ pulls in."""
 #     # ---- satisfy package __init__ (scaling, csv_profiles, helpers re-exports) ----
-#     scaling = types.ModuleType("qif_converter.gui.scaling")
+#     scaling = types.ModuleType("qif_converter.gui_viewers.scaling")
 #     scaling._safe_float = lambda x, d: d
 #     scaling.detect_system_font_scale = lambda root=None: 1.0
 #     scaling.apply_global_font_scaling = lambda *a, **k: None
-#     monkeypatch.setitem(sys.modules, "qif_converter.gui.scaling", scaling)
+#     monkeypatch.setitem(sys.modules, "qif_converter.gui_viewers.scaling", scaling)
 #
-#     csvp = types.ModuleType("qif_converter.gui.csv_profiles")
+#     csvp = types.ModuleType("qif_converter.gui_viewers.csv_profiles")
 #     csvp.WIN_HEADERS = ["Date", "Payee"]
 #     csvp.MAC_HEADERS = ["Date", "Description"]
 #     csvp.write_csv_quicken_windows = lambda txns, p: Path(p).write_text("windows", encoding="utf-8")
 #     csvp.write_csv_quicken_mac = lambda txns, p: Path(p).write_text("mac", encoding="utf-8")
-#     monkeypatch.setitem(sys.modules, "qif_converter.gui.csv_profiles", csvp)
+#     monkeypatch.setitem(sys.modules, "qif_converter.gui_viewers.csv_profiles", csvp)
 #
-#     helpers = types.ModuleType("qif_converter.gui.helpers")
+#     helpers = types.ModuleType("qif_converter.gui_viewers.helpers")
 #     # text helpers used by previews
 #     def _set_text(widget, text):
 #         try:
@@ -572,7 +572,7 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
 #     helpers._set_text = _set_text
 #     helpers._fmt_excel_row = lambda d: f"{d}"
 #     helpers._fmt_txn = lambda d: f"{d}"
-#     monkeypatch.setitem(sys.modules, "qif_converter.gui.helpers", helpers)
+#     monkeypatch.setitem(sys.modules, "qif_converter.gui_viewers.helpers", helpers)
 #
 #     # ---- modules used directly by merge_tab.py ----
 #     # qif_loader: both parse_qif (for normalize modal) and load_transactions (for merging)
@@ -634,7 +634,7 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
 
 @pytest.fixture
 def merge_mod(monkeypatch):
-    """Import qif_converter.gui.merge_tab with all deps stubbed for headless testing."""
+    """Import qif_converter.gui_viewers.merge_tab with all deps stubbed for headless testing."""
     _install_tk_stubs(monkeypatch)      # GUI stubs
     _install_project_stubs(monkeypatch) # qif_converter stubs
 
@@ -643,7 +643,7 @@ def merge_mod(monkeypatch):
         if k.endswith(".merge_tab"):
             sys.modules.pop(k, None)
 
-    return importlib.import_module("qif_converter.gui.merge_tab")
+    return importlib.import_module("qif_converter.gui_viewers.merge_tab")
 
 
 # --------------------------
@@ -675,8 +675,8 @@ def test_browse_qif_sets_in_and_suggests_out(merge_mod, monkeypatch):
     fd_over = {"askopenfilename": lambda **k: chosen_in}
     _install_tk_stubs(monkeypatch, filedialog_overrides=fd_over)
     _install_project_stubs(monkeypatch)
-    sys.modules.pop("qif_converter.gui.merge_tab", None)
-    m2 = importlib.import_module("qif_converter.gui.merge_tab")
+    sys.modules.pop("qif_converter.gui_viewers.merge_tab", None)
+    m2 = importlib.import_module("qif_converter.gui_viewers.merge_tab")
 
     # Avoid FS checks
     monkeypatch.setattr(m2.Path, "exists", lambda self: True, raising=False)
@@ -703,8 +703,8 @@ def test_browse_out_sets_out_path(merge_mod, monkeypatch):
     fd_over = {"asksaveasfilename": lambda **k: chosen_out}
     _install_tk_stubs(monkeypatch, filedialog_overrides=fd_over)
     _install_project_stubs(monkeypatch)
-    sys.modules.pop("qif_converter.gui.merge_tab", None)
-    m2 = importlib.import_module("qif_converter.gui.merge_tab")
+    sys.modules.pop("qif_converter.gui_viewers.merge_tab", None)
+    m2 = importlib.import_module("qif_converter.gui_viewers.merge_tab")
 
     mt = m2.MergeTab(master=None, mb=_FakeMB())
 
@@ -924,8 +924,8 @@ def test_open_normalize_modal_headless_object_behaves(merge_mod, monkeypatch):
     # Arrange: force headless Toplevel & stub project deps; reload module
     _install_tk_stubs(monkeypatch, toplevel_raises=True)
     _install_project_stubs(monkeypatch)
-    sys.modules.pop("qif_converter.gui.merge_tab", None)
-    m2 = importlib.import_module("qif_converter.gui.merge_tab")
+    sys.modules.pop("qif_converter.gui_viewers.merge_tab", None)
+    m2 = importlib.import_module("qif_converter.gui_viewers.merge_tab")
 
     mt = m2.MergeTab(master=None, mb=_FakeMB())
     mt.m_qif_in.set("MEM://in.qif")
@@ -979,8 +979,8 @@ def test_open_normalize_modal_headless_object_behaves(merge_mod, monkeypatch):
     _install_tk_stubs(monkeypatch, toplevel_raises=True)
     _install_project_stubs(monkeypatch)
     import sys, importlib
-    sys.modules.pop("qif_converter.gui.merge_tab", None)
-    m2 = importlib.import_module("qif_converter.gui.merge_tab")
+    sys.modules.pop("qif_converter.gui_viewers.merge_tab", None)
+    m2 = importlib.import_module("qif_converter.gui_viewers.merge_tab")
 
     mt = m2.MergeTab(master=None, mb=_FakeMB())
     mt.m_qif_in.set("MEM://in.qif")

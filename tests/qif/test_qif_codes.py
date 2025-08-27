@@ -5,8 +5,8 @@ import inspect
 import types
 import pytest
 
-from qif_converter.qif.qif_code import QifCode
-import qif_converter.qif.qif_codes as codes
+from qif_converter.data_model.qif_code import QifCode
+import qif_converter.data_model.qif_codes as codes
 
 
 def _assert_qifcode(obj: QifCode, expect_code: str):

@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import pytest
-from qif_converter.qif import QuickenFile, QifAcct, IQuickenFile, IAccount, ITransaction
+from qif_converter.data_model import QuickenFile, QAccount, IQuickenFile, IAccount, ITransaction
 
 
 class _StubTxn(ITransaction):
     """Minimal txn stub that records how emit_qif() was called and returns a body."""
-    def __init__(self, account: QifAcct, body: str):
+    def __init__(self, account: QAccount, body: str):
         self.account = account
         self.body = body
         self.calls: list[tuple[bool, bool]] = []
@@ -26,7 +26,7 @@ class _StubTxn(ITransaction):
 
 class _NoneTxn:
     """Stub that returns None from emit_qif to exercise the fallback-to-empty-string path."""
-    def __init__(self, account: QifAcct):
+    def __init__(self, account: QAccount):
         self.account = account
         self.calls: list[tuple[bool, bool]] = []
 
@@ -50,7 +50,7 @@ def test_emit_transactions_empty_returns_empty_string():
 def test_emit_transactions_first_in_account_emits_headers_then_suppresses_for_followups():
     # Arrange
     f = QuickenFile()
-    acct = QifAcct(name="Checking", type="Bank", description="")
+    acct = QAccount(name="Checking", type="Bank", description="")
     t1 = _StubTxn(acct, "TXN1")
     t2 = _StubTxn(acct, "TXN2")
     f.transactions = [t1, t2]
@@ -69,8 +69,8 @@ def test_emit_transactions_first_in_account_emits_headers_then_suppresses_for_fo
 def test_emit_transactions_reemits_headers_when_account_changes():
     # Arrange
     f = QuickenFile()
-    checking = QifAcct(name="Checking", type="Bank", description="")
-    savings = QifAcct(name="Savings", type="Bank", description="")
+    checking = QAccount(name="Checking", type="Bank", description="")
+    savings = QAccount(name="Savings", type="Bank", description="")
     t1 = _StubTxn(checking, "C1")
     t2 = _StubTxn(checking, "C2")
     t3 = _StubTxn(savings, "S1")  # account change here should trigger headers again
@@ -89,7 +89,7 @@ def test_emit_transactions_reemits_headers_when_account_changes():
 def test_emit_transactions_coerces_none_to_empty_string():
     # Arrange
     f = QuickenFile()
-    acct = QifAcct(name="Checking", type="Bank", description="")
+    acct = QAccount(name="Checking", type="Bank", description="")
     t1 = _StubTxn(acct, "TXN1")
     t2 = _NoneTxn(acct)  # returns None → should contribute empty text
     f.transactions = [t1, t2]

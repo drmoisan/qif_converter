@@ -1,4 +1,4 @@
-# qif_converter/gui/helpers.py
+# qif_converter/gui_viewers/helpers.py
 from __future__ import annotations
 from datetime import datetime
 from typing import List, Dict, Any, Optional

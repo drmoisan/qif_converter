@@ -2,8 +2,8 @@
 
 import pytest
 
-from qif_converter.qif import QifCat
-from qif_converter.qif import QifHeader
+from qif_converter.data_model import QCategory
+from qif_converter.data_model import QifHeader
 
 
 # --------------------------
@@ -12,7 +12,7 @@ from qif_converter.qif import QifHeader
 
 def test_header_returns_expected_qifheader():
     # Arrange
-    c = QifCat(name="Food", description="Groceries")
+    c = QCategory(name="Food", description="Groceries")
     # Act
     h = c.header
     # Assert
@@ -24,7 +24,7 @@ def test_header_returns_expected_qifheader():
 
 def test_emit_qif_without_header_minimal_lines():
     # Arrange
-    c = QifCat(name="Food", description="Groceries")
+    c = QCategory(name="Food", description="Groceries")
     # Act
     out = c.emit_qif(with_header=False)
     # Assert
@@ -34,7 +34,7 @@ def test_emit_qif_without_header_minimal_lines():
 
 def test_emit_qif_with_header_includes_header_first():
     # Arrange
-    c = QifCat(name="Utilities", description="Power & water")
+    c = QCategory(name="Utilities", description="Power & water")
     # Act
     out = c.emit_qif(with_header=True)
     # Assert
@@ -44,8 +44,8 @@ def test_emit_qif_with_header_includes_header_first():
 
 def test_equality_ignores_description_and_relies_on_name_and_header():
     # Arrange
-    a = QifCat(name="Food", description="Desc A")
-    b = QifCat(name="Food", description="Desc B")  # different description
+    a = QCategory(name="Food", description="Desc A")
+    b = QCategory(name="Food", description="Desc B")  # different description
     # Act / Assert
     assert a == b, "Descriptions differ but equality is based on name + header only."
     # Hash must be consistent with equality
@@ -54,8 +54,8 @@ def test_equality_ignores_description_and_relies_on_name_and_header():
 
 def test_not_equal_when_name_differs_or_object_type_differs():
     # Arrange
-    a = QifCat(name="Food", description="x")
-    b = QifCat(name="Fuel", description="x")
+    a = QCategory(name="Food", description="x")
+    b = QCategory(name="Fuel", description="x")
     # Act / Assert
     assert a != b, "Different names should not be equal."
     assert a != object(), "Different types should not be equal."
@@ -63,9 +63,9 @@ def test_not_equal_when_name_differs_or_object_type_differs():
 
 def test_set_semantics_de_duplicate_by_name_and_header_only():
     # Arrange
-    a1 = QifCat(name="Entertainment", description="A")
-    a2 = QifCat(name="Entertainment", description="B")  # same name, diff desc
-    b = QifCat(name="Bills", description="C")
+    a1 = QCategory(name="Entertainment", description="A")
+    a2 = QCategory(name="Entertainment", description="B")  # same name, diff desc
+    b = QCategory(name="Bills", description="C")
     # Act
     s = {a1, a2, b}
     # Assert

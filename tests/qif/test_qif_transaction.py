@@ -4,11 +4,11 @@ import pytest
 #from openpyxl.descriptors import DateTime
 from datetime import date
 
-from qif_converter.qif.qif_transaction import QifTxn
-from qif_converter.qif.qif_account import QifAcct
-from qif_converter.qif.qif_header import QifHeader
-from qif_converter.qif.qif_split import QifSplit
-from qif_converter.qif import EnumClearedStatus
+from qif_converter.data_model.q_transaction import QTransaction
+from qif_converter.data_model.q_account import QAccount
+from qif_converter.data_model.qif_header import QifHeader
+from qif_converter.data_model.q_split import QSplit
+from qif_converter.data_model import EnumClearedStatus
 
 
 def _mk_txn(
@@ -27,9 +27,9 @@ def _mk_txn(
     splits=None,
 ):
     """Helper to build a QifTxn wired to a basic account+header."""
-    acct = QifAcct(name=account_name, type=account_type, description="")
+    acct = QAccount(name=account_name, type=account_type, description="")
     header = QifHeader(code=type_code, description="Bank block", type="Bank")
-    return QifTxn(
+    return QTransaction(
         account=acct,
         type=header,
         date=date,
@@ -58,7 +58,7 @@ def test_emit_category_no_splits_with_tag():
 
 def test_emit_category_with_splits_uses_split_marker_and_preserves_tag():
     # Arrange
-    s  = QifSplit(category="Food:Coffee", memo="Latte", amount=Decimal(-10.00), tag="")
+    s  = QSplit(category="Food:Coffee", memo="Latte", amount=Decimal(-10.00), tag="")
     t = _mk_txn(
         category="Food:Coffee",
         tag="Reimb",
@@ -101,8 +101,8 @@ def test_emit_qif_includes_headers_when_requested_and_emits_core_fields_and_spli
         checknum="1001",
         cleared=EnumClearedStatus.CLEARED,
         splits=[
-            QifSplit(category="Groceries:Veg", memo="Veg", amount=Decimal("-12.00"),tag=""),
-            QifSplit(category="Groceries:Fruit", memo="Fruit", amount=Decimal("-8.00"), tag=""),
+            QSplit(category="Groceries:Veg", memo="Veg", amount=Decimal("-12.00"), tag=""),
+            QSplit(category="Groceries:Fruit", memo="Fruit", amount=Decimal("-8.00"), tag=""),
         ],
     )
 

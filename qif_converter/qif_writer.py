@@ -21,7 +21,7 @@ import argparse
 import re
 from typing import List, Dict, Any, Optional, Iterable, TextIO, Union, IO
 import fnmatch
-from qif_converter.qif import ITransaction
+from qif_converter.data_model import ITransaction
 
 import os
 

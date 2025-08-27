@@ -5,13 +5,13 @@ from functools import total_ordering
 from typing import runtime_checkable
 
 from . import ISplit
-from ..qif import qif_codes as emitQ
+from ..data_model import qif_codes as emitQ
 
 from _decimal import Decimal
 
 @total_ordering
 @dataclass
-class QifSplit(ISplit):
+class QSplit(ISplit):
     """
     Represents a single QIF split transaction.
     """
