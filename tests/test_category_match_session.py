@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+
 import pandas as pd
 import pytest
 
-import qif_converter.category_match_session as cms
-from qif_converter.category_match_session import CategoryMatchSession
-
+import quicken_helper.controllers.category_match_session as cms
+from quicken_helper.controllers.category_match_session import CategoryMatchSession
 
 # ------------------------------ auto_match ------------------------------------
 

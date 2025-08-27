@@ -1,8 +1,7 @@
 # tests/test_qif_split.py
 from decimal import Decimal
-import pytest
 
-from qif_converter.data_model.q_split import QSplit
+from quicken_helper.data_model.q_wrapper.q_split import QSplit
 
 
 def test_equality_and_hash_are_consistent():

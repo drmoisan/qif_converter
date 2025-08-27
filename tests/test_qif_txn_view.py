@@ -2,8 +2,8 @@
 from datetime import date
 from decimal import Decimal
 
-from qif_converter.qif_item_key import QIFItemKey
-from qif_converter.qif_txn_view import QIFTxnView
+from quicken_helper.legacy.qif_item_key import QIFItemKey
+from quicken_helper.legacy.qif_txn_view import QIFTxnView
 
 
 def test_init_and_field_access():

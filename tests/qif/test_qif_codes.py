@@ -1,12 +1,12 @@
 # tests/test_qif_codes.py
 from __future__ import annotations
 
-import inspect
 import types
+
 import pytest
 
-from qif_converter.data_model.qif_code import QifCode
-import qif_converter.data_model.qif_codes as codes
+import quicken_helper.data_model.q_wrapper.qif_codes as codes
+from quicken_helper.data_model.q_wrapper.qif_code import QifCode
 
 
 def _assert_qifcode(obj: QifCode, expect_code: str):

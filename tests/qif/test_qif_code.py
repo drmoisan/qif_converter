@@ -1,7 +1,8 @@
-import pytest
 from dataclasses import FrozenInstanceError
 
-from qif_converter.data_model.qif_code import QifCode
+import pytest
+
+from quicken_helper.data_model.q_wrapper.qif_code import QifCode
 
 
 def test_qif_code_stores_fields_and_is_frozen():

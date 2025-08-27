@@ -1,10 +1,11 @@
-import pytest
 from dataclasses import FrozenInstanceError
 from datetime import date
 from decimal import Decimal
 
-from qif_converter.excel_row import ExcelRow
-from qif_converter.excel_txn_group import ExcelTxnGroup
+import pytest
+
+from quicken_helper.data_model.excel.excel_row import ExcelRow
+from quicken_helper.data_model.excel.excel_txn_group import ExcelTxnGroup
 
 
 def _mk_row(

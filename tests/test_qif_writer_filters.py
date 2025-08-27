@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-import qif_converter.qif_writer as qw
-
+import quicken_helper.legacy.qif_writer as qw
 
 # ------------------------------ _match_one ------------------------------------
 

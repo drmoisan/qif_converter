@@ -10,11 +10,11 @@ from typing import Dict
 
 import pytest
 
-from qif_converter.qif_writer import (
-    write_csv_flat,
+from quicken_helper.legacy.qif_writer import (
     write_csv_exploded,
-    write_csv_quicken_windows,
+    write_csv_flat,
     write_csv_quicken_mac,
+    write_csv_quicken_windows,
     write_qif,
 )
 
@@ -62,7 +62,7 @@ def memfs(monkeypatch):
 
 def test__open_for_write_uses_builtins_open(monkeypatch, tmp_path):
     # Arrange
-    from qif_converter.qif_writer import _open_for_write
+    from quicken_helper.legacy.qif_writer import _open_for_write
     called = {"open": False}
     def fake_open(*a, **k):
         called["open"] = True

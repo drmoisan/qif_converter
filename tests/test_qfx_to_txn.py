@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
-from pathlib import Path
-from types import SimpleNamespace, ModuleType
-from typing import Any, List
 import sys
+from datetime import datetime
+from types import ModuleType
 
-import pytest
-
-import qif_converter.qfx_to_txns as qfx
-
+import quicken_helper.legacy.qfx_to_txns as qfx
 
 # ------------------------------- _to_date -------------------------------------
 

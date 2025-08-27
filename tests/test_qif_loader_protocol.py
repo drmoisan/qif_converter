@@ -2,13 +2,12 @@
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 import pytest
 
-from qif_converter.data_model import QuickenSections
-from qif_converter.qif_loader import load_transactions_protocol
-from qif_converter.data_model.protocols import EnumClearedStatus
+from quicken_helper.controllers.qif_loader import load_transactions_protocol
+from quicken_helper.data_model.interfaces import EnumClearedStatus
 
 
 def _mk_rec(**kwargs) -> Dict[str, Any]:
@@ -51,7 +50,7 @@ def test_protocol_return_types_and_defaults(monkeypatch):
             )
         ]
 
-    import qif_converter.qif_loader as ql
+    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
@@ -89,7 +88,7 @@ def test_date_parsing_qif_formats(monkeypatch, raw, expected):
     def fake_parse_qif(_path, encoding="utf-8"):
         return [_mk_rec(date=raw, amount="0.00")]
 
-    import qif_converter.qif_loader as ql
+    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
@@ -114,7 +113,7 @@ def test_amount_parsing_commas_and_parentheses(monkeypatch, raw, expected):
     def fake_parse_qif(_path, encoding="utf-8"):
         return [_mk_rec(amount=raw)]
 
-    import qif_converter.qif_loader as ql
+    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
@@ -141,7 +140,7 @@ def test_cleared_status_mapping(monkeypatch, cleared_char, expected):
     def fake_parse_qif(_path, encoding="utf-8"):
         return [_mk_rec(cleared=cleared_char)]
 
-    import qif_converter.qif_loader as ql
+    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
@@ -160,7 +159,7 @@ def test_category_tag_splitting(monkeypatch):
             _mk_rec(category="Food:Groceries"),
         ]
 
-    import qif_converter.qif_loader as ql
+    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
@@ -187,7 +186,7 @@ def test_splits_conversion_and_sum(monkeypatch):
             )
         ]
 
-    import qif_converter.qif_loader as ql
+    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
@@ -214,7 +213,7 @@ def test_investment_action_passthrough(monkeypatch):
             )
         ]
 
-    import qif_converter.qif_loader as ql
+    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act

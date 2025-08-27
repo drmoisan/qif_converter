@@ -1,9 +1,17 @@
 # tests/test_qif_file.py
 from __future__ import annotations
 
-import pytest
 from typing import cast
-from qif_converter.data_model import QuickenFile, QuickenSections, ITag, ICategory, HasEmitQifWithHeader
+
+import pytest
+
+from quicken_helper.data_model import (
+    HasEmitQifWithHeader,
+    ICategory,
+    ITag,
+    QuickenFile,
+    QuickenSections,
+)
 
 
 class _StubCategory:
@@ -15,7 +23,7 @@ class _StubCategory:
     @property
     def header(self):
         # Return a real header to keep serialization realistic
-        from qif_converter.data_model.qif_header import QifHeader
+        from quicken_helper.data_model.q_wrapper.qif_header import QifHeader
         return QifHeader(code="!Type:Category", description="Category list", type="Category")
 
     def emit_qif(self, with_header: bool = False) -> str:
@@ -34,7 +42,7 @@ class _StubTag:
     @property
     def header(self):
         # Return a real header to keep serialization realistic
-        from qif_converter.data_model.qif_header import QifHeader
+        from quicken_helper.data_model.q_wrapper.qif_header import QifHeader
         return QifHeader(code="!Type:Tag", description="Tag list", type="Tag")
 
     def emit_qif(self, with_header: bool = False) -> str:

@@ -1,8 +1,11 @@
-# qif_converter/tests/qif/test_qif_file_emit_transactions.py
+# quicken_helper/tests/qif/test_qif_file_emit_transactions.py
 from __future__ import annotations
 
-import pytest
-from qif_converter.data_model import QuickenFile, QAccount, IQuickenFile, IAccount, ITransaction
+from quicken_helper.data_model import (
+    ITransaction,
+    QAccount,
+    QuickenFile,
+)
 
 
 class _StubTxn(ITransaction):

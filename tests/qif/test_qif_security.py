@@ -1,9 +1,10 @@
 # Arrange-Act-Assert styled unit tests for QifSecurityTxn
 
 from decimal import Decimal
+
 import pytest
 
-from qif_converter.data_model import QSecurity
+from quicken_helper.data_model import QSecurity
 
 
 def _mk_security_txn(

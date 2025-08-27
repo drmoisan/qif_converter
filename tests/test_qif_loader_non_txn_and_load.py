@@ -1,8 +1,7 @@
 import io
 from pathlib import Path
-import pytest
 
-import qif_converter.qif_loader as ql
+import quicken_helper.controllers.qif_loader as ql
 
 
 def _mk_open(text: str):

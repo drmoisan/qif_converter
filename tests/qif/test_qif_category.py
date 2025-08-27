@@ -1,10 +1,7 @@
 # tests/test_qif_category.py
 
-import pytest
 
-from qif_converter.data_model import QCategory
-from qif_converter.data_model import QifHeader
-
+from quicken_helper.data_model import QCategory, QifHeader
 
 # --------------------------
 # Arrange–Act–Assert (AAA)

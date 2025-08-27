@@ -1,6 +1,5 @@
 # tests/test_qif_header.py
-import pytest
-from qif_converter.data_model.qif_header import QifHeader
+from quicken_helper.data_model.q_wrapper.qif_header import QifHeader
 
 
 def test_qifentry_formats_record_exactly():

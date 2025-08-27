@@ -1,19 +1,19 @@
 # tests/test_match_helpers.py
 from __future__ import annotations
 
-import pytest
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
-from qif_converter.match_helpers import (
-    _to_decimal,
-    _parse_date,
+import pytest
+
+from quicken_helper.controllers.match_helpers import (
     _candidate_cost,
     _flatten_qif_txns,
+    _parse_date,
+    _to_decimal,
 )
-from qif_converter.qif_item_key import QIFItemKey
-from qif_converter.qif_txn_view import QIFTxnView
-
+from quicken_helper.legacy.qif_item_key import QIFItemKey
+from quicken_helper.legacy.qif_txn_view import QIFTxnView
 
 # ----------------------- _to_decimal -----------------------
 

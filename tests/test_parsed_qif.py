@@ -3,11 +3,9 @@ from __future__ import annotations
 
 import copy
 from dataclasses import asdict
-from typing import Dict, Any, List
+from typing import Any, Dict
 
-import pytest
-
-from qif_converter.qif_parsed import ParsedQIF
+from quicken_helper.legacy.qif_parsed import ParsedQIF
 
 
 def test_parsedqif_defaults_are_empty_and_isolated():

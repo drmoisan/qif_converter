@@ -1,11 +1,12 @@
 # tests/test_qif_loader_parse_qif.py
 from __future__ import annotations
 
-from io import StringIO
 from contextlib import contextmanager
+from io import StringIO
+
 import pytest
 
-import qif_converter.qif_loader as ql
+import quicken_helper.controllers.qif_loader as ql
 
 
 def _mk_open(qif_text: str):

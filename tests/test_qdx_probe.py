@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from pathlib import Path
-from decimal import Decimal
-import zlib
 import binascii
+import zlib
+from pathlib import Path
 
 import pytest
 
-import qif_converter.qdx_probe as qdx
-
+import quicken_helper.legacy.qdx_probe as qdx
 
 # ------------------------------- small helpers --------------------------------
 

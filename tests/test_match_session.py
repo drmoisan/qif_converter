@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import pytest
-from datetime import date
 from _decimal import Decimal
+from datetime import date
 
-from qif_converter.match_helpers import TxnLegacyView
-from qif_converter.match_session import MatchSession
-from qif_converter.excel_row import ExcelRow
-from qif_converter.excel_txn_group import ExcelTxnGroup
-#from qif_converter.qif_txn_view import QIFTxnView
-from qif_converter.match_session import TxnLegacyView
+#from quicken_helper.qif_txn_view import QIFTxnView
+from quicken_helper.controllers.match_session import MatchSession, TxnLegacyView
+from quicken_helper.data_model.excel.excel_row import ExcelRow
+from quicken_helper.data_model.excel.excel_txn_group import ExcelTxnGroup
 
 
 def _mk_tx(datestr: str, amt: str, **extras):

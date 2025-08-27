@@ -1,8 +1,6 @@
 # tests/test_qif_item_key.py
-import pytest
-from dataclasses import FrozenInstanceError
 
-from qif_converter.qif_item_key import QIFItemKey
+from quicken_helper.legacy.qif_item_key import QIFItemKey
 
 
 def test_is_split_false_for_whole_transaction():
@@ -62,8 +60,9 @@ def test_frozen_immutability():
     key = QIFItemKey(10, None)
 
     # Act / Assert
-    import pytest
     from dataclasses import FrozenInstanceError
+
+    import pytest
 
     with pytest.raises(FrozenInstanceError):
         setattr(key, "txn_index", 11)

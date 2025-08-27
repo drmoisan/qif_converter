@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import io
 import csv
+import io
 from pathlib import Path
 
-import pytest
-
-import qif_converter.qif_writer as qw
-
+import quicken_helper.legacy.qif_writer as qw
 
 # ----------------------- helpers (CSV capture w/ args) ------------------------
 
@@ -49,7 +46,7 @@ def _capture_csv_text(monkeypatch, call_fn, txns):
         # We don't assert it here; we verify the *content* instead.
         return CapturingStringIO()
 
-    import qif_converter.qif_writer as qw
+    import quicken_helper.legacy.qif_writer as qw
     monkeypatch.setattr(qw, "_open_for_write", fake_open, raising=True)
 
     from pathlib import Path
@@ -157,7 +154,7 @@ def test_write_csv_exploded_header_only_on_empty_input(monkeypatch):
 def test_write_csv_quicken_windows_uses_crlf_line_endings(monkeypatch):
     """write_csv_quicken_windows: emits CRLF line endings when DictWriter is
     configured with lineterminator='\\r\\n' (platform-independent)."""
-    import qif_converter.qif_writer as qw
+    import quicken_helper.legacy.qif_writer as qw
     txns = [{"date": "02/03/2025", "payee": "X", "amount": "1.23", "category": "C", "account": "A"}]
 
     text = _capture_csv_text(monkeypatch, qw.write_csv_quicken_windows, txns)
@@ -173,7 +170,7 @@ def test_write_csv_quicken_windows_uses_crlf_line_endings(monkeypatch):
 def test_write_csv_quicken_mac_uses_lf_line_endings(monkeypatch):
     """write_csv_quicken_mac: emits LF line endings when DictWriter is
     configured with lineterminator='\\n' (platform-independent)."""
-    import qif_converter.qif_writer as qw
+    import quicken_helper.legacy.qif_writer as qw
     txns = [{"date": "02/04/2025", "payee": "Y", "amount": "-4.56", "category": "C", "account": "A"}]
 
     text = _capture_csv_text(monkeypatch, qw.write_csv_quicken_mac, txns)

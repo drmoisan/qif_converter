@@ -1,6 +1,6 @@
 # tests/test_qif_account.py
-from qif_converter.data_model.q_account import QAccount
-from qif_converter.data_model.qif_header import QifHeader
+from quicken_helper.data_model.q_wrapper.q_account import QAccount
+from quicken_helper.data_model.q_wrapper.qif_header import QifHeader
 
 
 def test_header_returns_expected_qifheader():

@@ -3,10 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
-import pytest
-
-import qif_converter.qif_loader as ql
-from qif_converter.qif_parsed import ParsedQIF
+import quicken_helper.controllers.qif_loader as ql
+from quicken_helper.legacy.qif_parsed import ParsedQIF
 
 
 def _stub_non_txn_sections() -> Tuple[

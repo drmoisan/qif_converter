@@ -3,13 +3,10 @@ from __future__ import annotations
 from datetime import date, timedelta
 from decimal import Decimal
 
-import pytest
-
-from qif_converter.match_session import MatchSession
-from qif_converter.qif_item_key import QIFItemKey
-from qif_converter.excel_row import ExcelRow
-from qif_converter.excel_txn_group import ExcelTxnGroup
-
+from quicken_helper.controllers.match_session import MatchSession
+from quicken_helper.data_model.excel.excel_row import ExcelRow
+from quicken_helper.data_model.excel.excel_txn_group import ExcelTxnGroup
+from quicken_helper.legacy.qif_item_key import QIFItemKey
 
 # ------------------------------- small helpers --------------------------------
 

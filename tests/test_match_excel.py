@@ -7,11 +7,10 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-import qif_converter.match_excel as mx
-from qif_converter.excel_row import ExcelRow
-from qif_converter.excel_txn_group import ExcelTxnGroup
-from qif_converter.qif_item_key import QIFItemKey
-
+import quicken_helper.controllers.match_excel as mx
+from quicken_helper.data_model.excel.excel_row import ExcelRow
+from quicken_helper.data_model.excel.excel_txn_group import ExcelTxnGroup
+from quicken_helper.legacy.qif_item_key import QIFItemKey
 
 # --------------------------- load_excel_rows ----------------------------------
 
@@ -209,7 +208,8 @@ def test_build_matched_only_txns_group_mode_includes_only_matched_txns():
     session = _FakeSessionGroupMode(txns, matched_txn_indices=[0])
 
     from typing import cast
-    from qif_converter.match_session import MatchSession
+
+    from quicken_helper.controllers.match_session import MatchSession
     out = mx.build_matched_only_txns(cast(MatchSession, session))
 
     assert len(out) == 1 and out[0]["amount"] == "-1.00"
@@ -236,7 +236,8 @@ def test_build_matched_only_txns_legacy_mode_filters_splits_and_includes_whole_t
     session = _FakeSessionLegacyMode(txns, matched_keys=matched)
 
     from typing import cast
-    from qif_converter.match_session import MatchSession
+
+    from quicken_helper.controllers.match_session import MatchSession
     out = mx.build_matched_only_txns(cast(MatchSession, session))
 
     assert len(out) == 2
@@ -256,10 +257,10 @@ def test_build_matched_only_txns_legacy_mode_filters_splits_and_includes_whole_t
 # import pandas as pd
 # import pytest
 #
-# import qif_converter.match_excel as mx
-# from qif_converter.excel_row import ExcelRow
-# from qif_converter.excel_txn_group import ExcelTxnGroup
-# from qif_converter.qif_item_key import QIFItemKey
+# import quicken_helper.match_excel as mx
+# from quicken_helper.excel_row import ExcelRow
+# from quicken_helper.excel_txn_group import ExcelTxnGroup
+# from quicken_helper.qif_item_key import QIFItemKey
 #
 #
 # # --------------------------- load_excel_rows ----------------------------------

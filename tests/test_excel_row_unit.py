@@ -1,4 +1,3 @@
-import builtins
 from dataclasses import FrozenInstanceError
 from datetime import date
 from decimal import Decimal
@@ -6,7 +5,7 @@ from typing import get_type_hints
 
 import pytest
 
-from qif_converter.excel_row import ExcelRow
+from quicken_helper.data_model.excel.excel_row import ExcelRow
 
 
 def test_excel_row_basic_fields_and_equality():

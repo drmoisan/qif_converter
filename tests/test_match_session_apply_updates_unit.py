@@ -1,9 +1,9 @@
 from datetime import date
 from decimal import Decimal
 
-from qif_converter.match_session import MatchSession
-from qif_converter.excel_row import ExcelRow
-from qif_converter.excel_txn_group import ExcelTxnGroup
+from quicken_helper.controllers.match_session import MatchSession
+from quicken_helper.data_model.excel.excel_row import ExcelRow
+from quicken_helper.data_model.excel.excel_txn_group import ExcelTxnGroup
 
 
 # --- Helpers (Arrange) --------------------------------------------------------

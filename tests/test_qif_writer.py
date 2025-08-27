@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import io
 import csv
+import io
 from pathlib import Path
 
-import pytest
-
-import qif_converter.qif_writer as qw
-
+import quicken_helper.legacy.qif_writer as qw
 
 # ----------------------------- QIF writer tests ------------------------------
 
