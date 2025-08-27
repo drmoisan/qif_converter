@@ -7,7 +7,7 @@ from collections.abc import Iterable
 import inspect
 import io
 
-from ..qif.protocols import EnumQifSections, HasEmitQifWithHeader, ITag, ICategory, ITransaction, IQifFile, IAccount
+from ..qif.protocols import QuickenSections, HasEmitQifWithHeader, ITag, ICategory, ITransaction, IQuickenFile, IAccount
 from ..qif import QifAcct
 
 
@@ -90,12 +90,12 @@ def _emit_qif_text(item: object, with_header: bool) -> str:
     raise AttributeError("Item does not implement an emit method compatible with emit_section().")
 
 
-class QifFile(IQifFile):
+class QuickenFile(IQuickenFile):
     """
     Represents a complete QIF file, including header and multiple transactions.
     """
     def __init__(self):
-        self.sections: EnumQifSections = EnumQifSections.NONE
+        self.sections: QuickenSections = QuickenSections.NONE
         self.tags: list[ITag] = []
         self.categories: list[ICategory] = []
         self.accounts: list[IAccount] = []
@@ -134,16 +134,16 @@ class QifFile(IQifFile):
         """
         Returns the complete QIF file content as a string.
         """
-        if self.sections == EnumQifSections.NONE:
+        if self.sections == QuickenSections.NONE:
             raise ValueError("No section specified for QIF file.")
         lines = []
 
-        if self.sections.has_flag(EnumQifSections.TAGS):
+        if self.sections.has_flag(QuickenSections.TAGS):
             lines.append(self.emit_section(self.tags))
-        if self.sections.has_flag(EnumQifSections.CATEGORIES):
+        if self.sections.has_flag(QuickenSections.CATEGORIES):
             lines.append(self.emit_section(self.categories))
-        if self.sections.has_flag(EnumQifSections.ACCOUNTS):
+        if self.sections.has_flag(QuickenSections.ACCOUNTS):
             lines.append(self.emit_section(cast(list[HasEmitQifWithHeader], self.accounts)))
-        if self.sections.has_flag(EnumQifSections.TRANSACTIONS):
+        if self.sections.has_flag(QuickenSections.TRANSACTIONS):
             lines.append(self.emit_section(cast(list[HasEmitQifWithHeader], self.transactions)))
         return "\n".join(lines)   # Ensure file ends with newline

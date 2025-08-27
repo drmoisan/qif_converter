@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from qif_converter.qif import QifFile, QifAcct, IQifFile, IAccount, ITransaction
+from qif_converter.qif import QuickenFile, QifAcct, IQuickenFile, IAccount, ITransaction
 
 
 class _StubTxn(ITransaction):
@@ -37,7 +37,7 @@ class _NoneTxn:
 
 def test_emit_transactions_empty_returns_empty_string():
     # Arrange
-    f = QifFile()
+    f = QuickenFile()
     f.transactions = []
 
     # Act
@@ -49,7 +49,7 @@ def test_emit_transactions_empty_returns_empty_string():
 
 def test_emit_transactions_first_in_account_emits_headers_then_suppresses_for_followups():
     # Arrange
-    f = QifFile()
+    f = QuickenFile()
     acct = QifAcct(name="Checking", type="Bank", description="")
     t1 = _StubTxn(acct, "TXN1")
     t2 = _StubTxn(acct, "TXN2")
@@ -68,7 +68,7 @@ def test_emit_transactions_first_in_account_emits_headers_then_suppresses_for_fo
 
 def test_emit_transactions_reemits_headers_when_account_changes():
     # Arrange
-    f = QifFile()
+    f = QuickenFile()
     checking = QifAcct(name="Checking", type="Bank", description="")
     savings = QifAcct(name="Savings", type="Bank", description="")
     t1 = _StubTxn(checking, "C1")
@@ -88,7 +88,7 @@ def test_emit_transactions_reemits_headers_when_account_changes():
 
 def test_emit_transactions_coerces_none_to_empty_string():
     # Arrange
-    f = QifFile()
+    f = QuickenFile()
     acct = QifAcct(name="Checking", type="Bank", description="")
     t1 = _StubTxn(acct, "TXN1")
     t2 = _NoneTxn(acct)  # returns None → should contribute empty text

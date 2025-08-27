@@ -1,20 +1,20 @@
 # tests/test_qif_enums.py
 import pytest
 
-from qif_converter.qif import EnumQifSections, EnumClearedStatus
+from qif_converter.qif import QuickenSections, EnumClearedStatus
 
 
 # ---------- QifSections (IntFlag) ----------
 
 def test_qifsections_bitwise_membership_and_combination():
     # Arrange
-    flags = EnumQifSections.TAGS | EnumQifSections.CATEGORIES  # combine two flags
+    flags = QuickenSections.TAGS | QuickenSections.CATEGORIES  # combine two flags
 
     # Act
-    has_tags = (flags & EnumQifSections.TAGS) == EnumQifSections.TAGS
-    has_categories = (flags & EnumQifSections.CATEGORIES) == EnumQifSections.CATEGORIES
-    has_accounts = (flags & EnumQifSections.ACCOUNTS) == EnumQifSections.ACCOUNTS
-    has_transactions = (flags & EnumQifSections.TRANSACTIONS) == EnumQifSections.TRANSACTIONS
+    has_tags = (flags & QuickenSections.TAGS) == QuickenSections.TAGS
+    has_categories = (flags & QuickenSections.CATEGORIES) == QuickenSections.CATEGORIES
+    has_accounts = (flags & QuickenSections.ACCOUNTS) == QuickenSections.ACCOUNTS
+    has_transactions = (flags & QuickenSections.TRANSACTIONS) == QuickenSections.TRANSACTIONS
 
     # Assert
     assert has_tags
@@ -25,18 +25,18 @@ def test_qifsections_bitwise_membership_and_combination():
 
 def test_qifsections_add_and_remove_using_bit_ops_from_none():
     # Arrange
-    flags = EnumQifSections.NONE
+    flags = QuickenSections.NONE
 
     # Act
-    flags = flags | EnumQifSections.ACCOUNTS
-    after_add_accounts = (flags & EnumQifSections.ACCOUNTS) == EnumQifSections.ACCOUNTS
+    flags = flags | QuickenSections.ACCOUNTS
+    after_add_accounts = (flags & QuickenSections.ACCOUNTS) == QuickenSections.ACCOUNTS
 
-    flags = flags | EnumQifSections.TRANSACTIONS
-    after_add_txns = (flags & EnumQifSections.TRANSACTIONS) == EnumQifSections.TRANSACTIONS
+    flags = flags | QuickenSections.TRANSACTIONS
+    after_add_txns = (flags & QuickenSections.TRANSACTIONS) == QuickenSections.TRANSACTIONS
 
     # remove ACCOUNTS
-    flags = flags & ~EnumQifSections.ACCOUNTS
-    after_remove_accounts = (flags & EnumQifSections.ACCOUNTS) == EnumQifSections.ACCOUNTS
+    flags = flags & ~QuickenSections.ACCOUNTS
+    after_remove_accounts = (flags & QuickenSections.ACCOUNTS) == QuickenSections.ACCOUNTS
 
     # Assert
     assert after_add_accounts
@@ -46,14 +46,14 @@ def test_qifsections_add_and_remove_using_bit_ops_from_none():
 
 def test_qifsections_unique_values_and_none_zero():
     # Arrange
-    members = [EnumQifSections.NONE, EnumQifSections.TAGS, EnumQifSections.CATEGORIES,
-               EnumQifSections.ACCOUNTS, EnumQifSections.TRANSACTIONS]
+    members = [QuickenSections.NONE, QuickenSections.TAGS, QuickenSections.CATEGORIES,
+               QuickenSections.ACCOUNTS, QuickenSections.TRANSACTIONS]
 
     # Act
     values = [m.value for m in members]
 
     # Assert
-    assert EnumQifSections.NONE.value == 0
+    assert QuickenSections.NONE.value == 0
     assert len(set(values)) == len(values), "Each section flag should have a unique underlying value."
 
 

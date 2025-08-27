@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 from typing import cast
-from qif_converter.qif import QifFile, EnumQifSections, ITag, ICategory, HasEmitQifWithHeader
+from qif_converter.qif import QuickenFile, QuickenSections, ITag, ICategory, HasEmitQifWithHeader
 
 
 class _StubCategory:
@@ -63,11 +63,11 @@ class _StubItem:
 
 def test_constructor_initializes_empty_lists_and_none_section():
     # Arrange
-    f = QifFile()  # account arg is ignored in current impl
+    f = QuickenFile()  # account arg is ignored in current impl
 
     # Act / Assert
     # (AAA: no special Act needed—constructor state is asserted directly.)
-    assert f.sections == EnumQifSections.NONE
+    assert f.sections == QuickenSections.NONE
     assert f.tags == []
     assert f.categories == []
     assert f.accounts == []
@@ -76,7 +76,7 @@ def test_constructor_initializes_empty_lists_and_none_section():
 
 def test_emit_section_sets_with_header_true_only_for_first_item():
     # Arrange
-    f = QifFile()
+    f = QuickenFile()
     a = _StubItem("A")
     b = _StubItem("B")
     items = [a, b]
@@ -94,8 +94,8 @@ def test_emit_section_sets_with_header_true_only_for_first_item():
 
 def test_emit_qif_raises_when_no_section_selected():
     # Arrange
-    f = QifFile()
-    f.sections = EnumQifSections.NONE
+    f = QuickenFile()
+    f.sections = QuickenSections.NONE
 
     # Act / Assert
     with pytest.raises(ValueError):
@@ -104,9 +104,9 @@ def test_emit_qif_raises_when_no_section_selected():
 
 def test_emit_qif_concatenates_selected_sections_in_order_and_ends_with_newline():
     # Arrange
-    f = QifFile()
+    f = QuickenFile()
     # Enable TAGS then CATEGORIES (order matters in output)
-    f.sections = EnumQifSections.TAGS | EnumQifSections.CATEGORIES
+    f.sections = QuickenSections.TAGS | QuickenSections.CATEGORIES
 
     t1, t2 = _StubTag("tag1"), _StubTag("tag2")
     items = [t1, t2]
@@ -134,9 +134,9 @@ def test_emit_qif_concatenates_selected_sections_in_order_and_ends_with_newline(
 
 def test_emit_qif_can_emit_any_subset_of_sections_independently():
     # Arrange
-    f = QifFile()
+    f = QuickenFile()
     # Only CATEGORIES selected
-    f.sections = EnumQifSections.CATEGORIES
+    f.sections = QuickenSections.CATEGORIES
     c1, c2 = _StubCategory("c1"), _StubCategory("c2")
     f.categories = cast(list[ICategory], [c1, c2])
 
@@ -152,7 +152,7 @@ def test_emit_qif_can_emit_any_subset_of_sections_independently():
 
 def test_emit_transactions_returns_empty_when_no_transactions():
     # Arrange
-    f = QifFile()
+    f = QuickenFile()
     f.transactions = []
 
     # Act

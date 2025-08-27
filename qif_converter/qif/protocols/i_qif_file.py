@@ -2,13 +2,13 @@
 from __future__ import annotations
 from typing import Protocol, Iterable, runtime_checkable
 
-from ..protocols import EnumQifSections, ITag, ICategory, HasEmitQifWithHeader, ITransaction, IAccount
+from ..protocols import QuickenSections, ITag, ICategory, HasEmitQifWithHeader, ITransaction, IAccount
 
 
 @runtime_checkable
-class IQifFile(Protocol):
+class IQuickenFile(Protocol):
     # --- data ---
-    sections: EnumQifSections
+    sections: QuickenSections
     tags: list[ITag]
     categories: list[ICategory]
     accounts: list[IAccount]

@@ -7,6 +7,6 @@ from .qif_tag import QifTag
 from .qif_split import QifSplit
 from .qif_security import QifSecurityTxn
 from .qif_transaction import QifTxn
-from .qif_file import QifFile
+from .quicken_file import QuickenFile
 
 

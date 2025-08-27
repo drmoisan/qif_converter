@@ -6,7 +6,7 @@ from typing import List, Dict, Any
 
 import pytest
 
-from qif_converter.qif import EnumQifSections
+from qif_converter.qif import QuickenSections
 from qif_converter.qif_loader import load_transactions_protocol
 from qif_converter.qif.protocols import EnumClearedStatus
 

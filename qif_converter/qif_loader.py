@@ -14,8 +14,9 @@ from datetime import date, datetime
 import warnings
 
 # Protocols (structural typing) and enums
-from .qif.protocols import ITransaction, ISplit, EnumClearedStatus, IAccount, IHeader
-from .qif import QifAcct, QifHeader
+from .qif.protocols import ITransaction, ISplit, EnumClearedStatus, IAccount, IHeader, IQuickenFile, ITag, ICategory, ISecurity
+from .qif import QifAcct, QifHeader, QuickenFile
+
 
 @dataclass
 class UnifiedQifProtocol:
