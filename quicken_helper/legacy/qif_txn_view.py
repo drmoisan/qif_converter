@@ -14,7 +14,8 @@ class QIFTxnView:
     not individual QIF splits. If a txn has splits, its 'amount' is the sum of splits;
     otherwise it is the txn amount field.
     """
-    key: QIFItemKey            # split_index must be None here
+
+    key: QIFItemKey  # split_index must be None here
     date: date
     amount: Decimal
     payee: str

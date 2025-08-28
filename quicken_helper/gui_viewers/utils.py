@@ -8,11 +8,33 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # --- constants expected by tests ---
-WIN_HEADERS = ["Date","Payee","FI Payee","Amount","Debit/Credit","Category","Account","Tag","Memo","Chknum"]
-MAC_HEADERS = ["Date","Description","Original Description","Amount","Transaction Type","Category","Account Name","Labels","Notes"]
+WIN_HEADERS = [
+    "Date",
+    "Payee",
+    "FI Payee",
+    "Amount",
+    "Debit/Credit",
+    "Category",
+    "Account",
+    "Tag",
+    "Memo",
+    "Chknum",
+]
+MAC_HEADERS = [
+    "Date",
+    "Description",
+    "Original Description",
+    "Amount",
+    "Transaction Type",
+    "Category",
+    "Account Name",
+    "Labels",
+    "Notes",
+]
 
 # --- date parsing used by tests ---
 _DATE_FORMATS = ["%m/%d'%y", "%m/%d/%Y", "%Y-%m-%d"]
+
 
 def parse_date_maybe(s: str) -> Optional[datetime]:
     s = (s or "").strip()
@@ -32,7 +54,10 @@ def parse_date_maybe(s: str) -> Optional[datetime]:
                 continue
     return None
 
-def filter_date_range(txns: List[Dict[str, Any]], start_str: str, end_str: str) -> List[Dict[str, Any]]:
+
+def filter_date_range(
+    txns: List[Dict[str, Any]], start_str: str, end_str: str
+) -> List[Dict[str, Any]]:
     def _d(s):
         d = parse_date_maybe(s)
         return d.date() if d else None
@@ -54,53 +79,56 @@ def filter_date_range(txns: List[Dict[str, Any]], start_str: str, end_str: str) 
         out.append(t)
     return out
 
+
 # --- CSV writers expected by tests ---
 def write_csv_quicken_windows(txns: List[Dict[str, Any]], out_path: Path):
     with out_path.open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(WIN_HEADERS)
         for t in txns:
-            amt = str(t.get("amount","")).strip()
-            memo = str(t.get("memo","")).replace("\r","").replace("\n"," ")
+            amt = str(t.get("amount", "")).strip()
+            memo = str(t.get("memo", "")).replace("\r", "").replace("\n", " ")
             row = [
-                t.get("date",""),
-                t.get("payee",""),
+                t.get("date", ""),
+                t.get("payee", ""),
                 "",
                 amt,
                 "",
-                t.get("category",""),
-                t.get("account",""),
+                t.get("category", ""),
+                t.get("account", ""),
                 "",
                 memo,
-                t.get("checknum",""),
+                t.get("checknum", ""),
             ]
             w.writerow(row)
+
 
 def write_csv_quicken_mac(txns: List[Dict[str, Any]], out_path: Path):
     with out_path.open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(MAC_HEADERS)
         for t in txns:
-            amt_str = str(t.get("amount","")).strip()
+            amt_str = str(t.get("amount", "")).strip()
             try:
-                val = float(amt_str.replace(",",""))
+                val = float(amt_str.replace(",", ""))
             except Exception:
                 val = 0.0
             txn_type = "credit" if val >= 0 else "debit"
             amt_abs = f"{abs(val):.2f}"
-            notes = str(t.get("memo","")).replace("\r","").replace("\n"," ")
+            notes = str(t.get("memo", "")).replace("\r", "").replace("\n", " ")
             row = [
-                t.get("date",""),
-                t.get("payee",""),
-                t.get("payee",""),
+                t.get("date", ""),
+                t.get("payee", ""),
+                t.get("payee", ""),
                 amt_abs,
                 txn_type,
-                t.get("category",""),
-                t.get("account",""),
+                t.get("category", ""),
+                t.get("account", ""),
                 "",
                 notes,
             ]
             w.writerow(row)
+
 
 # --- payee filter helper used in tests via App._run() ---
 def apply_multi_payee_filters(
@@ -117,22 +145,34 @@ def apply_multi_payee_filters(
             return tlist
         if mode == "regex":
             flags = 0 if case_sensitive else re.IGNORECASE
-            return [t for t in tlist if re.search(q, t.get("payee",""), flags)]
+            return [t for t in tlist if re.search(q, t.get("payee", ""), flags)]
         if mode == "glob":
             # turn glob-ish to regex
             pattern = "^" + re.escape(q).replace(r"\*", ".*").replace(r"\?", ".") + "$"
-            flags = 0 if (case_sensitive or any(ch.isupper() for ch in q)) else re.IGNORECASE
-            return [t for t in tlist if re.search(pattern, t.get("payee",""), flags)]
+            flags = (
+                0
+                if (case_sensitive or any(ch.isupper() for ch in q))
+                else re.IGNORECASE
+            )
+            return [t for t in tlist if re.search(pattern, t.get("payee", ""), flags)]
+
         # plain textual modes
-        def cmp(s: str): return s if case_sensitive else s.lower()
+        def cmp(s: str):
+            return s if case_sensitive else s.lower()
+
         qcmp = cmp(q)
+
         def match(payee: str):
             p = cmp(payee)
-            if mode == "exact": return p == qcmp
-            if mode == "startswith": return p.startswith(qcmp)
-            if mode == "endswith": return p.endswith(qcmp)
+            if mode == "exact":
+                return p == qcmp
+            if mode == "startswith":
+                return p.startswith(qcmp)
+            if mode == "endswith":
+                return p.endswith(qcmp)
             return qcmp in p  # contains
-        return [t for t in tlist if match(str(t.get("payee","")))]
+
+        return [t for t in tlist if match(str(t.get("payee", "")))]
 
     queries = [q.strip() for q in (queries or []) if q and q.strip()]
     if not queries:

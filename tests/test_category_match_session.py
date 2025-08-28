@@ -10,6 +10,7 @@ from quicken_helper.controllers.category_match_session import CategoryMatchSessi
 
 # ------------------------------ auto_match ------------------------------------
 
+
 def test_auto_match_uses_fuzzy_autopairs_and_builds_mapping(monkeypatch):
     """auto_match: delegates to cms.fuzzy_autopairs with the given threshold and
     updates the session mapping from the returned (qif, excel, score) pairs.
@@ -26,10 +27,14 @@ def test_auto_match_uses_fuzzy_autopairs_and_builds_mapping(monkeypatch):
         # capture what was passed
         called["args"] = (tuple(qif_cats), tuple(excel_cats), threshold)
         # return deterministic pairs (qif, excel, score)
-        return [
-            ("Food:Groceries", "Groceries", 0.91),
-            ("Food:Restaurants", "Restaurants", 0.89),
-        ], [], []
+        return (
+            [
+                ("Food:Groceries", "Groceries", 0.91),
+                ("Food:Restaurants", "Restaurants", 0.89),
+            ],
+            [],
+            [],
+        )
 
     monkeypatch.setattr(cms, "fuzzy_autopairs", fake_fuzzy_autopairs)
 
@@ -53,9 +58,11 @@ def test_auto_match_threshold_controls_pairs(monkeypatch):
     # Arrange
     s = CategoryMatchSession(["A"], ["a"])
     seen = {}
+
     def fake(q, e, t):
         seen["threshold"] = t
         return [], ["A"], ["a"]
+
     monkeypatch.setattr(cms, "fuzzy_autopairs", fake)
 
     # Act
@@ -67,6 +74,7 @@ def test_auto_match_threshold_controls_pairs(monkeypatch):
 
 
 # ----------------------------- manual_match -----------------------------------
+
 
 def test_manual_match_accepts_valid_names_and_enforces_one_to_one():
     """manual_match: accepts valid Excel/QIF names and enforces a one-to-one
@@ -94,7 +102,9 @@ def test_manual_match_accepts_valid_names_and_enforces_one_to_one():
         ("Groceries", "NotInQIF", False, "QIF category not in list."),
     ],
 )
-def test_manual_match_rejects_unknown_names(excel_name, qif_name, expect_ok, expect_msg):
+def test_manual_match_rejects_unknown_names(
+    excel_name, qif_name, expect_ok, expect_msg
+):
     """manual_match: rejects Excel/QIF names that are not present in the
     session's source lists and returns explanatory messages.
     """
@@ -108,6 +118,7 @@ def test_manual_match_rejects_unknown_names(excel_name, qif_name, expect_ok, exp
 
 # ---------------------------- manual_unmatch ----------------------------------
 
+
 def test_manual_unmatch_returns_true_when_present_false_when_absent():
     """manual_unmatch: returns True iff a mapping entry existed and was removed,
     otherwise False (idempotent on repeated calls).
@@ -119,6 +130,7 @@ def test_manual_unmatch_returns_true_when_present_false_when_absent():
 
 
 # ------------------------------ unmatched -------------------------------------
+
 
 def test_unmatched_returns_items_not_in_mapping():
     """unmatched: returns the remaining QIF and Excel category names that have
@@ -132,6 +144,7 @@ def test_unmatched_returns_items_not_in_mapping():
 
 # --------------------------- apply_to_excel -----------------------------------
 
+
 def test_apply_to_excel_replaces_cells_and_writes_default_output(monkeypatch, tmp_path):
     """apply_to_excel: reads an Excel file, replaces cells in the 'Canonical MECE Category'
     column using the session mapping, and writes to a default '*_normalized.xlsx' file.
@@ -142,17 +155,21 @@ def test_apply_to_excel_replaces_cells_and_writes_default_output(monkeypatch, tm
     """
     # Arrange
     input_path = tmp_path / "cats.xlsx"
-    df = pd.DataFrame({
-        "Canonical MECE Category": ["Groceries", "Unmapped", "Restaurants"],
-        "Other": [1, 2, 3],
-    })
+    df = pd.DataFrame(
+        {
+            "Canonical MECE Category": ["Groceries", "Unmapped", "Restaurants"],
+            "Other": [1, 2, 3],
+        }
+    )
 
     # Monkeypatch pandas IO
     monkeypatch.setattr(pd, "read_excel", lambda p: df)
     captured = {}
+
     def fake_to_excel(self, out_path, index=False):
         captured["out_path"] = out_path
         captured["values"] = self["Canonical MECE Category"].tolist()
+
     monkeypatch.setattr(pd.DataFrame, "to_excel", fake_to_excel, raising=False)
 
     s = CategoryMatchSession(
@@ -198,8 +215,10 @@ def test_apply_to_excel_respects_explicit_output_path(monkeypatch, tmp_path):
     df = pd.DataFrame({"Canonical MECE Category": ["A"]})
     monkeypatch.setattr(pd, "read_excel", lambda p: df)
     captured = {}
+
     def fake_to_excel(self, out_path, index=False):
         captured["out_path"] = out_path
+
     monkeypatch.setattr(pd.DataFrame, "to_excel", fake_to_excel, raising=False)
 
     s = CategoryMatchSession(["A"], ["A"])

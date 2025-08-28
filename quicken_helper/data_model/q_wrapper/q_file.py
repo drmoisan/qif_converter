@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import inspect
@@ -56,7 +55,10 @@ def _emit_qif_text(item: object, with_header: bool) -> str:
                 # If function takes at least one positional arg, try positional
                 # Else call with no args
                 # (we don't attempt to pass arbitrary params — keep it simple/robust)
-                if any(p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD) for p in params.values()):
+                if any(
+                    p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+                    for p in params.values()
+                ):
                     try:
                         res = func(with_header)  # type: ignore[call-arg]
                     except TypeError:
@@ -94,20 +96,22 @@ def _emit_qif_text(item: object, with_header: bool) -> str:
             return ""
         return str(res)
 
-    raise AttributeError("Item does not implement an emit method compatible with emit_section().")
+    raise AttributeError(
+        "Item does not implement an emit method compatible with emit_section()."
+    )
 
 
 class QuickenFile(IQuickenFile):
     """
     Represents a complete QIF file, including header and multiple transactions.
     """
+
     def __init__(self):
         self.sections: QuickenSections = QuickenSections.NONE
         self.tags: list[ITag] = []
         self.categories: list[ICategory] = []
         self.accounts: list[IAccount] = []
         self.transactions: list[ITransaction] = []
-
 
     def emit_section(self, xs: Iterable[HasEmitQifWithHeader]) -> str:
         # texts_iter = map(lambda x: x[1].emit_qif(with_header=(x[0] == 0)), enumerate(xs))
@@ -125,15 +129,15 @@ class QuickenFile(IQuickenFile):
         """
         if not self.transactions:
             return ""
-        current_account : IAccount = field(default_factory=QAccount)
+        current_account: IAccount = field(default_factory=QAccount)
 
         texts: list[str] = []
         for i, item in enumerate(self.transactions):
             if item.account != current_account:
                 current_account = item.account
-                txt = item.emit_qif(with_account=True,with_type=True)
+                txt = item.emit_qif(with_account=True, with_type=True)
             else:
-                txt = item.emit_qif(with_account=False,with_type=False)
+                txt = item.emit_qif(with_account=False, with_type=False)
             texts.append("" if txt is None else str(txt))
         return "\n".join(texts)
 
@@ -150,7 +154,11 @@ class QuickenFile(IQuickenFile):
         if self.sections.has_flag(QuickenSections.CATEGORIES):
             lines.append(self.emit_section(self.categories))
         if self.sections.has_flag(QuickenSections.ACCOUNTS):
-            lines.append(self.emit_section(cast(list[HasEmitQifWithHeader], self.accounts)))
+            lines.append(
+                self.emit_section(cast(list[HasEmitQifWithHeader], self.accounts))
+            )
         if self.sections.has_flag(QuickenSections.TRANSACTIONS):
-            lines.append(self.emit_section(cast(list[HasEmitQifWithHeader], self.transactions)))
-        return "\n".join(lines)   # Ensure file ends with newline
+            lines.append(
+                self.emit_section(cast(list[HasEmitQifWithHeader], self.transactions))
+            )
+        return "\n".join(lines)  # Ensure file ends with newline

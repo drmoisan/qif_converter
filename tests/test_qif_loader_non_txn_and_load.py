@@ -9,13 +9,16 @@ def _mk_open(text: str):
     Create a replacement for Path.open that yields a fresh StringIO on each call.
     Signature matches Path.open(self, mode='r', *args, **kwargs).
     """
-    def _open(self, mode='r', *args, **kwargs):
-        assert 'r' in mode, f"Expected read mode for test stub, got {mode!r}"
+
+    def _open(self, mode="r", *args, **kwargs):
+        assert "r" in mode, f"Expected read mode for test stub, got {mode!r}"
         return io.StringIO(text)
+
     return _open
 
 
 # ------------------ _parse_non_txn_sections ------------------
+
 
 def test__parse_non_txn_sections_parses_accounts_cats_payees_and_unknown(monkeypatch):
     # Arrange
@@ -66,11 +69,15 @@ def test__parse_non_txn_sections_parses_accounts_cats_payees_and_unknown(monkeyp
     monkeypatch.setattr(ql.Path, "open", _mk_open(qif_text), raising=True)
 
     # Act
-    accounts, categories, memorized, securities, business, payees, other = ql._parse_non_txn_sections(Path("MEM://ignore.qif"))
+    accounts, categories, memorized, securities, business, payees, other = (
+        ql._parse_non_txn_sections(Path("MEM://ignore.qif"))
+    )
 
     # Assert
     # Accounts
-    assert isinstance(accounts, list) and len(accounts) == 1, "Should parse one account record."
+    assert (
+        isinstance(accounts, list) and len(accounts) == 1
+    ), "Should parse one account record."
     a = accounts[0]
     assert a.get("name") == "Checking"
     assert a.get("type") == "Bank"
@@ -113,16 +120,13 @@ def test__parse_non_txn_sections_parses_accounts_cats_payees_and_unknown(monkeyp
 
 def test__parse_non_txn_sections_returns_empty_when_only_txns(monkeypatch):
     # Arrange: only a transaction block; no list headers present
-    qif_text = (
-        "!Type:Bank\n"
-        "D2025-01-01\n"
-        "T-1.00\n"
-        "^\n"
-    )
+    qif_text = "!Type:Bank\n" "D2025-01-01\n" "T-1.00\n" "^\n"
     monkeypatch.setattr(ql.Path, "open", _mk_open(qif_text), raising=True)
 
     # Act
-    accounts, categories, memorized, securities, business, payees, other = ql._parse_non_txn_sections(Path("MEM://ignore.qif"))
+    accounts, categories, memorized, securities, business, payees, other = (
+        ql._parse_non_txn_sections(Path("MEM://ignore.qif"))
+    )
 
     # Assert
     assert accounts == []
@@ -142,14 +146,7 @@ def test__parse_non_txn_sections_returns_empty_when_only_txns(monkeypatch):
 
 def test__parse_non_txn_sections_multiple_unknown_sections(monkeypatch):
     # Arrange: two separate unknown section headers
-    qif_text = (
-        "!Unknown:Foo\n"
-        "Xone\n"
-        "^\n"
-        "!Unknown:Bar\n"
-        "Ztwo\n"
-        "^\n"
-    )
+    qif_text = "!Unknown:Foo\n" "Xone\n" "^\n" "!Unknown:Bar\n" "Ztwo\n" "^\n"
     monkeypatch.setattr(ql.Path, "open", _mk_open(qif_text), raising=True)
 
     # Act
@@ -165,6 +162,7 @@ def test__parse_non_txn_sections_multiple_unknown_sections(monkeypatch):
 
 
 # ------------------ load_transactions ------------------
+
 
 def test_load_transactions_delegates_to_parse_qif_unified(monkeypatch):
     # Arrange
@@ -210,4 +208,3 @@ def test_load_transactions_accepts_str_path_and_uses_default_encoding(monkeypatc
     # Assert
     assert out == [{"amount": "-1.23"}]
     assert captured["args"] == ("string_path.qif", "utf-8")
-

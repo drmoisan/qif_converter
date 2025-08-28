@@ -2,4 +2,4 @@
 from .excel_row import ExcelRow
 from .excel_txn_group import ExcelTxnGroup
 
-__all__ = ['ExcelRow','ExcelTxnGroup']
+__all__ = ["ExcelRow", "ExcelTxnGroup"]

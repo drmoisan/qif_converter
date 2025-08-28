@@ -30,10 +30,12 @@ class _TestableMatchSession(MatchSession):
     (bypassing auto_match/manual_match). This keeps the test isolated on
     apply_updates().
     """
+
     def force_group_link(self, txn_index: int, group_index: int) -> None:
         qkey = self.txn_views[txn_index].key
         self.qif_to_excel_group[qkey] = group_index
         self.excel_group_to_qif[group_index] = qkey
+
     # def force_group_link(self, txn_index: int, group_index: int) -> None:
     #     qkey = self.txn_views[txn_index].key
     #     # Store the *group object* in qif_to_excel_group so matched_pairs()
@@ -46,17 +48,38 @@ class _TestableMatchSession(MatchSession):
 
 # --- The independent test (Arrange-Act-Assert) -------------------------------
 
+
 def test_apply_updates_overwrites_splits_from_matched_groups_independent():
     # Arrange
     txns = [
-        _mk_tx("2025-07-02", "-20.00", splits=[
-            {"category": "Old:Cat", "memo": "old1", "amount": Decimal("-10.00")},
-            {"category": "Old:Cat", "memo": "old2", "amount": Decimal("-10.00")},
-        ]),
+        _mk_tx(
+            "2025-07-02",
+            "-20.00",
+            splits=[
+                {"category": "Old:Cat", "memo": "old1", "amount": Decimal("-10.00")},
+                {"category": "Old:Cat", "memo": "old2", "amount": Decimal("-10.00")},
+            ],
+        ),
     ]
     rows = [
-        ExcelRow(idx=0, txn_id="B", date=date(2025, 7, 2), amount=Decimal("-10.00"), item="i2a", category="New:C2", rationale="R2a"),
-        ExcelRow(idx=1, txn_id="B", date=date(2025, 7, 2), amount=Decimal("-10.00"), item="i2b", category="New:C3", rationale="R2b"),
+        ExcelRow(
+            idx=0,
+            txn_id="B",
+            date=date(2025, 7, 2),
+            amount=Decimal("-10.00"),
+            item="i2a",
+            category="New:C2",
+            rationale="R2a",
+        ),
+        ExcelRow(
+            idx=1,
+            txn_id="B",
+            date=date(2025, 7, 2),
+            amount=Decimal("-10.00"),
+            item="i2b",
+            category="New:C3",
+            rationale="R2b",
+        ),
     ]
     grp = _mk_group(rows, gid="B")
     session = _TestableMatchSession(txns, excel_groups=[grp])
@@ -68,8 +91,9 @@ def test_apply_updates_overwrites_splits_from_matched_groups_independent():
 
     # Assert
     updated = txns[0]
-    assert "splits" in updated and len(updated["splits"]) == 2, \
-        "Existing splits must be replaced by Excel group splits."
+    assert (
+        "splits" in updated and len(updated["splits"]) == 2
+    ), "Existing splits must be replaced by Excel group splits."
     cats = [s["category"] for s in updated["splits"]]
     memos = [s["memo"] for s in updated["splits"]]
     amts = [s["amount"] for s in updated["splits"]]

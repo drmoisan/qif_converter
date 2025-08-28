@@ -203,9 +203,7 @@ _FIELD_MAP = {
 }
 
 
-def _parse_non_txn_sections(
-    path: Path, encoding: str = "utf-8"
-) -> Tuple[
+def _parse_non_txn_sections(path: Path, encoding: str = "utf-8") -> Tuple[
     List[Dict[str, Any]],  # accounts
     List[Dict[str, Any]],  # categories
     List[Dict[str, Any]],  # memorized

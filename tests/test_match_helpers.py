@@ -17,11 +17,12 @@ from quicken_helper.legacy.qif_txn_view import QIFTxnView
 
 # ----------------------- _to_decimal -----------------------
 
+
 def test_to_decimal_accepts_decimal_int_float_and_str():
     # Arrange / Act
     d_from_dec = _to_decimal(Decimal("-12.34"))
     d_from_int = _to_decimal(7)
-    d_from_float = _to_decimal(1.1)   # should preserve textual value, not binary float
+    d_from_float = _to_decimal(1.1)  # should preserve textual value, not binary float
     d_from_str = _to_decimal(" -1,234.56 ")
 
     # Assert
@@ -46,14 +47,15 @@ def test_to_decimal_raises_on_empty_plus_minus():
 
 # ----------------------- _parse_date -----------------------
 
+
 @pytest.mark.parametrize(
     "raw, expected",
     [
-        ("08/01'25", date(2025, 8, 1)),    # mm/dd'yy
+        ("08/01'25", date(2025, 8, 1)),  # mm/dd'yy
         ("08/01/2025", date(2025, 8, 1)),  # mm/dd/YYYY
         ("2025-08-01", date(2025, 8, 1)),  # ISO
         ("2025/08/01", date(2025, 8, 1)),  # ISO with slashes (fallback)
-        ("08/01’25", date(2025, 8, 1)),    # curly apostrophe replaced
+        ("08/01’25", date(2025, 8, 1)),  # curly apostrophe replaced
     ],
 )
 def test_parse_date_supported_formats(raw, expected):
@@ -67,6 +69,7 @@ def test_parse_date_raises_on_unrecognized():
 
 # ----------------------- _candidate_cost -----------------------
 
+
 def test_candidate_cost_within_and_outside_window():
     d0 = date(2025, 1, 10)
     assert _candidate_cost(d0, d0) == 0
@@ -79,6 +82,7 @@ def test_candidate_cost_within_and_outside_window():
 
 
 # ----------------------- _flatten_qif_txns -----------------------
+
 
 def _mk_tx(d: str, amount: str, payee="P", memo="", category="", splits=None):
     tx = {
@@ -150,7 +154,11 @@ def test_flatten_qif_txns_handles_missing_optional_fields_gracefully():
     # Arrange: some optional fields not present
     txns = [
         {"date": "2025-02-01", "amount": "-1.00"},
-        {"date": "2025-02-02", "amount": "-2.00", "splits": []},  # explicit empty splits
+        {
+            "date": "2025-02-02",
+            "amount": "-2.00",
+            "splits": [],
+        },  # explicit empty splits
     ]
 
     # Act

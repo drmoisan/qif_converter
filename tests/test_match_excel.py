@@ -14,24 +14,31 @@ from quicken_helper.legacy.qif_item_key import QIFItemKey
 
 # --------------------------- load_excel_rows ----------------------------------
 
+
 def test_load_excel_rows_parses_rows(monkeypatch):
     """load_excel_rows: parses a DataFrame into typed ExcelRow objects, preserving
     per-row index (idx), grouping IDs (TxnID), and converting Amount to Decimal.
     """
-    df = pd.DataFrame({
-        "TxnID": ["G1", "G1", "G2"],
-        "Date": [date(2025, 8, 10), date(2025, 8, 10), date(2025, 8, 9)],
-        "Amount": ["-10.00", "-20.00", "-7.50"],
-        "Item": ["i1", "i2", "j1"],
-        "Canonical MECE Category": ["C1", "C2", "C3"],
-        "Categorization Rationale": ["r1", "r2", "r3"],
-    })
+    df = pd.DataFrame(
+        {
+            "TxnID": ["G1", "G1", "G2"],
+            "Date": [date(2025, 8, 10), date(2025, 8, 10), date(2025, 8, 9)],
+            "Amount": ["-10.00", "-20.00", "-7.50"],
+            "Item": ["i1", "i2", "j1"],
+            "Canonical MECE Category": ["C1", "C2", "C3"],
+            "Categorization Rationale": ["r1", "r2", "r3"],
+        }
+    )
     monkeypatch.setattr(pd, "read_excel", lambda p: df)
 
     rows = mx.load_excel_rows(Path("dummy.xlsx"))
 
     assert [type(r) for r in rows] == [ExcelRow] * 3
-    assert rows[0].txn_id == "G1" and rows[0].idx == 0 and rows[0].amount == Decimal("-10.00")
+    assert (
+        rows[0].txn_id == "G1"
+        and rows[0].idx == 0
+        and rows[0].amount == Decimal("-10.00")
+    )
     assert rows[1].txn_id == "G1" and rows[2].txn_id == "G2"
 
 
@@ -47,14 +54,39 @@ def test_load_excel_rows_missing_columns_raises(monkeypatch):
 
 # --------------------------- group_excel_rows ---------------------------------
 
+
 def test_group_excel_rows_groups_and_sorts():
     """group_excel_rows: groups rows by TxnID, sums total_amount, uses the earliest
     date as the group date, sorts groups by (date, gid), and preserves row order within groups.
     """
     rows = [
-        ExcelRow(idx=1, txn_id="B", date=date(2025, 8, 11), amount=Decimal("-2.00"), item="b2", category="C", rationale="r"),
-        ExcelRow(idx=0, txn_id="A", date=date(2025, 8, 10), amount=Decimal("-1.00"), item="a1", category="C", rationale="r"),
-        ExcelRow(idx=2, txn_id="B", date=date(2025, 8, 12), amount=Decimal("-3.00"), item="b3", category="C", rationale="r"),
+        ExcelRow(
+            idx=1,
+            txn_id="B",
+            date=date(2025, 8, 11),
+            amount=Decimal("-2.00"),
+            item="b2",
+            category="C",
+            rationale="r",
+        ),
+        ExcelRow(
+            idx=0,
+            txn_id="A",
+            date=date(2025, 8, 10),
+            amount=Decimal("-1.00"),
+            item="a1",
+            category="C",
+            rationale="r",
+        ),
+        ExcelRow(
+            idx=2,
+            txn_id="B",
+            date=date(2025, 8, 12),
+            amount=Decimal("-3.00"),
+            item="b3",
+            category="C",
+            rationale="r",
+        ),
     ]
     groups = mx.group_excel_rows(rows)
 
@@ -66,6 +98,7 @@ def test_group_excel_rows_groups_and_sorts():
 
 
 # ----------------------------- _txn_amount ------------------------------------
+
 
 def test__txn_amount_prefers_splits_sum_over_txn_amount():
     """_txn_amount: if splits exist, returns the sum of split amounts (ignores txn-level amount)."""
@@ -81,18 +114,32 @@ def test__txn_amount_falls_back_to_txn_amount_when_no_splits():
 
 # --------------------------- _flatten_qif_txns --------------------------------
 
+
 def test_flatten_qif_txns_includes_split_views_and_whole_txn_and_skips_bad_split_amounts():
     """_flatten_qif_txns: produces a flat list of views for (valid) splits and for unsplit
     transactions, skipping any split with a non-numeric amount and any non-transaction input.
     """
     txns = [
         # txn 0: with splits (one bad amount to be skipped)
-        {"date": "2025-08-10", "payee": "P0", "memo": "M0", "category": "C0",
-         "splits": [{"amount": "-1.00", "memo": "s1", "category": "S1"},
-                    {"amount": "XYZ", "memo": "bad", "category": "BAD"},
-                    {"amount": "-2.00", "memo": "s2", "category": "S2"}]},
+        {
+            "date": "2025-08-10",
+            "payee": "P0",
+            "memo": "M0",
+            "category": "C0",
+            "splits": [
+                {"amount": "-1.00", "memo": "s1", "category": "S1"},
+                {"amount": "XYZ", "memo": "bad", "category": "BAD"},
+                {"amount": "-2.00", "memo": "s2", "category": "S2"},
+            ],
+        },
         # txn 1: no splits, use txn amount
-        {"date": "2025-08-11", "payee": "P1", "memo": "M1", "category": "C1", "amount": "-5.50"},
+        {
+            "date": "2025-08-11",
+            "payee": "P1",
+            "memo": "M1",
+            "category": "C1",
+            "amount": "-5.50",
+        },
         # txn 2: not a transaction (bad date) → dropped
         {"date": "not-a-date", "amount": "-1.00"},
     ]
@@ -109,13 +156,20 @@ def test_flatten_qif_txns_includes_split_views_and_whole_txn_and_skips_bad_split
 
 # ---------------------- extract_qif/excel_categories --------------------------
 
+
 def test_extract_qif_categories_dedup_and_sort():
     """extract_qif_categories: gathers categories from both txn-level and split-level,
     normalizes case/whitespace, de-duplicates, and returns a sorted list.
     """
     txns = [
-        {"category": "Food:Groceries", "splits": [{"category": "Home:Repairs"}, {"category": "food:groceries"}]},
-        {"category": "  ", "splits": [{"category": ""}, {"category": "Utilities: Internet"}]},
+        {
+            "category": "Food:Groceries",
+            "splits": [{"category": "Home:Repairs"}, {"category": "food:groceries"}],
+        },
+        {
+            "category": "  ",
+            "splits": [{"category": ""}, {"category": "Utilities: Internet"}],
+        },
     ]
     cats = mx.extract_qif_categories(txns)
     assert cats == ["Food:Groceries", "Home:Repairs", "Utilities: Internet"]
@@ -125,7 +179,9 @@ def test_extract_excel_categories_reads_and_dedups(monkeypatch):
     """extract_excel_categories: reads 'Canonical MECE Category' from Excel, strips,
     de-duplicates ignoring case, and returns sorted non-empty values.
     """
-    df = pd.DataFrame({"Canonical MECE Category": ["Groceries", "groceries", "Restaurants", ""]})
+    df = pd.DataFrame(
+        {"Canonical MECE Category": ["Groceries", "groceries", "Restaurants", ""]}
+    )
     monkeypatch.setattr(pd, "read_excel", lambda p: df)
 
     out = mx.extract_excel_categories(Path("cats.xlsx"))
@@ -134,12 +190,14 @@ def test_extract_excel_categories_reads_and_dedups(monkeypatch):
 
 # --------------------------------- _ratio -------------------------------------
 
+
 def test__ratio_is_case_insensitive_and_exact_for_equal_strings():
     """_ratio: returns 1.0 for equal strings ignoring case."""
     assert mx._ratio("Food:Groceries", "food:groceries") == 1.0
 
 
 # ---------------------------- fuzzy_autopairs ---------------------------------
+
 
 def test_fuzzy_autopairs_threshold_and_one_to_one():
     """fuzzy_autopairs: with threshold=0.80, 'Food:Restaurants' ↔ 'Restaurants' meets the
@@ -151,7 +209,9 @@ def test_fuzzy_autopairs_threshold_and_one_to_one():
         excel_cats=["Groceries", "Restaurants", "Other"],
         threshold=0.80,
     )
-    match = next((p for p in pairs if p[0] == "Food:Restaurants" and p[1] == "Restaurants"), None)
+    match = next(
+        (p for p in pairs if p[0] == "Food:Restaurants" and p[1] == "Restaurants"), None
+    )
     assert match is not None and match[2] >= 0.80
 
     assert "Food:Groceries" in uq
@@ -174,21 +234,29 @@ def test_fuzzy_autopairs_deterministic_tie_breaks_by_alpha():
 
 # ------------------------ build_matched_only_txns -----------------------------
 
+
 class _FakeSessionGroupMode:
     """Duck-typed minimal session for group-mode: exposes txns, excel_groups,
     and qif_to_excel_group mapping (whole-transaction keys → group index).
     """
+
     def __init__(self, txns, matched_txn_indices):
         self.txns = txns
-        self.excel_groups = [ExcelTxnGroup(gid="G", date=date(2025, 8, 10),
-                                           total_amount=Decimal("0"), rows=tuple())]
-        self.qif_to_excel_group = {QIFItemKey(ti, None): 0 for ti in matched_txn_indices}
+        self.excel_groups = [
+            ExcelTxnGroup(
+                gid="G", date=date(2025, 8, 10), total_amount=Decimal("0"), rows=tuple()
+            )
+        ]
+        self.qif_to_excel_group = {
+            QIFItemKey(ti, None): 0 for ti in matched_txn_indices
+        }
 
 
 class _FakeSessionLegacyMode:
     """Duck-typed minimal session for legacy row-mode: exposes txns, excel_groups=None,
     and qif_to_excel(_row) mapping (txn/split keys → row index).
     """
+
     def __init__(self, txns, matched_keys):
         self.txns = txns
         self.excel_groups = None
@@ -210,6 +278,7 @@ def test_build_matched_only_txns_group_mode_includes_only_matched_txns():
     from typing import cast
 
     from quicken_helper.controllers.match_session import MatchSession
+
     out = mx.build_matched_only_txns(cast(MatchSession, session))
 
     assert len(out) == 1 and out[0]["amount"] == "-1.00"
@@ -221,30 +290,34 @@ def test_build_matched_only_txns_legacy_mode_filters_splits_and_includes_whole_t
     """
     txns = [
         # txn 0 has three splits; only 0 and 2 are matched
-        {"date": "2025-08-10", "splits": [
-            {"category": "A", "memo": "a", "amount": Decimal("-1.00")},
-            {"category": "B", "memo": "b", "amount": Decimal("-2.00")},
-            {"category": "C", "memo": "c", "amount": Decimal("-3.00")},
-        ]},
+        {
+            "date": "2025-08-10",
+            "splits": [
+                {"category": "A", "memo": "a", "amount": Decimal("-1.00")},
+                {"category": "B", "memo": "b", "amount": Decimal("-2.00")},
+                {"category": "C", "memo": "c", "amount": Decimal("-3.00")},
+            ],
+        },
         # txn 1 has no splits; we match the whole txn key
         {"date": "2025-08-11", "amount": "-9.99"},
     ]
     matched = {
-        QIFItemKey(0, 0), QIFItemKey(0, 2),  # two split matches
-        QIFItemKey(1, None),                 # whole-transaction match
+        QIFItemKey(0, 0),
+        QIFItemKey(0, 2),  # two split matches
+        QIFItemKey(1, None),  # whole-transaction match
     }
     session = _FakeSessionLegacyMode(txns, matched_keys=matched)
 
     from typing import cast
 
     from quicken_helper.controllers.match_session import MatchSession
+
     out = mx.build_matched_only_txns(cast(MatchSession, session))
 
     assert len(out) == 2
     s0 = out[0]["splits"]
     assert [s["memo"] for s in s0] == ["a", "c"]
     assert out[1]["amount"] == "-9.99"
-
 
 
 # PREVIOUS VERSION OF THE FILE (kept for reference; not executed):

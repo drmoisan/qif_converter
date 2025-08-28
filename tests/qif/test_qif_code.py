@@ -33,7 +33,9 @@ def test_qif_code_stores_fields_and_is_frozen():
 def test_qif_code_equality_relies_on_code_only():
     # Arrange
     a = QifCode(code="D", description="Date", used_in="All", example="D01/02'25")
-    b = QifCode(code="D", description="Different desc", used_in="Bank", example="D2025-01-02")
+    b = QifCode(
+        code="D", description="Different desc", used_in="Bank", example="D2025-01-02"
+    )
     c = QifCode(code="T", description="Amount", used_in="All", example="T-12.34")
 
     # Act
@@ -67,5 +69,7 @@ def test_qif_code_eq_with_non_qifcode_returns_false_not_error():
     a = QifCode(code="M", description="Memo", used_in="All", example="MLatte")
 
     # Act / Assert
-    assert not (a == "M"), "Comparing to non-QifCode should be False (NotImplemented path)."
+    assert not (
+        a == "M"
+    ), "Comparing to non-QifCode should be False (NotImplemented path)."
     assert a != object(), "Different type → not equal."

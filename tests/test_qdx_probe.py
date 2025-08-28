@@ -10,7 +10,10 @@ import quicken_helper.legacy.qdx_probe as qdx
 
 # ------------------------------- small helpers --------------------------------
 
-def _mk_qif(tmp_path: Path, body: str = "!Type:Bank\nD01/01'25\n^\nD01/02'25\n^\n") -> Path:
+
+def _mk_qif(
+    tmp_path: Path, body: str = "!Type:Bank\nD01/01'25\n^\nD01/02'25\n^\n"
+) -> Path:
     """Create a minimal QIF file with two '^' terminators (2 txns by our counter)."""
     p = tmp_path / "sample.qif"
     p.write_text(body, encoding="utf-8")
@@ -18,6 +21,7 @@ def _mk_qif(tmp_path: Path, body: str = "!Type:Bank\nD01/01'25\n^\nD01/02'25\n^\
 
 
 # -------------------------------- read_bytes ----------------------------------
+
 
 def test_read_bytes_reads_exact_file_bytes(tmp_path: Path):
     """read_bytes: returns the identical bytes written to the file (binary-safe)."""
@@ -29,6 +33,7 @@ def test_read_bytes_reads_exact_file_bytes(tmp_path: Path):
 
 # --------------------------------- hex_head -----------------------------------
 
+
 def test_hex_head_returns_lowercase_hex_of_prefix():
     """hex_head: formats the first N bytes as lowercase hex, length == 2*N."""
     data = b"\x00\x01\xab\xcd\xef"
@@ -39,6 +44,7 @@ def test_hex_head_returns_lowercase_hex_of_prefix():
 
 # ---------------------------------- entropy -----------------------------------
 
+
 def test_entropy_zero_stream_is_zero_and_uniform_0_255_is_eight_bits():
     """entropy: 0.0 bits/byte for constant stream; ~8.0 for a uniform 0..255 byte set."""
     assert qdx.entropy(b"\x00" * 256) == 0.0
@@ -48,6 +54,7 @@ def test_entropy_zero_stream_is_zero_and_uniform_0_255_is_eight_bits():
 
 # ------------------------------- string scans ---------------------------------
 
+
 def test_iter_ascii_strings_emits_only_runs_of_len_at_least_MIN_STR():
     """iter_ascii_strings: emits only ASCII runs with length >= MIN_STR; shorter runs are ignored."""
     # runs: "short"(5) ignored, "longenough"(10) captured, "123456"(6) captured
@@ -55,6 +62,7 @@ def test_iter_ascii_strings_emits_only_runs_of_len_at_least_MIN_STR():
     outs = list(qdx.iter_ascii_strings(data))
     assert "longenough" in outs and "123456" in outs
     assert not any(s == "short" for s in outs)
+
 
 def test_iter_utf16le_strings_extracts_readable_runs(tmp_path: Path):
     """iter_utf16le_strings: decodes UTF-16LE runs and emits those >= MIN_STR characters."""
@@ -66,6 +74,7 @@ def test_iter_utf16le_strings_extracts_readable_runs(tmp_path: Path):
 
 # ------------------------------- container sigs -------------------------------
 
+
 def test_is_zip_and_is_gzip_detect_headers():
     """is_zip/is_gzip: detect PK.. (ZIP) and 1F 8B 08.. (GZIP) magic headers; random bytes are False."""
     assert qdx.is_zip(b"PK\x03\x04more")
@@ -75,6 +84,7 @@ def test_is_zip_and_is_gzip_detect_headers():
 
 
 # ------------------------------ zlib detection --------------------------------
+
 
 def test_find_zlib_streams_and_try_decompress_at_roundtrip():
     """find_zlib_streams/try_decompress_at: finds zlib header offsets and decompresses successfully.
@@ -92,16 +102,18 @@ def test_find_zlib_streams_and_try_decompress_at_roundtrip():
 
 # -------------------------------- preview_text --------------------------------
 
+
 def test_preview_text_truncates_and_falls_back_to_latin1():
     """preview_text: decodes as UTF-8 with ignore; falls back to latin-1; trims; truncates with ellipsis."""
     # Force latin-1 fallback (\xff) and length > maxlen to trigger ellipsis.
-    blob = (b"\xff" + b"x" * 100)
+    blob = b"\xff" + b"x" * 100
     view = qdx.preview_text(blob, maxlen=20)
     ellipsis = " …"  # space + ellipsis, used by preview_text on truncation
     assert len(view) <= 20 + len(ellipsis) and view.endswith(ellipsis)
 
 
 # -------------------------------- QIF counter ---------------------------------
+
 
 def test_count_qif_transactions_counts_caret_lines(tmp_path: Path):
     """count_qif_transactions: counts lines that are exactly '^' as transactions."""
@@ -110,6 +122,7 @@ def test_count_qif_transactions_counts_caret_lines(tmp_path: Path):
 
 
 # ------------------------------- run_probe (I/O) -------------------------------
+
 
 def test_run_probe_returns_report_and_no_artifacts_when_out_none(tmp_path: Path):
     """run_probe: on a zlib-only blob, returns a report as a string and no artifacts when out=None.
@@ -126,7 +139,10 @@ def test_run_probe_returns_report_and_no_artifacts_when_out_none(tmp_path: Path)
     assert "Container" in report or "Container:" in report
     assert "zlib candidates" in report
     assert "preview: <xml>hello</xml> moretext" in report
-    assert "transactions by '^' lines: 2" in report  # explicit standalone line for easy asserting
+    assert (
+        "transactions by '^' lines: 2" in report
+    )  # explicit standalone line for easy asserting
+
 
 def test_run_probe_writes_txt_and_artifacts_when_out_is_file(tmp_path: Path):
     """run_probe: when 'out' is a .txt path, writes the report to that path and saves artifacts
@@ -144,6 +160,7 @@ def test_run_probe_writes_txt_and_artifacts_when_out_is_file(tmp_path: Path):
     assert artifacts and all(p.exists() for p in artifacts)
     # The known offset after "HEAD" is 4; many implementations name like zlib_00000004.bin
     assert any("00000004" in p.name for p in artifacts)
+
 
 def test_run_probe_writes_txt_inside_dir_when_out_is_directory(tmp_path: Path):
     """run_probe: when 'out' is a directory, writes 'qdx_probe_report.txt' inside it and saves artifacts there."""

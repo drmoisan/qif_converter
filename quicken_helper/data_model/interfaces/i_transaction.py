@@ -15,6 +15,7 @@ from .i_split import ISplit
 @runtime_checkable
 class ITransaction(Protocol):
     """Structural shape of a QIF transaction sufficient for file emission."""
+
     account: IAccount
     type: IHeader
     date: date
@@ -33,6 +34,8 @@ class ITransaction(Protocol):
     def security(self) -> ISecurity: ...
 
     def emit_category(self) -> str: ...
-    def emit_qif(self, *, with_account: bool = False, with_type: bool = False) -> str: ...
+    def emit_qif(
+        self, *, with_account: bool = False, with_type: bool = False
+    ) -> str: ...
 
     def to_dict(self) -> dict: ...

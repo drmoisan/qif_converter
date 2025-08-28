@@ -4,14 +4,14 @@ from __future__ import annotations
 from _decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 
-from quicken_helper.controllers.match_helpers import (  #,_flatten_qif_txns
+from quicken_helper.controllers.match_helpers import (  # ,_flatten_qif_txns
     TxnLegacyView,
     _candidate_cost,
     _to_decimal,
     make_txn_views,
 )
 
-#from .qif_txn_view import QIFTxnView
+# from .qif_txn_view import QIFTxnView
 from quicken_helper.data_model import QSplit, QTransaction
 from quicken_helper.data_model.excel.excel_row import ExcelRow
 from quicken_helper.data_model.excel.excel_txn_group import ExcelTxnGroup
@@ -39,7 +39,7 @@ class MatchSession:
         Matching is performed at the TRANSACTION level (not split).
         """
         self.txns = txns
-        #self.txn_views = _flatten_qif_txns(txns)
+        # self.txn_views = _flatten_qif_txns(txns)
         self.txn_views = make_txn_views(txns)
 
         # Prefer group-mode if provided; fall back to rows (legacy)
@@ -91,7 +91,9 @@ class MatchSession:
                         continue
                     candidates.append((cost, ti, gi))
 
-            candidates.sort(key=lambda t: (t[0], t[1], t[2]))  # cost, then deterministic
+            candidates.sort(
+                key=lambda t: (t[0], t[1], t[2])
+            )  # cost, then deterministic
 
             used_txn: set[int] = set()
             used_grp: set[int] = set()
@@ -104,9 +106,11 @@ class MatchSession:
                 used_txn.add(ti)
                 used_grp.add(gi)
 
-            print("DEBUG keys types:",
-                  {type(k) for k in self.qif_to_excel_group.keys()},
-                  {type(v) for v in self.qif_to_excel_group.values()})
+            print(
+                "DEBUG keys types:",
+                {type(k) for k in self.qif_to_excel_group.keys()},
+                {type(v) for v in self.qif_to_excel_group.values()},
+            )
 
             print("DEBUG sample mapping:", list(self.qif_to_excel_group.items())[:3])
 
@@ -145,7 +149,9 @@ class MatchSession:
 
     # --- Introspection
 
-    def matched_pairs(self) -> List[Tuple[TxnLegacyView, ExcelTxnGroup | ExcelRow, int]]:
+    def matched_pairs(
+        self,
+    ) -> List[Tuple[TxnLegacyView, ExcelTxnGroup | ExcelRow, int]]:
         """
         Return list of matched (QIFTxnView, ExcelTxnGroup|ExcelRow, date_cost).
         Group-mode first, legacy row-mode as fallback.
@@ -183,9 +189,15 @@ class MatchSession:
 
     def unmatched_excel(self) -> List[ExcelTxnGroup | ExcelRow]:
         if self.excel_groups:
-            return [g for gi, g in enumerate(self.excel_groups) if gi not in self.excel_group_to_qif]
+            return [
+                g
+                for gi, g in enumerate(self.excel_groups)
+                if gi not in self.excel_group_to_qif
+            ]
         # Legacy row-mode
-        return [er for ei, er in enumerate(self.excel_rows) if ei not in self.excel_to_qif]
+        return [
+            er for ei, er in enumerate(self.excel_rows) if ei not in self.excel_to_qif
+        ]
 
     # --- Reasons / manual matching
 
@@ -262,9 +274,15 @@ class MatchSession:
                 q_amt = _to_decimal(str(q.amount))
 
             if q_amt != grp.total_amount:
-                return False, f"Total amount differs (QIF {q_amt} vs Excel group {grp.total_amount})."
+                return (
+                    False,
+                    f"Total amount differs (QIF {q_amt} vs Excel group {grp.total_amount}).",
+                )
             if _candidate_cost(q.date, grp.date) is None:
-                return False, f"Date outside ±3 days (QIF {q.date.isoformat()} vs Excel group {grp.date.isoformat()})."
+                return (
+                    False,
+                    f"Date outside ±3 days (QIF {q.date.isoformat()} vs Excel group {grp.date.isoformat()}).",
+                )
 
             # Unhook existing links
             self._unmatch_qkey_group(qkey)
@@ -288,7 +306,10 @@ class MatchSession:
         if q_amt != er.amount:
             return False, f"Amount differs (QIF {q_amt} vs Excel {er.amount})."
         if _candidate_cost(q.date, er.date) is None:
-            return False, f"Date outside ±3 days (QIF {q.date.isoformat()} vs Excel {er.date.isoformat()})."
+            return (
+                False,
+                f"Date outside ±3 days (QIF {q.date.isoformat()} vs Excel {er.date.isoformat()}).",
+            )
 
         # Unhook and relink in legacy maps
         self._unmatch_qkey(qkey)
@@ -298,7 +319,9 @@ class MatchSession:
         self.excel_to_qif[excel_idx] = qkey
         return True, "Matched."
 
-    def manual_unmatch(self, qkey: Optional[QIFItemKey] = None, excel_idx: Optional[int] = None) -> bool:
+    def manual_unmatch(
+        self, qkey: Optional[QIFItemKey] = None, excel_idx: Optional[int] = None
+    ) -> bool:
         """
         Remove an existing match (by either key).
         """
@@ -362,7 +385,11 @@ class MatchSession:
             return self.excel_groups.index(g)
         except ValueError:
             for i, gg in enumerate(self.excel_groups):
-                if gg.gid == g.gid and gg.date == g.date and gg.total_amount == g.total_amount:
+                if (
+                    gg.gid == g.gid
+                    and gg.date == g.date
+                    and gg.total_amount == g.total_amount
+                ):
                     return i
             return -1
 
@@ -388,21 +415,25 @@ class MatchSession:
                 # Build new splits from the group's rows, replacing any existing splits.
                 new_splits = []
                 for r in grp.rows:
-                    new_splits.append({
-                        "category": r.category,
-                        "memo": r.item,
-                        "amount": r.amount,  # already a Decimal
-                    })
+                    new_splits.append(
+                        {
+                            "category": r.category,
+                            "memo": r.item,
+                            "amount": r.amount,  # already a Decimal
+                        }
+                    )
 
                 self._set_splits_from_group(q_view.key.txn_index, grp)
-                #txn["splits"] = new_splits
+                # txn["splits"] = new_splits
 
     def _set_splits_from_group(self, txn_idx: int, group) -> None:
         base = self.txns[txn_idx]
 
         # Excel rows → new split objects/dicts
         new_splits_model = [
-            QSplit(category=r.category or "", memo=r.item or "", amount=r.amount, tag="")
+            QSplit(
+                category=r.category or "", memo=r.item or "", amount=r.amount, tag=""
+            )
             for r in group.rows
         ]
         new_splits_dicts = [

@@ -71,7 +71,7 @@ class QSecurity:
             "price": str(self.price) if self.price is not None else "0",
             "quantity": str(self.quantity) if self.quantity is not None else "0",
             "commission": str(self.commission) if self.commission is not None else "0",
-            "transfer_amount": str(self.transfer_amount)
-            if self.transfer_amount is not None
-            else "0",
+            "transfer_amount": (
+                str(self.transfer_amount) if self.transfer_amount is not None else "0"
+            ),
         }

@@ -8,6 +8,7 @@ import quicken_helper.legacy.qif_writer as qw
 
 # ----------------------- helpers (CSV capture w/ args) ------------------------
 
+
 def _capture_csv_and_args(monkeypatch, call_fn, txns, *, newline=""):
     """Monkeypatch qw._open_for_write to an in-memory stream that captures
     both the written CSV text (on close) and the arguments passed to the
@@ -37,25 +38,29 @@ def _capture_csv_text(monkeypatch, call_fn, txns):
     captured = {}
 
     import io
+
     def fake_open(path, *, binary=False, newline=""):
         class CapturingStringIO(io.StringIO):
             def close(self):
                 captured["text"] = self.getvalue()
                 super().close()
+
         # The implementation should now always pass newline=""
         # We don't assert it here; we verify the *content* instead.
         return CapturingStringIO()
 
     import quicken_helper.legacy.qif_writer as qw
+
     monkeypatch.setattr(qw, "_open_for_write", fake_open, raising=True)
 
     from pathlib import Path
+
     call_fn(txns, Path("dummy.csv"))
     return captured["text"]
 
 
-
 # ----------------------------- QIF extra coverage -----------------------------
+
 
 def test_write_qif_empty_input_produces_empty_output():
     """write_qif: when given an empty list of transactions, writes nothing."""
@@ -96,12 +101,14 @@ def test_write_qif_skips_optional_fields_when_missing():
     record = out[start:end]
 
     # Absent in the *record*: memo/category/checknum/cleared/address/splits
-    assert "\nM" not in record   # no memo lines
-    assert "\nL" not in record   # no category
-    assert "\nN" not in record   # no checknum in the txn body
-    assert "\nC" not in record   # no cleared
-    assert "\nA" not in record   # no address lines
-    assert "\nS" not in record and "\nE" not in record and "\n$" not in record  # no splits
+    assert "\nM" not in record  # no memo lines
+    assert "\nL" not in record  # no category
+    assert "\nN" not in record  # no checknum in the txn body
+    assert "\nC" not in record  # no cleared
+    assert "\nA" not in record  # no address lines
+    assert (
+        "\nS" not in record and "\nE" not in record and "\n$" not in record
+    )  # no splits
 
 
 def test_write_qif_investment_minimal_action_only_skips_missing_security_fields():
@@ -122,14 +129,15 @@ def test_write_qif_investment_minimal_action_only_skips_missing_security_fields(
     qw.write_qif(txns, out=buf)
     out = buf.getvalue()
 
-    assert "NBuy\n" in out   # action present
-    assert "Y" not in out    # no security line
+    assert "NBuy\n" in out  # action present
+    assert "Y" not in out  # no security line
     assert "\nQ" not in out  # no quantity
     assert "\nI" not in out  # no price
     assert "\nO" not in out  # no commission
 
 
 # ----------------------------- CSV extra coverage -----------------------------
+
 
 def test_write_csv_flat_header_only_on_empty_input(monkeypatch):
     """write_csv_flat: with no transactions, writes just the header row (no data rows)."""
@@ -147,15 +155,25 @@ def test_write_csv_exploded_header_only_on_empty_input(monkeypatch):
     csv_text, _args = _capture_csv_and_args(monkeypatch, qw.write_csv_exploded, [])
     reader = csv.DictReader(io.StringIO(csv_text))
     assert list(reader) == []
-    assert {"date", "split_category", "split_amount"}.issubset(set(reader.fieldnames or []))
-
+    assert {"date", "split_category", "split_amount"}.issubset(
+        set(reader.fieldnames or [])
+    )
 
 
 def test_write_csv_quicken_windows_uses_crlf_line_endings(monkeypatch):
     """write_csv_quicken_windows: emits CRLF line endings when DictWriter is
     configured with lineterminator='\\r\\n' (platform-independent)."""
     import quicken_helper.legacy.qif_writer as qw
-    txns = [{"date": "02/03/2025", "payee": "X", "amount": "1.23", "category": "C", "account": "A"}]
+
+    txns = [
+        {
+            "date": "02/03/2025",
+            "payee": "X",
+            "amount": "1.23",
+            "category": "C",
+            "account": "A",
+        }
+    ]
 
     text = _capture_csv_text(monkeypatch, qw.write_csv_quicken_windows, txns)
 
@@ -171,7 +189,16 @@ def test_write_csv_quicken_mac_uses_lf_line_endings(monkeypatch):
     """write_csv_quicken_mac: emits LF line endings when DictWriter is
     configured with lineterminator='\\n' (platform-independent)."""
     import quicken_helper.legacy.qif_writer as qw
-    txns = [{"date": "02/04/2025", "payee": "Y", "amount": "-4.56", "category": "C", "account": "A"}]
+
+    txns = [
+        {
+            "date": "02/04/2025",
+            "payee": "Y",
+            "amount": "-4.56",
+            "category": "C",
+            "account": "A",
+        }
+    ]
 
     text = _capture_csv_text(monkeypatch, qw.write_csv_quicken_mac, txns)
 

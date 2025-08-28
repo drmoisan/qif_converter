@@ -10,42 +10,68 @@ from quicken_helper.legacy.qif_item_key import QIFItemKey
 
 # ------------------------------- small helpers --------------------------------
 
+
 def _mk_session(txns, *, groups=None, rows=None) -> MatchSession:
     """Build a MatchSession with provided QIF and either groups (preferred) or rows."""
     return MatchSession(txns=txns, excel_groups=groups or [], excel_rows=rows or [])
 
 
-def _mk_group(gid: str, d: date, total: str | Decimal, rows: tuple[ExcelRow, ...] = ()) -> ExcelTxnGroup:
+def _mk_group(
+    gid: str, d: date, total: str | Decimal, rows: tuple[ExcelRow, ...] = ()
+) -> ExcelTxnGroup:
     """Convenience for ExcelTxnGroup with Decimal coercion."""
     return ExcelTxnGroup(gid=gid, date=d, total_amount=Decimal(str(total)), rows=rows)
 
 
-def _mk_row(idx: int, gid: str, d: date, amt: str | Decimal, item="i", cat="c", rat="r") -> ExcelRow:
+def _mk_row(
+    idx: int, gid: str, d: date, amt: str | Decimal, item="i", cat="c", rat="r"
+) -> ExcelRow:
     """Convenience for ExcelRow with Decimal coercion."""
-    return ExcelRow(idx=idx, txn_id=gid, date=d, amount=Decimal(str(amt)), item=item, category=cat, rationale=rat)
+    return ExcelRow(
+        idx=idx,
+        txn_id=gid,
+        date=d,
+        amount=Decimal(str(amt)),
+        item=item,
+        category=cat,
+        rationale=rat,
+    )
 
 
 # ------------------------------ nonmatch_reason --------------------------------
 
+
 def test_nonmatch_reason_group_amount_differs():
     """nonmatch_reason (group mode): returns amount-mismatch reason when totals differ."""
     qdate = date(2025, 1, 10)
-    session = _mk_session([{"date": qdate.isoformat(), "amount": "-10.00"}],
-                          groups=[_mk_group("G", qdate, "-9.99")])
+    session = _mk_session(
+        [{"date": qdate.isoformat(), "amount": "-10.00"}],
+        groups=[_mk_group("G", qdate, "-9.99")],
+    )
     q = session.txn_views[0]
     reason = session.nonmatch_reason(q, session.excel_groups[0])
-    assert "Total amount differs" in reason and "QIF -10.00" in reason and "Excel group -9.99" in reason
+    assert (
+        "Total amount differs" in reason
+        and "QIF -10.00" in reason
+        and "Excel group -9.99" in reason
+    )
 
 
 def test_nonmatch_reason_group_date_outside_window():
     """nonmatch_reason (group mode): returns ±3-days window violation message."""
     qdate = date(2025, 1, 10)
     gdate = qdate + timedelta(days=9)
-    session = _mk_session([{"date": qdate.isoformat(), "amount": "-10.00"}],
-                          groups=[_mk_group("G", gdate, "-10.00")])
+    session = _mk_session(
+        [{"date": qdate.isoformat(), "amount": "-10.00"}],
+        groups=[_mk_group("G", gdate, "-10.00")],
+    )
     q = session.txn_views[0]
     reason = session.nonmatch_reason(q, session.excel_groups[0])
-    assert "Date outside ±3 days" in reason and qdate.isoformat() in reason and gdate.isoformat() in reason
+    assert (
+        "Date outside ±3 days" in reason
+        and qdate.isoformat() in reason
+        and gdate.isoformat() in reason
+    )
 
 
 def test_nonmatch_reason_group_conflicts_and_closer_date():
@@ -58,7 +84,9 @@ def test_nonmatch_reason_group_conflicts_and_closer_date():
     qdate = date(2025, 1, 10)
     g1 = _mk_group("G1", qdate, "-10.00")
     g2 = _mk_group("G2", qdate + timedelta(days=1), "-10.00")
-    session = _mk_session([{"date": qdate.isoformat(), "amount": "-10.00"}], groups=[g1, g2])
+    session = _mk_session(
+        [{"date": qdate.isoformat(), "amount": "-10.00"}], groups=[g1, g2]
+    )
     q = session.txn_views[0]
 
     # Mark q as already matched to g1; asking about g2 should yield the "already matched" message.
@@ -90,7 +118,9 @@ def test_nonmatch_reason_legacy_amount_date_conflicts_and_closer():
     r_ok = _mk_row(0, "A", qdate + timedelta(days=1), "-10.00")
     r_amt = _mk_row(1, "B", qdate, "-9.99")
     r_far = _mk_row(2, "C", qdate + timedelta(days=9), "-10.00")
-    session = _mk_session([{"date": qdate.isoformat(), "amount": "-10.00"}], rows=[r_ok, r_amt, r_far])
+    session = _mk_session(
+        [{"date": qdate.isoformat(), "amount": "-10.00"}], rows=[r_ok, r_amt, r_far]
+    )
     q = session.txn_views[0]
 
     # amount differs
@@ -112,10 +142,13 @@ def test_nonmatch_reason_legacy_amount_date_conflicts_and_closer():
     session.excel_to_qif.clear()
 
     # closer date hint when diff > 0
-    assert session.nonmatch_reason(q, r_ok).startswith("Auto-match preferred a closer date (day diff = 1)")
+    assert session.nonmatch_reason(q, r_ok).startswith(
+        "Auto-match preferred a closer date (day diff = 1)"
+    )
 
 
 # -------------------------------- manual_match --------------------------------
+
 
 def test_manual_match_group_success_and_unhooks_conflicts():
     """manual_match (group mode): succeeds when amount matches and date is in-window,
@@ -123,7 +156,9 @@ def test_manual_match_group_success_and_unhooks_conflicts():
     qdate = date(2025, 1, 10)
     g1 = _mk_group("G1", qdate, "-10.00")
     g2 = _mk_group("G2", qdate, "-10.00")
-    session = _mk_session([{"date": qdate.isoformat(), "amount": "-10.00"}], groups=[g1, g2])
+    session = _mk_session(
+        [{"date": qdate.isoformat(), "amount": "-10.00"}], groups=[g1, g2]
+    )
     qkey = session.txn_views[0].key
 
     # Pre-existing conflicts (wrong links)
@@ -168,7 +203,8 @@ def test_manual_match_group_failure_cases():
 
 def test_manual_match_legacy_success_and_mapping():
     """manual_match (legacy row mode): when there are no groups, excel_idx is a row index;
-    succeeds if amount matches and date is in-window, and records qif_to_excel/excel_to_qif."""
+    succeeds if amount matches and date is in-window, and records qif_to_excel/excel_to_qif.
+    """
     qdate = date(2025, 1, 10)
     r = _mk_row(0, "A", qdate, "-10.00")
     session = _mk_session([{"date": qdate.isoformat(), "amount": "-10.00"}], rows=[r])
@@ -181,6 +217,7 @@ def test_manual_match_legacy_success_and_mapping():
 
 
 # ------------------------------- manual_unmatch --------------------------------
+
 
 def test_manual_unmatch_group_by_qkey_and_by_index():
     """manual_unmatch (group mode): removes existing links when called with qkey or with excel_idx; False when absent."""
@@ -227,6 +264,7 @@ def test_manual_unmatch_legacy_paths_via_internal_helpers():
 
 
 # -------------------------- internal unmatch helpers ---------------------------
+
 
 def test__unmatch_qkey_group_and__unmatch_group_index_symmetry():
     """_unmatch_qkey_group/_unmatch_group_index: both remove the bi-directional link;
@@ -286,6 +324,7 @@ def test__unmatch_qkey_and__unmatch_excel_legacy_and_group_modes():
 
 
 # -------------------------------- _group_index ---------------------------------
+
 
 def test__group_index_identity_and_fallback_and_not_found():
     """_group_index: returns index by identity when the instance is in the list; if a

@@ -5,6 +5,7 @@ from quicken_helper.data_model import QuickenSections as QS
 # has_flag
 # ---------------------------
 
+
 def test_has_flag_true_when_bit_set():
     # Arrange
     mask = QS.ACCOUNTS | QS.CATEGORIES
@@ -30,6 +31,7 @@ def test_has_flag_false_when_bit_not_set():
 # ---------------------------
 # has_flags
 # ---------------------------
+
 
 def test_has_flags_true_when_all_bits_present():
     # Arrange
@@ -70,6 +72,7 @@ def test_has_flags_empty_iterable_returns_true():
 # add_flag
 # ---------------------------
 
+
 def test_add_flag_returns_new_mask_with_bit_set():
     # Arrange
     original = QS.NONE
@@ -79,7 +82,9 @@ def test_add_flag_returns_new_mask_with_bit_set():
     new_mask = original.add_flag(QS.ACCOUNTS)
 
     # Assert
-    assert new_mask == expected, "add_flag should set the requested bit on the returned mask."
+    assert (
+        new_mask == expected
+    ), "add_flag should set the requested bit on the returned mask."
     assert original == QS.NONE, "add_flag must be immutable (original mask unchanged)."
 
 
@@ -92,12 +97,15 @@ def test_add_flag_idempotent_when_bit_already_present():
     new_mask = original.add_flag(QS.ACCOUNTS)
 
     # Assert
-    assert new_mask == expected, "add_flag should be idempotent when the bit is already present."
+    assert (
+        new_mask == expected
+    ), "add_flag should be idempotent when the bit is already present."
 
 
 # ---------------------------
 # add_flags
 # ---------------------------
+
 
 def test_add_flags_returns_new_mask_with_all_bits_set():
     # Arrange
@@ -109,13 +117,16 @@ def test_add_flags_returns_new_mask_with_all_bits_set():
     new_mask = original.add_flags(to_add)
 
     # Assert
-    assert new_mask == expected, "add_flags should set ALL provided bits on the returned mask."
+    assert (
+        new_mask == expected
+    ), "add_flags should set ALL provided bits on the returned mask."
     assert original == QS.NONE, "add_flags must be immutable (original mask unchanged)."
 
 
 # ---------------------------
 # remove_flag
 # ---------------------------
+
 
 def test_remove_flag_returns_new_mask_with_bit_cleared():
     # Arrange
@@ -126,8 +137,12 @@ def test_remove_flag_returns_new_mask_with_bit_cleared():
     new_mask = original.remove_flag(QS.ACCOUNTS)
 
     # Assert
-    assert new_mask == expected, "remove_flag should clear only the requested bit on the returned mask."
-    assert original == (QS.ACCOUNTS | QS.CATEGORIES), "remove_flag must be immutable (original mask unchanged)."
+    assert (
+        new_mask == expected
+    ), "remove_flag should clear only the requested bit on the returned mask."
+    assert original == (
+        QS.ACCOUNTS | QS.CATEGORIES
+    ), "remove_flag must be immutable (original mask unchanged)."
 
 
 def test_remove_flag_idempotent_when_bit_absent():
@@ -139,12 +154,15 @@ def test_remove_flag_idempotent_when_bit_absent():
     new_mask = original.remove_flag(QS.ACCOUNTS)
 
     # Assert
-    assert new_mask == expected, "remove_flag should be idempotent when the bit is not present."
+    assert (
+        new_mask == expected
+    ), "remove_flag should be idempotent when the bit is not present."
 
 
 # ---------------------------
 # remove_flags
 # ---------------------------
+
 
 def test_remove_flags_returns_new_mask_with_all_bits_cleared():
     # Arrange
@@ -156,5 +174,9 @@ def test_remove_flags_returns_new_mask_with_all_bits_cleared():
     new_mask = original.remove_flags(to_remove)
 
     # Assert
-    assert new_mask == expected, "remove_flags should clear ALL provided bits on the returned mask."
-    assert original == (QS.ACCOUNTS | QS.CATEGORIES | QS.TAGS), "remove_flags must be immutable."
+    assert (
+        new_mask == expected
+    ), "remove_flags should clear ALL provided bits on the returned mask."
+    assert original == (
+        QS.ACCOUNTS | QS.CATEGORIES | QS.TAGS
+    ), "remove_flags must be immutable."

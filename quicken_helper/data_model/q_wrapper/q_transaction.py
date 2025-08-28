@@ -18,7 +18,10 @@ from .q_security import QSecurity
 from .q_split import QSplit
 from .qif_header import QifHeader
 
-_MISSING = QSecurity("", Decimal(0), Decimal(0), Decimal(0), Decimal(0))  # sentinel for "not set"
+_MISSING = QSecurity(
+    "", Decimal(0), Decimal(0), Decimal(0), Decimal(0)
+)  # sentinel for "not set"
+
 
 @total_ordering
 @dataclass
@@ -26,6 +29,7 @@ class QTransaction(ITransaction):
     """
     Represents a single QIF transaction.
     """
+
     account: QAccount
     type: QifHeader
     date: date
@@ -38,12 +42,20 @@ class QTransaction(ITransaction):
     tag: str
 
     splits: list[ISplit] = field(default_factory=list[QSplit])
-    _security: ISecurity = field(default=_MISSING, init=False, repr=False, compare=False)
+    _security: ISecurity = field(
+        default=_MISSING, init=False, repr=False, compare=False
+    )
 
     @property
     def security(self) -> ISecurity:
         if self._security is _MISSING:
-            self._security = QSecurity(name="", price=Decimal(0), quantity=Decimal(0), commission=Decimal(0), transfer_amount=Decimal(0))
+            self._security = QSecurity(
+                name="",
+                price=Decimal(0),
+                quantity=Decimal(0),
+                commission=Decimal(0),
+                transfer_amount=Decimal(0),
+            )
         return self._security
 
     def security_exists(self) -> bool:
@@ -72,22 +84,51 @@ class QTransaction(ITransaction):
             f"{emit_q.check_number().code}{self.action_chk}" if self.action_chk else "",
         ]
         if self.security_exists():
-            parts.extend([
-                f"{emit_q.name_security().code}{self.security.name}" if self.security.name else "",
-                f"{emit_q.price_investment().code}{self.security.price}" if self.security.price != 0 else "",
-                f"{emit_q.quantity_shares().code}{self.security.quantity}" if self.security.quantity != 0 else "",
-                f"{emit_q.commission_cost().code}{self.security.commission}" if self.security.commission != 0 else "",
-                f"{emit_q.amount_transfered().code}{self.security.transfer_amount}" if self.security.transfer_amount != 0 else "",
-            ])
-        parts.extend([
-            f"{emit_q.amount_transaction1().code}{self.amount}",
-            f"{emit_q.amount_transaction2().code}{self.amount}",
-            f"{emit_q.cleared_status().code}{self.cleared}" if self.cleared != EnumClearedStatus.NOT_CLEARED and self.cleared != EnumClearedStatus.UNKNOWN else "",
-            #self.cleared.emit_qif(),
-            f"{emit_q.payee().code}{self.payee}" if self.payee else "",
-            f"{emit_q.memo().code}{self.memo}" if self.memo else "",
-            self.emit_category(),
-        ])
+            parts.extend(
+                [
+                    (
+                        f"{emit_q.name_security().code}{self.security.name}"
+                        if self.security.name
+                        else ""
+                    ),
+                    (
+                        f"{emit_q.price_investment().code}{self.security.price}"
+                        if self.security.price != 0
+                        else ""
+                    ),
+                    (
+                        f"{emit_q.quantity_shares().code}{self.security.quantity}"
+                        if self.security.quantity != 0
+                        else ""
+                    ),
+                    (
+                        f"{emit_q.commission_cost().code}{self.security.commission}"
+                        if self.security.commission != 0
+                        else ""
+                    ),
+                    (
+                        f"{emit_q.amount_transfered().code}{self.security.transfer_amount}"
+                        if self.security.transfer_amount != 0
+                        else ""
+                    ),
+                ]
+            )
+        parts.extend(
+            [
+                f"{emit_q.amount_transaction1().code}{self.amount}",
+                f"{emit_q.amount_transaction2().code}{self.amount}",
+                (
+                    f"{emit_q.cleared_status().code}{self.cleared}"
+                    if self.cleared != EnumClearedStatus.NOT_CLEARED
+                    and self.cleared != EnumClearedStatus.UNKNOWN
+                    else ""
+                ),
+                # self.cleared.emit_qif(),
+                f"{emit_q.payee().code}{self.payee}" if self.payee else "",
+                f"{emit_q.memo().code}{self.memo}" if self.memo else "",
+                self.emit_category(),
+            ]
+        )
 
         lines = [p for p in parts if p]  # drop empties
         lines.extend(split.emit_qif() for split in self.splits or ())
@@ -97,7 +138,8 @@ class QTransaction(ITransaction):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, ITransaction):
             return NotImplemented
-        return (self.account == other.account
+        return (
+            self.account == other.account
             and self.type == other.type
             and self.date == other.date
             and self.payee == other.payee
@@ -105,12 +147,24 @@ class QTransaction(ITransaction):
             and self.memo == other.memo
             and self.category == other.category
             and self.tag == other.tag
-            and tuple(sorted(self.splits)) == tuple(sorted(other.splits)))
+            and tuple(sorted(self.splits)) == tuple(sorted(other.splits))
+        )
 
     def __hash__(self) -> int:
         # Required if you want to use instances in sets/dicts and keep it consistent with __eq__
-        return hash((self.account, self.type, self.date, self.payee, self.amount,
-                     self.memo, self.category, self.tag, tuple(sorted(self.splits))))
+        return hash(
+            (
+                self.account,
+                self.type,
+                self.date,
+                self.payee,
+                self.amount,
+                self.memo,
+                self.category,
+                self.tag,
+                tuple(sorted(self.splits)),
+            )
+        )
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, ITransaction):
@@ -165,10 +219,12 @@ class QTransaction(ITransaction):
         from decimal import Decimal
 
         from ..utilities import parse_date_string
+
         return cls(
             account=QAccount(name=d.get("account", "")),
             type=QifHeader(d.get("type", "")),
-            date=parse_date_string(d.get("date", "")) or parse_date_string("1985-11-05"),
+            date=parse_date_string(d.get("date", ""))
+            or parse_date_string("1985-11-05"),
             amount=Decimal(str(d.get("amount", "0"))),
             payee=d.get("payee"),
             memo=d.get("memo"),
@@ -176,7 +232,13 @@ class QTransaction(ITransaction):
             action_chk=d.get("checknum") or "",
             tag=d.get("tag") or "",
             cleared=EnumClearedStatus.from_char(d.get("cleared", "")),
-            splits=[QSplit(category=s.get("category", ""), memo=s.get("memo", ""),
-                           amount=Decimal(str(s.get("amount", "0"))), tag=s.get("tag", ""))
-                    for s in (d.get("splits") or [])],
+            splits=[
+                QSplit(
+                    category=s.get("category", ""),
+                    memo=s.get("memo", ""),
+                    amount=Decimal(str(s.get("amount", "0"))),
+                    tag=s.get("tag", ""),
+                )
+                for s in (d.get("splits") or [])
+            ],
         )

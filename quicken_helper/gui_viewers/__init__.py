@@ -1,4 +1,3 @@
-
 # Tests import/monkeypatch these off `quicken_helper.gui_viewers`
 
 # Re-export shared helpers used by tests (you already have these in your new split code)
@@ -14,7 +13,7 @@ from .helpers import (
 )
 
 __all__ = [
-    #"App",
+    # "App",
     "parse_date_maybe",
     "filter_date_range",
     "local_filter_by_payee",
@@ -23,9 +22,11 @@ __all__ = [
     "write_csv_quicken_mac",
 ]
 
+
 # Lazily expose App to avoid importing tkinter during package import
 def __getattr__(name):
     if name == "App":
         from .app import App  # imported only when actually accessed
+
         return App
     raise AttributeError(name)

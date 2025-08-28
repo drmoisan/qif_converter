@@ -7,6 +7,7 @@ from quicken_helper.data_model import QCategory, QifHeader
 # Arrange–Act–Assert (AAA)
 # --------------------------
 
+
 def test_header_returns_expected_qifheader():
     # Arrange
     c = QCategory(name="Food", description="Groceries")

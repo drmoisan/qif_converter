@@ -20,6 +20,7 @@ from quicken_helper.legacy.qif_writer import (
 
 # ---------- Shared in-memory “filesystem” fixture ----------
 
+
 @pytest.fixture
 def memfs(monkeypatch):
     """
@@ -63,14 +64,24 @@ def memfs(monkeypatch):
 def test__open_for_write_uses_builtins_open(monkeypatch, tmp_path):
     # Arrange
     from quicken_helper.legacy.qif_writer import _open_for_write
+
     called = {"open": False}
+
     def fake_open(*a, **k):
         called["open"] = True
+
         class _F:
-            def __enter__(self): return self
-            def __exit__(self, *e): pass
-            def write(self, *_): pass
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *e):
+                pass
+
+            def write(self, *_):
+                pass
+
         return _F()
+
     monkeypatch.setattr("builtins.open", fake_open)
 
     # Act
@@ -129,6 +140,7 @@ def test_write_qif_basic_bank_record_in_memory(memfs):
 
 # ---------- CSV (flat) ----------
 
+
 def test_write_csv_flat_in_memory(memfs):
     txns = [
         {
@@ -161,9 +173,26 @@ def test_write_csv_flat_in_memory(memfs):
     reader = csv.DictReader(io.StringIO(content))
     # Ensure columns
     assert reader.fieldnames == [
-        "account","type","date","amount","payee","memo","category","transfer_account",
-        "checknum","cleared","address","action","security","quantity","price","commission",
-        "split_count","split_category","split_memo","split_amount",
+        "account",
+        "type",
+        "date",
+        "amount",
+        "payee",
+        "memo",
+        "category",
+        "transfer_account",
+        "checknum",
+        "cleared",
+        "address",
+        "action",
+        "security",
+        "quantity",
+        "price",
+        "commission",
+        "split_count",
+        "split_category",
+        "split_memo",
+        "split_amount",
     ]
 
     rows = list(reader)
@@ -185,6 +214,7 @@ def test_write_csv_flat_in_memory(memfs):
 
 
 # ---------- CSV (exploded) ----------
+
 
 def test_write_csv_exploded_in_memory(memfs):
     txns = [
@@ -215,9 +245,25 @@ def test_write_csv_exploded_in_memory(memfs):
     content = memfs.read(out)
     reader = csv.DictReader(io.StringIO(content))
     assert reader.fieldnames == [
-        "account","type","date","amount","payee","memo","category","transfer_account",
-        "checknum","cleared","address","action","security","quantity","price","commission",
-        "split_category","split_memo","split_amount",
+        "account",
+        "type",
+        "date",
+        "amount",
+        "payee",
+        "memo",
+        "category",
+        "transfer_account",
+        "checknum",
+        "cleared",
+        "address",
+        "action",
+        "security",
+        "quantity",
+        "price",
+        "commission",
+        "split_category",
+        "split_memo",
+        "split_amount",
     ]
 
     rows = list(reader)
@@ -234,10 +280,25 @@ def test_write_csv_exploded_in_memory(memfs):
 
 # ---------- CSV (Quicken Windows) ----------
 
+
 def test_write_csv_quicken_windows_in_memory(memfs):
     txns = [
-        {"date": "2025-04-01", "amount": "-1.23", "payee": "P1", "memo": "M1", "category": "C1", "checknum": "11"},
-        {"date": "2025-04-02", "amount": "2.50", "payee": "P2", "memo": "M2", "category": "C2", "checknum": "12"},
+        {
+            "date": "2025-04-01",
+            "amount": "-1.23",
+            "payee": "P1",
+            "memo": "M1",
+            "category": "C1",
+            "checknum": "11",
+        },
+        {
+            "date": "2025-04-02",
+            "amount": "2.50",
+            "payee": "P2",
+            "memo": "M2",
+            "category": "C2",
+            "checknum": "12",
+        },
     ]
 
     out = Path("MEM://qw.csv")
@@ -272,10 +333,23 @@ def test_write_csv_quicken_windows_in_memory(memfs):
 
 # ---------- CSV (Quicken Mac / Mint) ----------
 
+
 def test_write_csv_quicken_mac_in_memory(memfs):
     txns = [
-        {"date": "2025-05-01", "amount": "-12.00", "payee": "Cafe", "memo": "Latte", "category": "Food:Coffee"},
-        {"date": "2025-05-02", "amount": "100.00", "payee": "Employer", "memo": "Pay", "category": "Income:Salary"},
+        {
+            "date": "2025-05-01",
+            "amount": "-12.00",
+            "payee": "Cafe",
+            "memo": "Latte",
+            "category": "Food:Coffee",
+        },
+        {
+            "date": "2025-05-02",
+            "amount": "100.00",
+            "payee": "Employer",
+            "memo": "Pay",
+            "category": "Income:Salary",
+        },
     ]
 
     out = Path("MEM://qm.csv")

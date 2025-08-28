@@ -16,6 +16,7 @@ class CategoryMatchSession:
       - excel_cats: names from Excel
       - mapping: excel_name -> qif_name
     """
+
     def __init__(self, qif_cats: List[str], excel_cats: List[str]):
         self.qif_cats = list(qif_cats)
         self.excel_cats = list(excel_cats)

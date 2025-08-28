@@ -10,6 +10,7 @@ class QCategory:
     """
     Represents an account in QIF format.
     """
+
     name: str = ""
     description: str = ""
 
@@ -18,10 +19,10 @@ class QCategory:
         """
         Returns the type of the account.
         """
-        h = QifHeader("!Type:Cat","Category list","Category")
+        h = QifHeader("!Type:Cat", "Category list", "Category")
         return h
 
-    def emit_qif(self, with_header = False) -> str:
+    def emit_qif(self, with_header=False) -> str:
         if with_header:
             return f"{self.header.code}\nN{self.name}\nD{self.description}"
         return f"N{self.name}\nD{self.description}"
@@ -29,8 +30,7 @@ class QCategory:
     def __eq__(self, other: object, /) -> bool:
         if not isinstance(other, QCategory):
             return False
-        return (self.name == other.name
-                and self.header == other.header)
+        return self.name == other.name and self.header == other.header
 
     def __hash__(self) -> int:
         # Required if you want to use instances in sets/dicts and keep it consistent with __eq__

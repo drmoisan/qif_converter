@@ -7,6 +7,7 @@ import quicken_helper.legacy.qif_writer as qw
 
 # ------------------------------ _match_one ------------------------------------
 
+
 def test__match_one_basic_modes_and_case():
     """_match_one: supports contains/exact/startswith/endswith with case handling.
 
@@ -24,7 +25,9 @@ def test__match_one_basic_modes_and_case():
 
     # exact
     assert qw._match_one(payee, "Acme Market Inc", mode="exact", case_sensitive=True)
-    assert not qw._match_one(payee, "acme market inc", mode="exact", case_sensitive=True)
+    assert not qw._match_one(
+        payee, "acme market inc", mode="exact", case_sensitive=True
+    )
 
     # startswith / endswith
     assert qw._match_one(payee, "Acme", mode="startswith", case_sensitive=True)
@@ -62,6 +65,7 @@ def test__match_one_raises_on_unknown_mode():
 
 # ---------------------------- filter_by_payee ---------------------------------
 
+
 def test_filter_by_payee_single_query_all_modes_basic():
     """filter_by_payee: filters transactions by a single query using the specified mode.
 
@@ -91,6 +95,7 @@ def test_filter_by_payee_single_query_all_modes_basic():
 
 # --------------------------- filter_by_payees ---------------------------------
 
+
 def test_filter_by_payees_any_vs_all_combines_queries():
     """filter_by_payees: supports OR ('any') and AND ('all') combination across queries.
 
@@ -106,10 +111,14 @@ def test_filter_by_payees_any_vs_all_combines_queries():
     ]
     queries = ["acme", "bistro"]
 
-    out_any = qw.filter_by_payees(txns, queries, mode="contains", case_sensitive=False, combine="any")
+    out_any = qw.filter_by_payees(
+        txns, queries, mode="contains", case_sensitive=False, combine="any"
+    )
     assert [t["payee"] for t in out_any] == ["Acme Market Inc", "Acme Bistro"]
 
-    out_all = qw.filter_by_payees(txns, queries, mode="contains", case_sensitive=False, combine="all")
+    out_all = qw.filter_by_payees(
+        txns, queries, mode="contains", case_sensitive=False, combine="all"
+    )
     assert [t["payee"] for t in out_all] == ["Acme Bistro"]
 
 
@@ -126,14 +135,19 @@ def test_filter_by_payees_regex_and_glob_modes():
         {"payee": "Other Co"},
     ]
 
-    out_regex = qw.filter_by_payees(txns, [r"Acme\s+\w+"], mode="regex", case_sensitive=False, combine="any")
+    out_regex = qw.filter_by_payees(
+        txns, [r"Acme\s+\w+"], mode="regex", case_sensitive=False, combine="any"
+    )
     assert [t["payee"] for t in out_regex] == ["Acme Market Inc", "Acme Bistro"]
 
-    out_glob = qw.filter_by_payees(txns, ["Other*Co"], mode="glob", case_sensitive=True, combine="any")
+    out_glob = qw.filter_by_payees(
+        txns, ["Other*Co"], mode="glob", case_sensitive=True, combine="any"
+    )
     assert [t["payee"] for t in out_glob] == ["Other Co"]
 
 
 # ------------------------- filter_by_date_range --------------------------------
+
 
 def test_filter_by_date_range_inclusive_and_formats():
     """filter_by_date_range: includes boundary dates and supports multiple formats.

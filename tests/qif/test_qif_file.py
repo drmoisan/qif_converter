@@ -24,7 +24,10 @@ class _StubCategory:
     def header(self):
         # Return a real header to keep serialization realistic
         from quicken_helper.data_model.q_wrapper.qif_header import QifHeader
-        return QifHeader(code="!Type:Category", description="Category list", type="Category")
+
+        return QifHeader(
+            code="!Type:Category", description="Category list", type="Category"
+        )
 
     def emit_qif(self, with_header: bool = False) -> str:
         body = f"N{self.name}\nD{self.description}\n^"
@@ -32,6 +35,7 @@ class _StubCategory:
         if with_header:
             return f"{self.header.code}\n{body}"
         return body
+
 
 class _StubTag:
     def __init__(self, name="DefaultTagName", description="DefaultTagDescription"):
@@ -43,6 +47,7 @@ class _StubTag:
     def header(self):
         # Return a real header to keep serialization realistic
         from quicken_helper.data_model.q_wrapper.qif_header import QifHeader
+
         return QifHeader(code="!Type:Tag", description="Tag list", type="Tag")
 
     def emit_qif(self, with_header: bool = False) -> str:
@@ -58,6 +63,7 @@ class _StubItem:
     Minimal stub that mimics QifFile.HasEmitQif: it exposes
     emit_qif(with_header=bool) and records how it was called.
     """
+
     def __init__(self, body: str, header: str = "!Stub"):
         self.body = body
         self.header = header
@@ -120,7 +126,7 @@ def test_emit_qif_concatenates_selected_sections_in_order_and_ends_with_newline(
     items = [t1, t2]
     proto_items = cast(list[ITag], items)
 
-    c1 =  _StubCategory("cat1")
+    c1 = _StubCategory("cat1")
     c1_proto = cast(ICategory, c1)
 
     f.tags = proto_items
@@ -152,7 +158,9 @@ def test_emit_qif_can_emit_any_subset_of_sections_independently():
     out = f.emit_qif()
 
     # Assert
-    expected = "!Type:Category\nNc1\nDDefaultCatDescription\n^\nNc2\nDDefaultCatDescription\n^"
+    expected = (
+        "!Type:Category\nNc1\nDDefaultCatDescription\n^\nNc2\nDDefaultCatDescription\n^"
+    )
     assert out == expected
     assert c1.calls == [True]
     assert c2.calls == [False]

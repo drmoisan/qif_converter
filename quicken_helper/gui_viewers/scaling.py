@@ -10,6 +10,7 @@ def _safe_float(x, default):
     except Exception:
         return default
 
+
 def detect_system_font_scale(root) -> float:
     env_scale = os.environ.get("QIF_GUI_FONT_SCALE")
     if env_scale:
@@ -35,6 +36,7 @@ def detect_system_font_scale(root) -> float:
     scale = max(1.0, max(scale_candidates))
     return max(0.75, min(scale, 3.0))
 
+
 def apply_global_font_scaling(root, base_pt: int = 10, minimum_pt: int = 12):
     try:
         from tkinter import font as tkfont
@@ -51,7 +53,13 @@ def apply_global_font_scaling(root, base_pt: int = 10, minimum_pt: int = 12):
         scale = detect_system_font_scale(root)
         target_pt = max(minimum_pt, int(round(base_pt * scale)))
 
-    for name in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont", "TkFixedFont"):
+    for name in (
+        "TkDefaultFont",
+        "TkTextFont",
+        "TkMenuFont",
+        "TkHeadingFont",
+        "TkFixedFont",
+    ):
         try:
             f = tkfont.nametofont(name)
             f.configure(size=target_pt)

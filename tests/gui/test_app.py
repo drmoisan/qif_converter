@@ -22,39 +22,52 @@ import pytest
 # Tk / ttk / font / messagebox stubs
 # --------------------------
 
+
 class _DummyVar:
     """Simple stand-in for tkinter.StringVar used by App/ConvertTab."""
+
     def __init__(self, v=""):
         self._v = v
+
     def get(self):
         return self._v
+
     def set(self, v):
         self._v = v
 
 
 class _TextStub:
     """Minimal Text-like widget supporting get/insert/delete/see."""
+
     def __init__(self):
         self._buf = ""
+
     def get(self, start, end):
         return self._buf
+
     def insert(self, index, s):
         self._buf += s
+
     def delete(self, start, end):
         self._buf = ""
+
     def see(self, index):
         pass
 
 
 class _FakeMB:
     """Messagebox shim that records calls and can control askyesno behavior."""
+
     def __init__(self, askyesno_return=True):
         self.calls = []
         self._ask = askyesno_return
+
     def showinfo(self, *a, **k):
         self.calls.append(("showinfo", a, k))
+
     def showerror(self, *a, **k):
         self.calls.append(("showerror", a, k))
+
     def askyesno(self, *a, **k):
         self.calls.append(("askyesno", a, k))
         return self._ask
@@ -64,39 +77,73 @@ def _install_tk_stubs(monkeypatch):
     """Install minimal tkinter/ttk/font/messagebox stubs so App can import & run headlessly."""
     # tkinter root + variables
     tk = types.ModuleType("tkinter")
+
     class Tk:
-        def __init__(self, *a, **k): pass
-        def geometry(self, *a, **k): pass
-        def minsize(self, *a, **k): pass
-        def option_add(self, *a, **k): pass
-        def title(self, *a, **k): pass
-        def mainloop(self, *a, **k): pass
+        def __init__(self, *a, **k):
+            pass
+
+        def geometry(self, *a, **k):
+            pass
+
+        def minsize(self, *a, **k):
+            pass
+
+        def option_add(self, *a, **k):
+            pass
+
+        def title(self, *a, **k):
+            pass
+
+        def mainloop(self, *a, **k):
+            pass
+
     tk.Tk = Tk
     tk.StringVar = _DummyVar
     tk.Text = _TextStub
 
     # ttk bits used by app.py
     ttk = types.ModuleType("tkinter.ttk")
+
     class Style:
-        def __init__(self, *a, **k): pass
-        def configure(self, *a, **k): pass
-        def map(self, *a, **k): pass
-        def theme_use(self, *a, **k): pass
+        def __init__(self, *a, **k):
+            pass
+
+        def configure(self, *a, **k):
+            pass
+
+        def map(self, *a, **k):
+            pass
+
+        def theme_use(self, *a, **k):
+            pass
+
     class Notebook:
         def __init__(self, *a, **k):
             self._tabs = []  # record tabs added (widget, text)
-        def pack(self, *a, **k): pass
-        def add(self, child, **k): self._tabs.append((child, k.get("text")))
-        def configure(self, **k): pass
+
+        def pack(self, *a, **k):
+            pass
+
+        def add(self, child, **k):
+            self._tabs.append((child, k.get("text")))
+
+        def configure(self, **k):
+            pass
+
     class Frame:
-        def __init__(self, *a, **k): pass
+        def __init__(self, *a, **k):
+            pass
+
     ttk.Style = Style
     ttk.Notebook = Notebook
     ttk.Frame = Frame
 
     # messagebox (unused directly thanks to dependency-injection, but we stub anyway)
     messagebox = types.ModuleType("tkinter.messagebox")
-    def _noop(*a, **k): return None
+
+    def _noop(*a, **k):
+        return None
+
     messagebox.showinfo = _noop
     messagebox.showerror = _noop
     messagebox.askyesno = lambda *a, **k: True
@@ -106,12 +153,20 @@ def _install_tk_stubs(monkeypatch):
 
     # font
     font = types.ModuleType("tkinter.font")
+
     class _Font:
         def __init__(self, *a, **k):
             self._cfg = {"family": "TkDefaultFont", "size": 10, "weight": "normal"}
-        def cget(self, k): return self._cfg.get(k)
-        def configure(self, **k): self._cfg.update(k)
-    def nametofont(name): return _Font()
+
+        def cget(self, k):
+            return self._cfg.get(k)
+
+        def configure(self, **k):
+            self._cfg.update(k)
+
+    def nametofont(name):
+        return _Font()
+
     font.Font = _Font
     font.nametofont = nametofont
 
@@ -127,17 +182,19 @@ def _install_tk_stubs(monkeypatch):
 # GUI submodule stubs (merge_tab / convert_tab / probe_tab)
 # --------------------------
 
+
 def _install_gui_submodule_stubs(monkeypatch):
     """Provide minimal stand-ins for GUI tabs so App wiring works without real UI."""
     # ConvertTab: expose variables and a Text-like log + payees_text
     convert_tab = types.ModuleType("quicken_helper.gui_viewers.convert_tab")
+
     class ConvertTab:
         def __init__(self, app, mb):
             self.app = app
             self.mb = mb
             self.in_path = _DummyVar("")
             self.out_path = _DummyVar("")
-            self.emit_var = _DummyVar("qif")                 # "qif" or "csv"
+            self.emit_var = _DummyVar("qif")  # "qif" or "csv"
             self.csv_profile = _DummyVar("quicken-windows")  # CSV profile
             self.explode_var = _DummyVar(False)
             self.match_var = _DummyVar("contains")
@@ -147,15 +204,25 @@ def _install_gui_submodule_stubs(monkeypatch):
             self.date_to = _DummyVar("")
             self.payees_text = _TextStub()
             self.log = _TextStub()
+
         # Optional: delegate helpers (App may wrap these)
-        def _update_output_extension(self): pass
-        def _parse_payee_filters(self): return []
-        def logln(self, msg): self.log.insert("end", msg + "\n")
+        def _update_output_extension(self):
+            pass
+
+        def _parse_payee_filters(self):
+            return []
+
+        def logln(self, msg):
+            self.log.insert("end", msg + "\n")
+
     convert_tab.ConvertTab = ConvertTab
-    monkeypatch.setitem(sys.modules, "quicken_helper.gui_viewers.convert_tab", convert_tab)
+    monkeypatch.setitem(
+        sys.modules, "quicken_helper.gui_viewers.convert_tab", convert_tab
+    )
 
     # MergeTab: only the normalize modal is exercised
     merge_tab = types.ModuleType("quicken_helper.gui_viewers.merge_tab")
+
     class MergeTab:
         def __init__(self, *a, **k):
             # attrs that App might shim out for tests in the future
@@ -164,21 +231,28 @@ def _install_gui_submodule_stubs(monkeypatch):
             self.m_qif_out = _DummyVar("")
             self.m_only_matched = _DummyVar(False)
             self.m_preview_var = _DummyVar(False)
+
         def open_normalize_modal(self):
             return "normalized"
+
     merge_tab.MergeTab = MergeTab
     monkeypatch.setitem(sys.modules, "quicken_helper.gui_viewers.merge_tab", merge_tab)
 
     # ProbeTab: empty shell
     probe_tab = types.ModuleType("quicken_helper.gui_viewers.probe_tab")
+
     class ProbeTab:
-        def __init__(self, *a, **k): pass
+        def __init__(self, *a, **k):
+            pass
+
     probe_tab.ProbeTab = ProbeTab
     monkeypatch.setitem(sys.modules, "quicken_helper.gui_viewers.probe_tab", probe_tab)
 
     # scaling: __init__.py imports these symbols; provide no-op implementations
     scaling = types.ModuleType("quicken_helper.gui_viewers.scaling")
-    scaling._safe_float = lambda x, d: d if isinstance(x, str) and not x.strip() else float(x)
+    scaling._safe_float = lambda x, d: (
+        d if isinstance(x, str) and not x.strip() else float(x)
+    )
     scaling.detect_system_font_scale = lambda root=None: 1.0
     scaling.apply_global_font_scaling = lambda *a, **k: None
     monkeypatch.setitem(sys.modules, "quicken_helper.gui_viewers.scaling", scaling)
@@ -187,6 +261,7 @@ def _install_gui_submodule_stubs(monkeypatch):
 # --------------------------
 # Import fixture
 # --------------------------
+
 
 @pytest.fixture
 def app_mod(monkeypatch):
@@ -209,6 +284,7 @@ def app_mod(monkeypatch):
 # --------------------------
 # Tests (AAA + docstrings)
 # --------------------------
+
 
 def test_app_init_wires_tabs_and_shims(app_mod):
     """App builds Notebook and wires Convert/Merge/Probe tabs; shim vars are exposed on App."""
@@ -238,8 +314,8 @@ def test_update_output_extension_blank_out_uses_in_path(app_mod, tmp_path):
     src = tmp_path / "bank.qif"
     src.write_text("x", encoding="utf-8")
     app.in_path.set(str(src))
-    app.out_path.set("")          # blank
-    app.emit_var.set("csv")       # target CSV
+    app.out_path.set("")  # blank
+    app.emit_var.set("csv")  # target CSV
 
     # Act
     app._update_output_extension()
@@ -260,12 +336,16 @@ def test_update_output_extension_switches_extension(app_mod, tmp_path):
     app._update_output_extension()
 
     # Assert
-    assert app.out_path.get().endswith(".csv"), "Expected .csv after switching emit to csv"
+    assert app.out_path.get().endswith(
+        ".csv"
+    ), "Expected .csv after switching emit to csv"
 
     # Flip back to qif
     app.emit_var.set("qif")
     app._update_output_extension()
-    assert app.out_path.get().endswith(".qif"), "Expected .qif after switching emit to qif"
+    assert app.out_path.get().endswith(
+        ".qif"
+    ), "Expected .qif after switching emit to qif"
 
 
 def test_parse_payee_filters_parses_lines_and_commas(app_mod):
@@ -293,7 +373,9 @@ def test_run_missing_input_shows_error(app_mod, tmp_path):
     app._run()
 
     # Assert
-    assert any(c[0] == "showerror" for c in mb.calls), "Expected an error dialog for missing input"
+    assert any(
+        c[0] == "showerror" for c in mb.calls
+    ), "Expected an error dialog for missing input"
 
 
 def test_run_missing_output_shows_error(app_mod, tmp_path):
@@ -310,7 +392,9 @@ def test_run_missing_output_shows_error(app_mod, tmp_path):
     app._run()
 
     # Assert
-    assert any(c[0] == "showerror" for c in mb.calls), "Expected an error dialog for missing output"
+    assert any(
+        c[0] == "showerror" for c in mb.calls
+    ), "Expected an error dialog for missing output"
 
 
 def test_run_decline_overwrite_does_not_write(app_mod, tmp_path):
@@ -330,8 +414,12 @@ def test_run_decline_overwrite_does_not_write(app_mod, tmp_path):
     app._run()
 
     # Assert
-    assert out.read_text(encoding="utf-8") == "keep", "Existing file should remain unchanged"
-    assert any(c[0] == "askyesno" for c in mb.calls), "Expected overwrite confirmation prompt"
+    assert (
+        out.read_text(encoding="utf-8") == "keep"
+    ), "Existing file should remain unchanged"
+    assert any(
+        c[0] == "askyesno" for c in mb.calls
+    ), "Expected overwrite confirmation prompt"
 
 
 def test_run_writes_qif_and_shows_info(app_mod, tmp_path, monkeypatch):
@@ -347,11 +435,17 @@ def test_run_writes_qif_and_shows_info(app_mod, tmp_path, monkeypatch):
     app.emit_var.set("qif")
 
     # Stub the writer used by app.py (module-level import alias `mod`)
-    monkeypatch.setattr(app_mod.mod, "write_qif", lambda txns, p: Path(p).write_text("qif", encoding="utf-8"))
+    monkeypatch.setattr(
+        app_mod.mod,
+        "write_qif",
+        lambda txns, p: Path(p).write_text("qif", encoding="utf-8"),
+    )
 
     # Also stub parsers so we don't depend on real parsing
     qloader = types.ModuleType("quicken_helper.qif_loader")
-    qloader.load_transactions = lambda p: [{"date": "2024-01-01", "payee": "Alpha", "amount": "1.00"}]
+    qloader.load_transactions = lambda p: [
+        {"date": "2024-01-01", "payee": "Alpha", "amount": "1.00"}
+    ]
     monkeypatch.setitem(sys.modules, "quicken_helper.qif_loader", qloader)
 
     # Act
@@ -378,13 +472,18 @@ def test_run_writes_csv_windows_profile(app_mod, tmp_path, monkeypatch):
 
     # Stub parser + CSV writer (imported inside _run)
     qloader = types.ModuleType("quicken_helper.qif_loader")
-    qloader.load_transactions = lambda p: [{"date": "2024-01-01", "payee": "Alpha", "amount": "1.00"}]
+    qloader.load_transactions = lambda p: [
+        {"date": "2024-01-01", "payee": "Alpha", "amount": "1.00"}
+    ]
     monkeypatch.setitem(sys.modules, "quicken_helper.qif_loader", qloader)
 
     # Replace utils function that _run imports at call time
     utils_mod = importlib.import_module("quicken_helper.gui_viewers.utils")
-    monkeypatch.setattr(utils_mod, "write_csv_quicken_windows",
-                        lambda txns, p: Path(p).write_text("windows", encoding="utf-8"))
+    monkeypatch.setattr(
+        utils_mod,
+        "write_csv_quicken_windows",
+        lambda txns, p: Path(p).write_text("windows", encoding="utf-8"),
+    )
 
     # Act
     app._run()

@@ -10,6 +10,7 @@ class MemFS:
     and Path.open. Files are addressed by str(path). Supports text mode only.
     Use scheme 'MEM://' for clarity, e.g., Path('MEM://in.qif').
     """
+
     def __init__(self):
         self._files: dict[str, str] = {}
 
@@ -18,7 +19,7 @@ class MemFS:
         s = str(p)
         # Normalize single slash after scheme so both 'MEM://x' and 'MEM:/x' work
         if s.startswith("MEM:/") and not s.startswith("MEM://"):
-            s = "MEM://" + s[len("MEM:/"):]
+            s = "MEM://" + s[len("MEM:/") :]
         return s
 
     def write(self, p: Path | str, text: str) -> None:
@@ -46,11 +47,14 @@ class MemFS:
 
             def _close_and_store():
                 self._files[path] = buf.getvalue()
+
             # Hook close() to persist back into MemFS
             orig_close = buf.close
+
             def close():
                 _close_and_store()
                 orig_close()
+
             buf.close = close  # type: ignore[assignment]
             return buf
         else:

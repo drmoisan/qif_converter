@@ -2,6 +2,7 @@
 """
 Interfaces and Enums for Quicken data model.
 """
+
 from .enum_cleared_status import EnumClearedStatus
 from .enum_quicken_file_types import QuickenFileType
 from .enum_quicken_section import QuickenSections
@@ -15,7 +16,19 @@ from .i_split import ISplit
 from .i_tag import ITag
 from .i_transaction import ITransaction
 
-__all__ = ["EnumClearedStatus", "QuickenSections", "QuickenFileType",
-           "HasEmitQifWithHeader", "HasEmitQifNoHeader", "HasEmitQif",
-           "IHeader", "IAccount", "ISecurity", "ISplit", "ICategory",
-           "ITag", "ITransaction", "IQuickenFile"]
+__all__ = [
+    "EnumClearedStatus",
+    "QuickenSections",
+    "QuickenFileType",
+    "HasEmitQifWithHeader",
+    "HasEmitQifNoHeader",
+    "HasEmitQif",
+    "IHeader",
+    "IAccount",
+    "ISecurity",
+    "ISplit",
+    "ICategory",
+    "ITag",
+    "ITransaction",
+    "IQuickenFile",
+]

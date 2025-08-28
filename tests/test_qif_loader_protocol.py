@@ -37,6 +37,7 @@ def _mk_rec(**kwargs) -> Dict[str, Any]:
 @pytest.mark.usefixtures()
 def test_protocol_return_types_and_defaults(monkeypatch):
     """Ensure load_transactions_protocol returns protocol-shaped objects with correct types and None defaults for account/type."""
+
     # Arrange
     def fake_parse_qif(_path, encoding="utf-8") -> List[Dict[str, Any]]:
         return [
@@ -83,6 +84,7 @@ def test_protocol_return_types_and_defaults(monkeypatch):
 )
 def test_date_parsing_qif_formats(monkeypatch, raw, expected):
     """Verify adapter normalizes common QIF date variants into datetime.date."""
+
     # Arrange
     def fake_parse_qif(_path, encoding="utf-8"):
         return [_mk_rec(date=raw, amount="0.00")]
@@ -93,7 +95,9 @@ def test_date_parsing_qif_formats(monkeypatch, raw, expected):
     [t] = ql.load_transactions_protocol(Path("dummy.qif"))
 
     # Assert
-    assert t.date == expected, f"Date parsed incorrectly for input {raw!r}: {t.date} != {expected}"
+    assert (
+        t.date == expected
+    ), f"Date parsed incorrectly for input {raw!r}: {t.date} != {expected}"
 
 
 @pytest.mark.parametrize(
@@ -107,6 +111,7 @@ def test_date_parsing_qif_formats(monkeypatch, raw, expected):
 )
 def test_amount_parsing_commas_and_parentheses(monkeypatch, raw, expected):
     """Amounts should parse as Decimal, handling commas and parentheses for negatives."""
+
     # Arrange
     def fake_parse_qif(_path, encoding="utf-8"):
         return [_mk_rec(amount=raw)]
@@ -118,7 +123,9 @@ def test_amount_parsing_commas_and_parentheses(monkeypatch, raw, expected):
 
     # Assert
     assert isinstance(t.amount, Decimal), "Amount should be Decimal"
-    assert t.amount == expected, f"Parsed amount {t.amount} != expected {expected} for input {raw!r}"
+    assert (
+        t.amount == expected
+    ), f"Parsed amount {t.amount} != expected {expected} for input {raw!r}"
 
 
 @pytest.mark.parametrize(
@@ -133,6 +140,7 @@ def test_amount_parsing_commas_and_parentheses(monkeypatch, raw, expected):
 )
 def test_cleared_status_mapping(monkeypatch, cleared_char, expected):
     """Map '', ' ', '*' and 'X' to the correct EnumClearedStatus values."""
+
     # Arrange
     def fake_parse_qif(_path, encoding="utf-8"):
         return [_mk_rec(cleared=cleared_char)]
@@ -143,11 +151,14 @@ def test_cleared_status_mapping(monkeypatch, cleared_char, expected):
     [t] = ql.load_transactions_protocol(Path("dummy.qif"))
 
     # Assert
-    assert t.cleared == expected, f"Cleared mapping wrong for {cleared_char!r}: {t.cleared} != {expected}"
+    assert (
+        t.cleared == expected
+    ), f"Cleared mapping wrong for {cleared_char!r}: {t.cleared} != {expected}"
 
 
 def test_category_tag_splitting(monkeypatch):
     """Category with '/', e.g., 'Groceries/Costco', should split into category='Groceries', tag='Costco'."""
+
     # Arrange
     def fake_parse_qif(_path, encoding="utf-8"):
         return [
@@ -163,12 +174,15 @@ def test_category_tag_splitting(monkeypatch):
     # Assert
     assert t1.category == "Groceries", f"Expected 'Groceries', got {t1.category!r}"
     assert t1.tag == "Costco", f"Expected tag 'Costco', got {t1.tag!r}"
-    assert t2.category == "Food:Groceries", f"Unexpected category for second txn: {t2.category!r}"
+    assert (
+        t2.category == "Food:Groceries"
+    ), f"Unexpected category for second txn: {t2.category!r}"
     assert t2.tag is None, "Tag should be None when '/' is not present in category"
 
 
 def test_splits_conversion_and_sum(monkeypatch):
     """Split lines should become ISplit-like objects; their amounts should sum to the parent amount."""
+
     # Arrange
     def fake_parse_qif(_path, encoding="utf-8"):
         return [
@@ -198,6 +212,7 @@ def test_splits_conversion_and_sum(monkeypatch):
 
 def test_investment_action_passthrough(monkeypatch):
     """Non-protocol extras like 'action' should be preserved on the adapter for investment records."""
+
     # Arrange
     def fake_parse_qif(_path, encoding="utf-8"):
         return [

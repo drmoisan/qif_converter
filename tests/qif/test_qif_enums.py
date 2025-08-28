@@ -5,6 +5,7 @@ from quicken_helper.data_model import EnumClearedStatus, QuickenSections
 
 # ---------- QifSections (IntFlag) ----------
 
+
 def test_qifsections_bitwise_membership_and_combination():
     # Arrange
     flags = QuickenSections.TAGS | QuickenSections.CATEGORIES  # combine two flags
@@ -13,7 +14,9 @@ def test_qifsections_bitwise_membership_and_combination():
     has_tags = (flags & QuickenSections.TAGS) == QuickenSections.TAGS
     has_categories = (flags & QuickenSections.CATEGORIES) == QuickenSections.CATEGORIES
     has_accounts = (flags & QuickenSections.ACCOUNTS) == QuickenSections.ACCOUNTS
-    has_transactions = (flags & QuickenSections.TRANSACTIONS) == QuickenSections.TRANSACTIONS
+    has_transactions = (
+        flags & QuickenSections.TRANSACTIONS
+    ) == QuickenSections.TRANSACTIONS
 
     # Assert
     assert has_tags
@@ -31,11 +34,15 @@ def test_qifsections_add_and_remove_using_bit_ops_from_none():
     after_add_accounts = (flags & QuickenSections.ACCOUNTS) == QuickenSections.ACCOUNTS
 
     flags = flags | QuickenSections.TRANSACTIONS
-    after_add_txns = (flags & QuickenSections.TRANSACTIONS) == QuickenSections.TRANSACTIONS
+    after_add_txns = (
+        flags & QuickenSections.TRANSACTIONS
+    ) == QuickenSections.TRANSACTIONS
 
     # remove ACCOUNTS
     flags = flags & ~QuickenSections.ACCOUNTS
-    after_remove_accounts = (flags & QuickenSections.ACCOUNTS) == QuickenSections.ACCOUNTS
+    after_remove_accounts = (
+        flags & QuickenSections.ACCOUNTS
+    ) == QuickenSections.ACCOUNTS
 
     # Assert
     assert after_add_accounts
@@ -45,27 +52,35 @@ def test_qifsections_add_and_remove_using_bit_ops_from_none():
 
 def test_qifsections_unique_values_and_none_zero():
     # Arrange
-    members = [QuickenSections.NONE, QuickenSections.TAGS, QuickenSections.CATEGORIES,
-               QuickenSections.ACCOUNTS, QuickenSections.TRANSACTIONS]
+    members = [
+        QuickenSections.NONE,
+        QuickenSections.TAGS,
+        QuickenSections.CATEGORIES,
+        QuickenSections.ACCOUNTS,
+        QuickenSections.TRANSACTIONS,
+    ]
 
     # Act
     values = [m.value for m in members]
 
     # Assert
     assert QuickenSections.NONE.value == 0
-    assert len(set(values)) == len(values), "Each section flag should have a unique underlying value."
+    assert len(set(values)) == len(
+        values
+    ), "Each section flag should have a unique underlying value."
 
 
 # ---------- ClearedStatus ----------
 
+
 def test_clearedstatus_from_char_valid_and_invalid():
     # Arrange / Act
-    cleared = EnumClearedStatus.from_char('*')
-    not_cleared1 = EnumClearedStatus.from_char('N')
-    not_cleared2 = EnumClearedStatus.from_char('  ')
-    reconciled1 = EnumClearedStatus.from_char('R')
-    reconciled2 = EnumClearedStatus.from_char('X')
-    unknown = EnumClearedStatus.from_char('?')
+    cleared = EnumClearedStatus.from_char("*")
+    not_cleared1 = EnumClearedStatus.from_char("N")
+    not_cleared2 = EnumClearedStatus.from_char("  ")
+    reconciled1 = EnumClearedStatus.from_char("R")
+    reconciled2 = EnumClearedStatus.from_char("X")
+    unknown = EnumClearedStatus.from_char("?")
 
     # Assert
     assert cleared is EnumClearedStatus.CLEARED
@@ -77,7 +92,7 @@ def test_clearedstatus_from_char_valid_and_invalid():
 
     # Arrange / Act / Assert (invalid)
     with pytest.raises(ValueError):
-        EnumClearedStatus.from_char('A')
+        EnumClearedStatus.from_char("A")
 
 
 # def test_clearedstatus_emit_qif_codes():

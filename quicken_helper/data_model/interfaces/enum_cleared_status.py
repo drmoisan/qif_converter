@@ -1,7 +1,7 @@
 from enum import Enum
 from functools import total_ordering
 
-#from quicken_helper.data_model import qif_codes as codes
+# from quicken_helper.data_model import qif_codes as codes
 
 
 @total_ordering
@@ -9,13 +9,14 @@ class EnumClearedStatus(Enum):
     """
     Enum representing the cleared status of a transaction.
     """
-    CLEARED = '*'  # Cleared
-    NOT_CLEARED = 'N'  # Not cleared
-    RECONCILED = 'R'  # Reconciled
-    UNKNOWN = '?'  # Unknown status
+
+    CLEARED = "*"  # Cleared
+    NOT_CLEARED = "N"  # Not cleared
+    RECONCILED = "R"  # Reconciled
+    UNKNOWN = "?"  # Unknown status
 
     @classmethod
-    def from_char(cls, char: str) -> 'EnumClearedStatus':
+    def from_char(cls, char: str) -> "EnumClearedStatus":
         """
         Convert a single character to a ClearedStatus enum.
         """

@@ -28,6 +28,7 @@ from quicken_helper.utilities.core_util import parse_date_string
 
 # ------------------------ Filtering helpers ------------------------
 
+
 def _match_one(payee: str, query: str, mode: str, case_sensitive: bool) -> bool:
     if mode == "regex":
         flags = 0 if case_sensitive else re.IGNORECASE
@@ -56,13 +57,21 @@ def _match_one(payee: str, query: str, mode: str, case_sensitive: bool) -> bool:
     raise ValueError(f"Unknown match mode: {mode}")
 
 
-def filter_by_payee(txns: List[Dict[str, Any]], query: str, mode="contains", case_sensitive=False) -> List[Dict[str, Any]]:
+def filter_by_payee(
+    txns: List[Dict[str, Any]], query: str, mode="contains", case_sensitive=False
+) -> List[Dict[str, Any]]:
     """Filter transactions by a single payee query."""
-    return [t for t in txns if _match_one(t.get("payee", ""), query, mode, case_sensitive)]
+    return [
+        t for t in txns if _match_one(t.get("payee", ""), query, mode, case_sensitive)
+    ]
 
 
 def filter_by_payees(
-    txns: List[Dict[str, Any]], queries: Iterable[str], mode="contains", case_sensitive=False, combine: str = "any"
+    txns: List[Dict[str, Any]],
+    queries: Iterable[str],
+    mode="contains",
+    case_sensitive=False,
+    combine: str = "any",
 ) -> List[Dict[str, Any]]:
     """
     Filter transactions by multiple payee queries.
@@ -81,7 +90,10 @@ def filter_by_payees(
 
 # Date parsing and filtering
 
-def filter_by_date_range(txns: List[Dict[str, Any]], date_from: Optional[str], date_to: Optional[str]) -> List[Dict[str, Any]]:
+
+def filter_by_date_range(
+    txns: List[Dict[str, Any]], date_from: Optional[str], date_to: Optional[str]
+) -> List[Dict[str, Any]]:
     """Filter by date range. Dates inclusive. Accepts mm/dd'yy, mm/dd/yyyy, or yyyy-mm-dd strings."""
     df = parse_date_string(date_from) if date_from else None
     dt = parse_date_string(date_to) if date_to else None
@@ -98,7 +110,9 @@ def filter_by_date_range(txns: List[Dict[str, Any]], date_from: Optional[str], d
         out.append(t)
     return out
 
+
 # --------------------- Writer Helpers ---------------------
+
 
 def _emit_multiline_field(out, tag: str, value: str) -> None:
     """
@@ -113,7 +127,9 @@ def _emit_multiline_field(out, tag: str, value: str) -> None:
         out.write(f"{tag}{line}\n")
 
 
-def _open_for_write(path: Path, *, binary: bool = False, newline: Optional[str] = "") -> IO:
+def _open_for_write(
+    path: Path, *, binary: bool = False, newline: Optional[str] = ""
+) -> IO:
     """
     Small indirection so tests can monkeypatch in-memory I/O.
     Default behavior simply delegates to Path.open. Tests can replace
@@ -123,7 +139,9 @@ def _open_for_write(path: Path, *, binary: bool = False, newline: Optional[str] 
     kwargs = {} if binary else {"encoding": "utf-8", "newline": newline}
     return open(path, mode, **kwargs)
 
+
 # ------------------------ Writers ------------------------
+
 
 def write_csv_flat(txns, out_path: Path, newline: str = "") -> None:
     """
@@ -133,9 +151,26 @@ def write_csv_flat(txns, out_path: Path, newline: str = "") -> None:
     import csv
 
     fieldnames = [
-        "account","type","date","amount","payee","memo","category","transfer_account",
-        "checknum","cleared","address","action","security","quantity","price","commission",
-        "split_count","split_category","split_memo","split_amount",
+        "account",
+        "type",
+        "date",
+        "amount",
+        "payee",
+        "memo",
+        "category",
+        "transfer_account",
+        "checknum",
+        "cleared",
+        "address",
+        "action",
+        "security",
+        "quantity",
+        "price",
+        "commission",
+        "split_count",
+        "split_category",
+        "split_memo",
+        "split_amount",
     ]
 
     with _open_for_write(out_path, binary=False, newline=newline) as f:
@@ -145,9 +180,15 @@ def write_csv_flat(txns, out_path: Path, newline: str = "") -> None:
             splits = t.get("splits", [])
             row = dict(t)
             row["split_count"] = str(len(splits))
-            row["split_category"] = " | ".join(s.get("category", "") for s in splits) if splits else ""
-            row["split_memo"] = " | ".join(s.get("memo", "") for s in splits) if splits else ""
-            row["split_amount"] = " | ".join(s.get("amount", "") for s in splits) if splits else ""
+            row["split_category"] = (
+                " | ".join(s.get("category", "") for s in splits) if splits else ""
+            )
+            row["split_memo"] = (
+                " | ".join(s.get("memo", "") for s in splits) if splits else ""
+            )
+            row["split_amount"] = (
+                " | ".join(s.get("amount", "") for s in splits) if splits else ""
+            )
             writer.writerow({k: row.get(k, "") for k in fieldnames})
 
 
@@ -159,9 +200,25 @@ def write_csv_exploded(txns, out_path: Path, newline: str = "") -> None:
     import csv
 
     fieldnames = [
-        "account","type","date","amount","payee","memo","category","transfer_account",
-        "checknum","cleared","address","action","security","quantity","price","commission",
-        "split_category","split_memo","split_amount",
+        "account",
+        "type",
+        "date",
+        "amount",
+        "payee",
+        "memo",
+        "category",
+        "transfer_account",
+        "checknum",
+        "cleared",
+        "address",
+        "action",
+        "security",
+        "quantity",
+        "price",
+        "commission",
+        "split_category",
+        "split_memo",
+        "split_amount",
     ]
 
     with _open_for_write(out_path, binary=False, newline=newline) as f:
@@ -189,67 +246,94 @@ def _safe_float(s: str) -> Optional[float]:
         return None
 
 
-def write_csv_quicken_windows(txns: List[Dict[str, Any]], out_path: Path, newline: str = "") -> None:
+def write_csv_quicken_windows(
+    txns: List[Dict[str, Any]], out_path: Path, newline: str = ""
+) -> None:
     """
     Quicken Windows CSV header order:
     Date, Payee, FI Payee, Amount, Debit/Credit, Category, Account, Tag, Memo, Chknum
     """
-    fieldnames = ["Date","Payee","FI Payee","Amount","Debit/Credit","Category","Account","Tag","Memo","Chknum"]
+    fieldnames = [
+        "Date",
+        "Payee",
+        "FI Payee",
+        "Amount",
+        "Debit/Credit",
+        "Category",
+        "Account",
+        "Tag",
+        "Memo",
+        "Chknum",
+    ]
     with _open_for_write(out_path, binary=False, newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\r\n")  # Windows
 
         w.writeheader()
         for t in txns:
-            amt = t.get("amount","")
+            amt = t.get("amount", "")
             row = {
-                "Date": t.get("date",""),
-                "Payee": t.get("payee",""),
+                "Date": t.get("date", ""),
+                "Payee": t.get("payee", ""),
                 "FI Payee": "",
                 "Amount": amt,
                 "Debit/Credit": "",  # prefer signed Amount
-                "Category": t.get("category",""),
-                "Account": t.get("account",""),
+                "Category": t.get("category", ""),
+                "Account": t.get("account", ""),
                 "Tag": "",
-                "Memo": t.get("memo",""),
-                "Chknum": t.get("checknum",""),
+                "Memo": t.get("memo", ""),
+                "Chknum": t.get("checknum", ""),
             }
             w.writerow(row)
 
 
-def write_csv_quicken_mac(txns: List[Dict[str, Any]], out_path: Path, newline: str = "") -> None:
+def write_csv_quicken_mac(
+    txns: List[Dict[str, Any]], out_path: Path, newline: str = ""
+) -> None:
     """
     Quicken Mac (Mint) CSV:
     Date, Description, Original Description, Amount, Transaction Type, Category, Account Name, Labels, Notes
     Amount must be positive; direction in Transaction Type: debit/credit
     """
-    fieldnames = ["Date","Description","Original Description","Amount","Transaction Type","Category","Account Name","Labels","Notes"]
+    fieldnames = [
+        "Date",
+        "Description",
+        "Original Description",
+        "Amount",
+        "Transaction Type",
+        "Category",
+        "Account Name",
+        "Labels",
+        "Notes",
+    ]
     with _open_for_write(out_path, binary=False, newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
         w.writeheader()
         for t in txns:
-            amt_s = t.get("amount","")
+            amt_s = t.get("amount", "")
             amt = _safe_float(amt_s) or 0.0
             # Determine debit/credit by sign; if 0 or missing, default to debit with amount as given
             txn_type = "credit" if amt > 0 else "debit"
             amt_abs = abs(amt)
             row = {
-                "Date": t.get("date",""),
-                "Description": t.get("payee",""),
+                "Date": t.get("date", ""),
+                "Description": t.get("payee", ""),
                 "Original Description": "",
                 "Amount": f"{amt_abs:.2f}" if amt_s != "" else "",
                 "Transaction Type": txn_type,
-                "Category": t.get("category",""),
-                "Account Name": t.get("account",""),
+                "Category": t.get("category", ""),
+                "Account Name": t.get("account", ""),
                 "Labels": "",
-                "Notes": t.get("memo",""),
+                "Notes": t.get("memo", ""),
             }
             w.writerow(row)
 
 
-
 # ... keep your existing imports and helpers ...
 
-def write_qif(txns, out: Union[str, os.PathLike, TextIO], encoding: str = "utf-8") -> None:
+
+def write_qif(
+    txns, out: Union[str, os.PathLike, TextIO], encoding: str = "utf-8"
+) -> None:
     """
     Write QIF to either:
       - a filesystem path (str/PathLike), or
@@ -264,6 +348,7 @@ def write_qif(txns, out: Union[str, os.PathLike, TextIO], encoding: str = "utf-8
     with open(out, "w", encoding=encoding, newline="") as fp:
         _write_qif_to_stream(txns, fp)
 
+
 # def write_qif(txns, out: Union[str, os.PathLike, TextIO], encoding: str = "utf-8"):
 #     # detect model and use proper emitter if desired
 #     if txns and isinstance(txns[0], QifTxnLike):
@@ -272,7 +357,6 @@ def write_qif(txns, out: Union[str, os.PathLike, TextIO], encoding: str = "utf-8
 #     else:
 #         # current legacy dict writing path
 #         _iter_as_legacy(txns)
-
 
 
 def _write_qif_to_stream(txns: list[dict], fp: TextIO) -> None:
@@ -372,7 +456,7 @@ def legacy_write(current_account, current_type, fp, r):
     if commission != "":
         fp.write(f"O{commission}\n")
     # 4) Splits
-    for s in (r.get("splits") or []):
+    for s in r.get("splits") or []:
         sc = s.get("category", "")
         if sc:
             fp.write(f"S{sc}\n")
@@ -384,5 +468,3 @@ def legacy_write(current_account, current_type, fp, r):
             fp.write(f"${sa}\n")
     # 5) Record terminator
     fp.write("^\n")
-
-

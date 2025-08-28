@@ -17,12 +17,12 @@ def _stub_non_txn_sections() -> Tuple[
     Dict[str, List[Dict[str, Any]]],  # other/unknown
 ]:
     return (
-        [{"name": "Checking", "type": "Bank"}],        # accounts
-        [{"name": "Food", "expense": True}],           # categories
-        [{"name": "Starbucks", "memo": "latte"}],      # memorized
-        [{"name": "Vanguard 500", "symbol": "VFIAX"}], # securities
-        [{"name": "Consulting"}],                      # class/business
-        [{"name": "Coffee Shop"}],                     # payees
+        [{"name": "Checking", "type": "Bank"}],  # accounts
+        [{"name": "Food", "expense": True}],  # categories
+        [{"name": "Starbucks", "memo": "latte"}],  # memorized
+        [{"name": "Vanguard 500", "symbol": "VFIAX"}],  # securities
+        [{"name": "Consulting"}],  # class/business
+        [{"name": "Coffee Shop"}],  # payees
         {"Foo": [{"raw": ["Xcustom: 1"], "raw_X": ["custom: 1"]}]},  # other
     )
 
@@ -46,8 +46,12 @@ def test_parse_qif_unified_delegates_and_combines(monkeypatch):
 
     # Assert
     assert isinstance(parsed, ParsedQIF)
-    assert parsed.transactions is txns, "Transactions should be exactly those returned by parse_qif."
-    accounts, categories, memorized, securities, business_list, payees, other = _stub_non_txn_sections()
+    assert (
+        parsed.transactions is txns
+    ), "Transactions should be exactly those returned by parse_qif."
+    accounts, categories, memorized, securities, business_list, payees, other = (
+        _stub_non_txn_sections()
+    )
     assert parsed.accounts == accounts
     assert parsed.categories == categories
     assert parsed.memorized_payees == memorized
@@ -112,7 +116,9 @@ def test_parse_qif_unified_unknown_sections_preserved(monkeypatch):
     monkeypatch.setattr(ql, "parse_qif", lambda p, encoding="utf-8": [])
     other = {"WeirdBlock": [{"raw": ["Zsome"], "raw_Z": ["some"]}]}
     monkeypatch.setattr(
-        ql, "_parse_non_txn_sections", lambda p, encoding="utf-8": ([], [], [], [], [], [], other)
+        ql,
+        "_parse_non_txn_sections",
+        lambda p, encoding="utf-8": ([], [], [], [], [], [], other),
     )
 
     # Act
@@ -148,4 +154,6 @@ def test_load_transactions_uses_unified(monkeypatch):
     txns = ql.load_transactions(path=None)
 
     # Assert
-    assert txns == desired, "load_transactions should return .transactions from parse_qif_unified"
+    assert (
+        txns == desired
+    ), "load_transactions should return .transactions from parse_qif_unified"

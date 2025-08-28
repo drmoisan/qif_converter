@@ -10,5 +10,15 @@ from .q_transaction import QTransaction
 from .qif_code import QifCode
 from .qif_header import QifHeader
 
-__all__ = [QifCode, QifHeader, QAccount, QCategory, QCategory,
-           QTag, QSplit , QSecurity, QTransaction, QuickenFile]
+__all__ = [
+    QifCode,
+    QifHeader,
+    QAccount,
+    QCategory,
+    QCategory,
+    QTag,
+    QSplit,
+    QSecurity,
+    QTransaction,
+    QuickenFile,
+]

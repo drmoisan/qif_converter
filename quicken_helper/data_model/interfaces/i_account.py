@@ -7,6 +7,7 @@ from .i_header import IHeader
 # Assumes you’ve defined QifHeaderLike elsewhere.
 # If not, replace "QifHeaderLike" below with the concrete QifHeader.
 
+
 @runtime_checkable
 class IAccount(Protocol):
     # --- data attributes ---

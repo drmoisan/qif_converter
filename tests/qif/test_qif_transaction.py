@@ -1,5 +1,5 @@
 # tests/qif/test_qif_transaction.py
-#from openpyxl.descriptors import DateTime
+# from openpyxl.descriptors import DateTime
 from datetime import date
 from decimal import Decimal
 
@@ -12,7 +12,7 @@ from quicken_helper.data_model.q_wrapper.qif_header import QifHeader
 
 def _mk_txn(
     *,
-    date= date(2025,1,2),
+    date=date(2025, 1, 2),
     amount=Decimal("-12.34"),
     payee="Coffee Shop",
     memo="Latte",
@@ -57,7 +57,7 @@ def test_emit_category_no_splits_with_tag():
 
 def test_emit_category_with_splits_uses_split_marker_and_preserves_tag():
     # Arrange
-    s  = QSplit(category="Food:Coffee", memo="Latte", amount=Decimal(-10.00), tag="")
+    s = QSplit(category="Food:Coffee", memo="Latte", amount=Decimal(-10.00), tag="")
     t = _mk_txn(
         category="Food:Coffee",
         tag="Reimb",
@@ -84,14 +84,13 @@ def test_security_exists_is_false_by_default_then_true_after_access():
     _ = t.security
 
     # Assert again after access
-    assert t.security_exists() is True   # note the call
-
+    assert t.security_exists() is True  # note the call
 
 
 def test_emit_qif_includes_headers_when_requested_and_emits_core_fields_and_splits():
     # Arrange
     t = _mk_txn(
-        date=date(2025,2,1),
+        date=date(2025, 2, 1),
         amount=Decimal("-20.00"),
         payee="Store A",
         memo="Line1",
@@ -100,8 +99,15 @@ def test_emit_qif_includes_headers_when_requested_and_emits_core_fields_and_spli
         checknum="1001",
         cleared=EnumClearedStatus.CLEARED,
         splits=[
-            QSplit(category="Groceries:Veg", memo="Veg", amount=Decimal("-12.00"), tag=""),
-            QSplit(category="Groceries:Fruit", memo="Fruit", amount=Decimal("-8.00"), tag=""),
+            QSplit(
+                category="Groceries:Veg", memo="Veg", amount=Decimal("-12.00"), tag=""
+            ),
+            QSplit(
+                category="Groceries:Fruit",
+                memo="Fruit",
+                amount=Decimal("-8.00"),
+                tag="",
+            ),
         ],
     )
 
@@ -111,8 +117,8 @@ def test_emit_qif_includes_headers_when_requested_and_emits_core_fields_and_spli
     # Assert (AAA)
     # Headers (account + type)
     assert "!Account" in text
-    assert "NChecking" in text               # account name from helper
-    assert "!Type:Bank" in text              # type header from helper
+    assert "NChecking" in text  # account name from helper
+    assert "!Type:Bank" in text  # type header from helper
 
     # Core fields—these reflect the current implementation:
     # D (date), T (amount), P (payee), L (category or split marker), N (checknum)

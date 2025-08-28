@@ -45,7 +45,9 @@ def test_qifentry_with_header_includes_header_code_first():
 def test_equality_and_hash_semantics():
     # Arrange
     a1 = QAccount(name="Checking", type="Bank", description="desc A")
-    a2 = QAccount(name="Checking", type="Bank", description="desc B")  # desc differs, but __eq__ ignores it
+    a2 = QAccount(
+        name="Checking", type="Bank", description="desc B"
+    )  # desc differs, but __eq__ ignores it
     a3 = QAccount(name="Savings", type="Bank", description="desc A")
     not_acct = object()
 

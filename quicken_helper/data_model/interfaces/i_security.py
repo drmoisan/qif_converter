@@ -7,6 +7,7 @@ from typing import Protocol, runtime_checkable
 @runtime_checkable
 class ISecurity(Protocol):
     """Structural shape of an investment/security adornment on a txn."""
+
     name: str
     price: Decimal
     quantity: Decimal

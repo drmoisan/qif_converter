@@ -59,10 +59,12 @@ def test_excel_txn_group_is_immutable_and_hashable():
 
     # Act / Assert: hashable & equality semantics
     same = ExcelTxnGroup(gid="Z9", date=d, total_amount=Decimal("-10.00"), rows=(r,))
-    different = ExcelTxnGroup(gid="Z9", date=d, total_amount=Decimal("-9.99"), rows=(r,))
+    different = ExcelTxnGroup(
+        gid="Z9", date=d, total_amount=Decimal("-9.99"), rows=(r,)
+    )
 
     s = {g, same}
-    assert len(s) == 1          # equal objects hash the same → set dedupes
+    assert len(s) == 1  # equal objects hash the same → set dedupes
     assert g == same
     assert g != different
 
@@ -76,7 +78,9 @@ def test_excel_txn_group_accepts_various_gid_types():
 
     g1 = ExcelTxnGroup(gid="S1", date=d, total_amount=Decimal("-1.00"), rows=(r_str,))
     g2 = ExcelTxnGroup(gid=42, date=d, total_amount=Decimal("-2.00"), rows=(r_int,))
-    g3 = ExcelTxnGroup(gid=("bundle", 1), date=d, total_amount=Decimal("-3.00"), rows=(r_tuple,))
+    g3 = ExcelTxnGroup(
+        gid=("bundle", 1), date=d, total_amount=Decimal("-3.00"), rows=(r_tuple,)
+    )
 
     # Assert
     assert g1.gid == "S1"

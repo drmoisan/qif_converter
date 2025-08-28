@@ -8,6 +8,7 @@ import quicken_helper.legacy.qif_writer as qw
 
 # ----------------------------- QIF writer tests ------------------------------
 
+
 def test_write_qif_emits_account_and_type_headers_and_resets_on_account_change():
     """write_qif: emits an !Account block on account changes (with N and T lines)
     and emits !Type:<Type> whenever the transaction type changes. After switching
@@ -15,12 +16,36 @@ def test_write_qif_emits_account_and_type_headers_and_resets_on_account_change()
     """
     txns = [
         # Account A (Bank)
-        {"account": "Checking", "type": "Bank", "date": "01/01/2025", "amount": "-10.00", "payee": "A"},
-        {"account": "Checking", "type": "Bank", "date": "01/02/2025", "amount": "-2.00", "payee": "B"},
+        {
+            "account": "Checking",
+            "type": "Bank",
+            "date": "01/01/2025",
+            "amount": "-10.00",
+            "payee": "A",
+        },
+        {
+            "account": "Checking",
+            "type": "Bank",
+            "date": "01/02/2025",
+            "amount": "-2.00",
+            "payee": "B",
+        },
         # Switch account (forces !Account block and re-emit of !Type)
-        {"account": "Savings", "type": "Bank", "date": "01/03/2025", "amount": "1.00", "payee": "C"},
+        {
+            "account": "Savings",
+            "type": "Bank",
+            "date": "01/03/2025",
+            "amount": "1.00",
+            "payee": "C",
+        },
         # Same account, different type -> new !Type header
-        {"account": "Savings", "type": "Invst", "date": "01/04/2025", "amount": "0.00", "payee": "D"},
+        {
+            "account": "Savings",
+            "type": "Invst",
+            "date": "01/04/2025",
+            "amount": "0.00",
+            "payee": "D",
+        },
     ]
 
     buf = io.StringIO()
@@ -154,6 +179,7 @@ def test_write_qif_writes_to_path_with_utf8_encoding(tmp_path: Path):
 
 # ----------------------------- CSV writer tests ------------------------------
 
+
 def _capture_csv(monkeypatch, call_fn, txns, *, newline=""):
     """Helper: monkeypatch qw._open_for_write to return an in-memory file-like object
     that captures its contents on close so we can read it after the writer exits."""
@@ -218,20 +244,32 @@ def test_write_csv_flat_includes_split_aggregates_and_headers(monkeypatch):
     assert r["split_amount"] == "-7.00 | -3.00"
 
 
-def test_write_csv_exploded_emits_one_row_per_split_and_single_row_when_no_splits(monkeypatch):
+def test_write_csv_exploded_emits_one_row_per_split_and_single_row_when_no_splits(
+    monkeypatch,
+):
     """write_csv_exploded: emits one row per split when present, otherwise one row per
     transaction. Split fields appear in split_category/split_memo/split_amount columns.
     """
     txns = [
         {
-            "account": "Checking", "type": "Bank", "date": "01/01/2025", "amount": "-10.00",
-            "payee": "A", "category": "Cat",
-            "splits": [{"category": "S1", "memo": "m1", "amount": "-7.00"},
-                       {"category": "S2", "memo": "m2", "amount": "-3.00"}],
+            "account": "Checking",
+            "type": "Bank",
+            "date": "01/01/2025",
+            "amount": "-10.00",
+            "payee": "A",
+            "category": "Cat",
+            "splits": [
+                {"category": "S1", "memo": "m1", "amount": "-7.00"},
+                {"category": "S2", "memo": "m2", "amount": "-3.00"},
+            ],
         },
         {
-            "account": "Checking", "type": "Bank", "date": "01/02/2025", "amount": "-5.00",
-            "payee": "B", "category": "Cat2",
+            "account": "Checking",
+            "type": "Bank",
+            "date": "01/02/2025",
+            "amount": "-5.00",
+            "payee": "B",
+            "category": "Cat2",
             # no splits -> one row
         },
     ]
@@ -246,16 +284,34 @@ def test_write_csv_exploded_emits_one_row_per_split_and_single_row_when_no_split
     assert {r["split_category"] for r in s_rows} == {"S1", "S2"}
     # Row for second txn has empty split fields
     r2 = [r for r in rows if r["date"] == "01/02/2025"][0]
-    assert r2["split_category"] == "" and r2["split_memo"] == "" and r2["split_amount"] == ""
+    assert (
+        r2["split_category"] == ""
+        and r2["split_memo"] == ""
+        and r2["split_amount"] == ""
+    )
 
 
-def test_write_csv_quicken_windows_uses_signed_amount_and_empty_debit_credit(monkeypatch):
+def test_write_csv_quicken_windows_uses_signed_amount_and_empty_debit_credit(
+    monkeypatch,
+):
     """write_csv_quicken_windows: writes the Quicken Windows header order; leaves the
     'Debit/Credit' column empty and keeps 'Amount' signed exactly as provided.
     """
     txns = [
-        {"date": "01/10/2025", "payee": "Alpha", "amount": "-12.34", "category": "CatA", "account": "Acc"},
-        {"date": "01/11/2025", "payee": "Beta",  "amount": "56.78",  "category": "CatB", "account": "Acc"},
+        {
+            "date": "01/10/2025",
+            "payee": "Alpha",
+            "amount": "-12.34",
+            "category": "CatA",
+            "account": "Acc",
+        },
+        {
+            "date": "01/11/2025",
+            "payee": "Beta",
+            "amount": "56.78",
+            "category": "CatB",
+            "account": "Acc",
+        },
     ]
 
     csv_text = _capture_csv(monkeypatch, qw.write_csv_quicken_windows, txns)
@@ -272,9 +328,27 @@ def test_write_csv_quicken_mac_sets_type_by_sign_and_amount_is_abs(monkeypatch):
     missing/empty, the amount cell is empty but the type defaults to 'debit'.
     """
     txns = [
-        {"date": "01/12/2025", "payee": "Pos", "amount": "12.34", "category": "C", "account": "A"},
-        {"date": "01/13/2025", "payee": "Neg", "amount": "-2.50", "category": "C", "account": "A"},
-        {"date": "01/14/2025", "payee": "Missing", "amount": "", "category": "C", "account": "A"},
+        {
+            "date": "01/12/2025",
+            "payee": "Pos",
+            "amount": "12.34",
+            "category": "C",
+            "account": "A",
+        },
+        {
+            "date": "01/13/2025",
+            "payee": "Neg",
+            "amount": "-2.50",
+            "category": "C",
+            "account": "A",
+        },
+        {
+            "date": "01/14/2025",
+            "payee": "Missing",
+            "amount": "",
+            "category": "C",
+            "account": "A",
+        },
     ]
 
     csv_text = _capture_csv(monkeypatch, qw.write_csv_quicken_mac, txns)

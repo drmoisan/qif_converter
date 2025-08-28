@@ -22,7 +22,9 @@ def test_is_split_true_for_split_transaction():
     result = key.is_split()
 
     # Assert
-    assert result is True, "Split key should report is_split() == True when split_index is not None"
+    assert (
+        result is True
+    ), "Split key should report is_split() == True when split_index is not None"
 
 
 def test_equality_and_hash_same_fields_are_equal():
@@ -52,7 +54,9 @@ def test_hashable_and_usable_as_dict_key_and_set_member():
     # Assert
     assert d[k1] == "whole"
     assert d[k2] == "split0"
-    assert k1 in s and k2 in s and k3 in s, "Keys should be usable in sets without collision"
+    assert (
+        k1 in s and k2 in s and k3 in s
+    ), "Keys should be usable in sets without collision"
 
 
 def test_frozen_immutability():

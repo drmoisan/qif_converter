@@ -328,4 +328,3 @@ def run_excel_qif_merge(
     base.write_qif(txns, qif_out)
 
     return session.matched_pairs(), session.unmatched_qif(), session.unmatched_excel()
-

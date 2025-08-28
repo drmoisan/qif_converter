@@ -19,6 +19,7 @@ def test__parse_qif_date_formats(raw, expect_iso):
     d = parse_date_string(raw)
     assert d.isoformat() == expect_iso
 
+
 def test__open_for_read_uses_builtins_open(monkeypatch, tmp_path):
     # Arrange
     from quicken_helper.utilities.core_util import _open_for_read
@@ -27,9 +28,14 @@ def test__open_for_read_uses_builtins_open(monkeypatch, tmp_path):
     expected = "hello world"
 
     class FakeReadable:
-        def __enter__(self): return self
-        def __exit__(self, exc_type, exc, tb): pass
-        def read(self, *_, **__): return expected
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            pass
+
+        def read(self, *_, **__):
+            return expected
 
     def fake_open(file, mode="r", encoding=None, newline=None, **kwargs):
         opened["called"] = True
@@ -46,4 +52,6 @@ def test__open_for_read_uses_builtins_open(monkeypatch, tmp_path):
 
     # Assert
     assert opened["called"] is True, "Expected _open_for_read to call builtins.open"
-    assert data == expected, "File-like object returned by _open_for_read should be readable"
+    assert (
+        data == expected
+    ), "File-like object returned by _open_for_read should be readable"

@@ -7,25 +7,31 @@ from quicken_helper.data_model.q_wrapper.q_split import QSplit
 def test_equality_and_hash_are_consistent():
     # Arrange
     a1 = QSplit(category="Food:Coffee", amount=Decimal("-10.00"), memo="Latte", tag="")
-    a2 = QSplit(category="Food:Coffee", amount=Decimal("-10.00"), memo="Latte", tag="")  # identical
-    b  = QSplit(category="Food:Coffee", amount=Decimal("-10.00"), memo="Latte!", tag="") # memo differs
+    a2 = QSplit(
+        category="Food:Coffee", amount=Decimal("-10.00"), memo="Latte", tag=""
+    )  # identical
+    b = QSplit(
+        category="Food:Coffee", amount=Decimal("-10.00"), memo="Latte!", tag=""
+    )  # memo differs
 
     # Act
-    eq_same   = (a1 == a2)
-    eq_diff   = (a1 == b)
-    hash_same = (hash(a1) == hash(a2))
+    eq_same = a1 == a2
+    eq_diff = a1 == b
+    hash_same = hash(a1) == hash(a2)
 
     # Assert
     assert eq_same is True, "Identical field values must be equal."
     assert eq_diff is False, "A differing field should make instances not equal."
-    assert hash_same is True, "Equal objects must have identical hashes for set/dict correctness."
+    assert (
+        hash_same is True
+    ), "Equal objects must have identical hashes for set/dict correctness."
 
 
 def test_can_be_used_in_set_and_deduplicates_equal_items():
     # Arrange
     s1 = QSplit("Cat:A", Decimal("1.00"), "m", tag="")
     s2 = QSplit("Cat:A", Decimal("1.00"), "m", tag="")  # equal to s1
-    s3 = QSplit("Cat:A", Decimal("1.00"), "m2", tag="") # different memo
+    s3 = QSplit("Cat:A", Decimal("1.00"), "m2", tag="")  # different memo
 
     # Act
     unique = {s1, s2, s3}
@@ -83,7 +89,9 @@ def test_ordering_primary_category_then_tag_then_amount_then_memo():
         s_catA_tagB_amt1_memoA,
         s_catB_tagA_amt1_memoA,
     ]
-    assert result == expected, "Sorting must honor category → tag → amount → memo precedence."
+    assert (
+        result == expected
+    ), "Sorting must honor category → tag → amount → memo precedence."
 
 
 def test_ordering_with_negative_and_positive_amounts():
@@ -108,4 +116,8 @@ def test_ordering_uses_memo_as_tiebreaker_only():
     result = sorted([m3, m1, m2])
 
     # Assert
-    assert result == [m1, m2, m3], "When category/tag/amount tie, memo lexicographic order should apply."
+    assert result == [
+        m1,
+        m2,
+        m3,
+    ], "When category/tag/amount tie, memo lexicographic order should apply."

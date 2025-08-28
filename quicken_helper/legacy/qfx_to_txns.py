@@ -23,10 +23,13 @@ def _to_date(s: str) -> str:
             pass
     return ""
 
-def _tx(amount: float, payee: str = "", memo: str = "", date: str = "", checknum: str = "") -> Dict[str, Any]:
+
+def _tx(
+    amount: float, payee: str = "", memo: str = "", date: str = "", checknum: str = ""
+) -> Dict[str, Any]:
     # conform to your existing schema used in qif_to_csv paths
     return {
-        "date": date,                  # "mm/dd/YYYY"
+        "date": date,  # "mm/dd/YYYY"
         "payee": payee or "",
         "amount": f"{amount:.2f}",
         "category": "",
@@ -35,6 +38,7 @@ def _tx(amount: float, payee: str = "", memo: str = "", date: str = "", checknum
         "checknum": checknum or "",
         "splits": [],
     }
+
 
 def parse_qfx(path: Path | str) -> List[Dict[str, Any]]:
     """
@@ -47,6 +51,7 @@ def parse_qfx(path: Path | str) -> List[Dict[str, Any]]:
     # --- try ofxparse first ---
     try:
         import ofxparse  # type: ignore
+
         with p.open("rb") as f:
             ofx = ofxparse.OfxParser.parse(f)
         out: List[Dict[str, Any]] = []
@@ -55,7 +60,11 @@ def parse_qfx(path: Path | str) -> List[Dict[str, Any]]:
                 amt = float(tr.amount or 0.0)
                 payee = (tr.payee or tr.memo or "").strip()
                 memo = (tr.memo or "").strip()
-                date = _to_date(getattr(tr, "date", None).strftime("%Y%m%d") if getattr(tr, "date", None) else "")
+                date = _to_date(
+                    getattr(tr, "date", None).strftime("%Y%m%d")
+                    if getattr(tr, "date", None)
+                    else ""
+                )
                 checknum = getattr(tr, "checknum", "") or ""
                 out.append(_tx(amt, payee, memo, date, checknum))
         return out
@@ -76,6 +85,7 @@ def parse_qfx(path: Path | str) -> List[Dict[str, Any]]:
         if j == -1:
             break
         block = raw[i:j]
+
         def tagval(tag):
             # <TAG>value on same line OR <TAG>value</TAG>
             # do a simple search ignoring case
@@ -99,6 +109,14 @@ def parse_qfx(path: Path | str) -> List[Dict[str, Any]]:
             amt = float(amount_s.replace(",", ""))
         except Exception:
             amt = 0.0
-        out.append(_tx(amt, payee=name or memo, memo=memo, date=_to_date(dtposted), checknum=checknum))
+        out.append(
+            _tx(
+                amt,
+                payee=name or memo,
+                memo=memo,
+                date=_to_date(dtposted),
+                checknum=checknum,
+            )
+        )
         start = j + len("</stmttrn>")
     return out

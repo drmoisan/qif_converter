@@ -39,7 +39,9 @@ def test_excel_row_basic_fields_and_equality():
     )
 
     # Act / Assert
-    assert r1 == r2, "Two ExcelRow instances with identical field values should be equal"
+    assert (
+        r1 == r2
+    ), "Two ExcelRow instances with identical field values should be equal"
     assert r1 != r3, "Differing idx should make rows unequal"
     assert hash(r1) == hash(r2), "Equal frozen dataclasses must have equal hashes"
 
@@ -85,8 +87,8 @@ def test_excel_row_repr_contains_useful_fields():
 
     # Assert (don’t pin exact formatting, just check key bits are present)
     assert "ExcelRow" in rep
-    assert "txn_id='ABC'" in rep or "txn_id=\"ABC\"" in rep
-    assert "amount=Decimal('1.23')" in rep or "amount=Decimal(\"1.23\")" in rep
+    assert "txn_id='ABC'" in rep or 'txn_id="ABC"' in rep
+    assert "amount=Decimal('1.23')" in rep or 'amount=Decimal("1.23")' in rep
 
 
 def test_excel_row_type_hints_are_present_and_correct():

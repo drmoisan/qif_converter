@@ -14,6 +14,7 @@ class ExcelTxnGroup:
     Represents one Excel 'transaction' (group of split rows with the same TxnID).
     The 'date' is taken as the earliest date among the group's rows (stable & deterministic).
     """
+
     gid: str
     date: date
     total_amount: Decimal

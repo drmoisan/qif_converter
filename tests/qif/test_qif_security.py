@@ -55,16 +55,25 @@ def test_creation_and_field_values():
 def test_equality_for_identical_fields_and_inequality_for_different():
     # Arrange
     a = _mk_security_txn(
-        name="Apple Inc.", price=Decimal("150.00"), quantity=Decimal("10"),
-        commission=Decimal("0.00"), transfer_amount=Decimal("0.00")
+        name="Apple Inc.",
+        price=Decimal("150.00"),
+        quantity=Decimal("10"),
+        commission=Decimal("0.00"),
+        transfer_amount=Decimal("0.00"),
     )
     b = _mk_security_txn(
-        name="Apple Inc.", price=Decimal("150.00"), quantity=Decimal("10"),
-        commission=Decimal("0.00"), transfer_amount=Decimal("0.00")
+        name="Apple Inc.",
+        price=Decimal("150.00"),
+        quantity=Decimal("10"),
+        commission=Decimal("0.00"),
+        transfer_amount=Decimal("0.00"),
     )
     c = _mk_security_txn(
-        name="Other Co", price=Decimal("99.00"), quantity=Decimal("5"),
-        commission=Decimal("1.00"), transfer_amount=Decimal("0.00")
+        name="Other Co",
+        price=Decimal("99.00"),
+        quantity=Decimal("5"),
+        commission=Decimal("1.00"),
+        transfer_amount=Decimal("0.00"),
     )
 
     # Act / Assert
@@ -93,7 +102,9 @@ def test_hashability_if_frozen_otherwise_skip():
 
 def test_repr_contains_key_fields():
     # Arrange
-    t = _mk_security_txn(name="Apple Inc.", price=Decimal("150.00"), quantity=Decimal("2"))
+    t = _mk_security_txn(
+        name="Apple Inc.", price=Decimal("150.00"), quantity=Decimal("2")
+    )
 
     # Act
     r = repr(t)

@@ -10,6 +10,7 @@ from quicken_helper.data_model import (
 
 class _StubTxn(ITransaction):
     """Minimal txn stub that records how emit_qif() was called and returns a body."""
+
     def __init__(self, account: QAccount, body: str):
         self.account = account
         self.body = body
@@ -29,6 +30,7 @@ class _StubTxn(ITransaction):
 
 class _NoneTxn:
     """Stub that returns None from emit_qif to exercise the fallback-to-empty-string path."""
+
     def __init__(self, account: QAccount):
         self.account = account
         self.calls: list[tuple[bool, bool]] = []
