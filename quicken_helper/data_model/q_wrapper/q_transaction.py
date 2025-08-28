@@ -218,7 +218,7 @@ class QTransaction(ITransaction):
     def from_legacy(cls, d: dict) -> "QTransaction":
         from decimal import Decimal
 
-        from ..utilities import parse_date_string
+        from quicken_helper.utilities import parse_date_string
 
         return cls(
             account=QAccount(name=d.get("account", "")),

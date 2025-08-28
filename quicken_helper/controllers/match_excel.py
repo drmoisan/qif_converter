@@ -222,7 +222,7 @@ def fuzzy_autopairs(
     Greedy one-to-one fuzzy matching:
       - considers all pairs >= threshold similarity
       - picks highest ratio first, then alphabetical tie-breakers
-    Returns: (pairs [(qif, excel, score)], unmatched_qif, unmatched_excel)
+    Returns: (pairs [(data_model, excel, score)], unmatched_qif, unmatched_excel)
     """
     candidates: List[Tuple[float, str, str]] = []
     for q in qif_cats:

@@ -44,7 +44,7 @@ def test__open_for_read_uses_builtins_open(monkeypatch, tmp_path):
         return FakeReadable()
 
     monkeypatch.setattr("builtins.open", fake_open, raising=True)
-    p = tmp_path / "sample.qif"
+    p = tmp_path / "sample.data_model"
 
     # Act
     with _open_for_read(p) as f:

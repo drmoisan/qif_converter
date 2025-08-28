@@ -1,6 +1,4 @@
-# quicken_helper/qif/interfaces/i_parser_emitter.py
-from __future__ import annotations
-
+# quicken_helper/data_model/interfaces/i_parser_emitter.py
 """
 Generic, runtime-checkable protocol for bidirectional text ↔ object converters.
 
@@ -41,12 +39,14 @@ matching attributes/methods is considered compatible without explicit
 inheritance.
 """
 
+from __future__ import annotations
+
 from typing import Iterable, Protocol, TypeVar, overload, runtime_checkable
 
-from ..interfaces import QuickenFileType
+from .enum_quicken_file_types import QuickenFileType
 
-#: Invariant item type produced by ``parse`` and consumed by ``emit``.
-#: Examples: a transaction interface (``ITransaction``), a header object,
+# Invariant item type produced by ``parse`` and consumed by ``emit``.
+# Examples: a transaction interface (``ITransaction``), a header object,
 #: or a union of supported record types for the target format.
 T = TypeVar("T")
 
@@ -125,7 +125,7 @@ class IParserEmitter(Protocol[T]):
         - Implementers should avoid partial/implicit correction of malformed
           input unless such behavior is explicitly documented.
         - If the format contains multiple logical sections, the iterable may
-          interleave item types or you may choose to model ``T`` as a union.
+          interleave item types, or you may choose to model ``T`` as a union.
         """
 
     @overload

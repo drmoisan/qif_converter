@@ -70,7 +70,7 @@ def test__parse_non_txn_sections_parses_accounts_cats_payees_and_unknown(monkeyp
 
     # Act
     accounts, categories, memorized, securities, business, payees, other = (
-        ql._parse_non_txn_sections(Path("MEM://ignore.qif"))
+        ql._parse_non_txn_sections(Path("MEM://ignore.data_model"))
     )
 
     # Assert
@@ -125,7 +125,7 @@ def test__parse_non_txn_sections_returns_empty_when_only_txns(monkeypatch):
 
     # Act
     accounts, categories, memorized, securities, business, payees, other = (
-        ql._parse_non_txn_sections(Path("MEM://ignore.qif"))
+        ql._parse_non_txn_sections(Path("MEM://ignore.data_model"))
     )
 
     # Assert
@@ -150,7 +150,7 @@ def test__parse_non_txn_sections_multiple_unknown_sections(monkeypatch):
     monkeypatch.setattr(ql.Path, "open", _mk_open(qif_text), raising=True)
 
     # Act
-    *_, other = ql._parse_non_txn_sections(Path("MEM://ignore.qif"))
+    *_, other = ql._parse_non_txn_sections(Path("MEM://ignore.data_model"))
 
     # Assert
     assert set(other.keys()) == {"Unknown:Foo", "Unknown:Bar"}
@@ -180,11 +180,11 @@ def test_load_transactions_delegates_to_parse_qif_unified(monkeypatch):
     monkeypatch.setattr(ql, "parse_qif_unified", fake_parse_unified)
 
     # Act
-    out = ql.load_transactions(Path("anything.qif"), encoding="latin-1")
+    out = ql.load_transactions(Path("anything.data_model"), encoding="latin-1")
 
     # Assert
     assert out == [{"date": "2025-02-01", "amount": "-1.00"}]
-    assert captured["args"][0] == Path("anything.qif")
+    assert captured["args"][0] == Path("anything.data_model")
     assert captured["args"][1] == "latin-1"
 
 
@@ -203,8 +203,8 @@ def test_load_transactions_accepts_str_path_and_uses_default_encoding(monkeypatc
     monkeypatch.setattr(ql, "parse_qif_unified", fake_parse_unified)
 
     # Act
-    out = ql.load_transactions("string_path.qif")
+    out = ql.load_transactions("string_path.data_model")
 
     # Assert
     assert out == [{"amount": "-1.23"}]
-    assert captured["args"] == ("string_path.qif", "utf-8")
+    assert captured["args"] == ("string_path.data_model", "utf-8")

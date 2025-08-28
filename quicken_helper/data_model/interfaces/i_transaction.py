@@ -1,4 +1,4 @@
-# quicken_helper/qif/i_qif_transaction.py
+# quicken_helper/data_model/i_qif_transaction.py
 from __future__ import annotations
 
 from datetime import date

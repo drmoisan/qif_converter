@@ -97,7 +97,7 @@ while maintaining control through manual adjustments.
 
 ```bash
 git clone https://github.com/yourusername/qif-converter.git
-cd qif-converter
+cd data_model-converter
 pip install -r requirements.txt
 ```
 

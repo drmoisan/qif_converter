@@ -796,12 +796,12 @@ def test_init_builds_widgets_and_state(merge_mod):
 
 
 def test_browse_qif_sets_in_and_suggests_out(merge_mod, monkeypatch):
-    """_m_browse_qif sets m_qif_in and suggests '<stem>_updated.qif' without touching disk."""
+    """_m_browse_qif sets m_qif_in and suggests '<stem>_updated.data_model' without touching disk."""
     import sys
 
     # Arrange: inject a memory path and reload so the module uses our filedialog
     names = _get_module_names()
-    chosen_in = "MEM://in.qif"
+    chosen_in = "MEM://in.data_model"
     fd_over = {"askopenfilename": lambda **k: chosen_in}
     _install_tk_stubs(monkeypatch, filedialog_overrides=fd_over)
     _install_project_stubs(monkeypatch)
@@ -821,7 +821,7 @@ def test_browse_qif_sets_in_and_suggests_out(merge_mod, monkeypatch):
     # Assert
     assert mt.m_qif_in.get() == chosen_in
     # Compare only the file name to avoid platform separators
-    assert m2.Path(mt.m_qif_out.get()).name == "in_updated.qif"
+    assert m2.Path(mt.m_qif_out.get()).name == "in_updated.data_model"
 
 
 def test_browse_out_sets_out_path(merge_mod, monkeypatch):
@@ -829,7 +829,7 @@ def test_browse_out_sets_out_path(merge_mod, monkeypatch):
     import sys
 
     names = _get_module_names()
-    chosen_out = "MEM://out.qif"
+    chosen_out = "MEM://out.data_model"
     fd_over = {"asksaveasfilename": lambda **k: chosen_out}
     _install_tk_stubs(monkeypatch, filedialog_overrides=fd_over)
     _install_project_stubs(monkeypatch)
@@ -851,7 +851,7 @@ def test_load_and_auto_validates_missing_inputs(merge_mod, monkeypatch):
     """_m_load_and_auto shows errors when QIF or Excel paths are invalid (no filesystem)."""
     # Arrange: both invalid
     mt = merge_mod.MergeTab(master=None, mb=_FakeMB())
-    bad_qif = "MEM://missing.qif"
+    bad_qif = "MEM://missing.data_model"
     bad_xlsx = "MEM://missing.xlsx"
     mt.m_qif_in.set(bad_qif)
     mt.m_xlsx.set(bad_xlsx)
@@ -870,7 +870,7 @@ def test_load_and_auto_validates_missing_inputs(merge_mod, monkeypatch):
 
     # Arrange: valid QIF, invalid Excel (still no FS)
     mt.mb.calls.clear()
-    valid_qif = "MEM://in.qif"
+    valid_qif = "MEM://in.data_model"
     mt.m_qif_in.set(valid_qif)
     # Make only the valid_qif path exist
     monkeypatch.setattr(
@@ -893,7 +893,7 @@ def test_load_and_auto_populates_lists_on_success(merge_mod, monkeypatch):
     """_m_load_and_auto creates a session, auto-matches, and fills listboxes (no filesystem)."""
     # Arrange
     mt = merge_mod.MergeTab(master=None, mb=_FakeMB())
-    qif_in = "Z:/memory/in.qif"
+    qif_in = "Z:/memory/in.data_model"
     xlsx = "Z:/memory/in.xlsx"
     mt.m_qif_in.set(qif_in)
     mt.m_xlsx.set(xlsx)
@@ -921,7 +921,7 @@ def test_manual_match_requires_selection_and_calls_session(merge_mod):
     mt._merge_session = _MatchSessionStub([q], [g])
     mt._unqif_sorted = [q]
     mt._unx_sorted = [g]
-    mt.lbx_unqif.insert("end", "qif")
+    mt.lbx_unqif.insert("end", "data_model")
     mt.lbx_unx.insert("end", "grp")
 
     # Act (no selection)
@@ -978,7 +978,7 @@ def test_apply_and_save_validates_and_writes_no_fs(merge_mod, monkeypatch):
             self.applied = True
 
     mt._merge_session = _Sess()
-    outp = "MEM://out.qif"
+    outp = "MEM://out.data_model"
     mt.m_qif_out.set(outp)
 
     # Make all path checks succeed; noop mkdir to avoid touching disk
@@ -1085,7 +1085,7 @@ def test_open_normalize_modal_headless_object_behaves(merge_mod, monkeypatch):
     m2 = importlib.import_module(names["merge_tab"])
 
     mt = m2.MergeTab(master=None, mb=_FakeMB())
-    mt.m_qif_in.set("MEM://in.qif")
+    mt.m_qif_in.set("MEM://in.data_model")
     mt.m_xlsx.set("MEM://in.xlsx")
 
     # No real FS

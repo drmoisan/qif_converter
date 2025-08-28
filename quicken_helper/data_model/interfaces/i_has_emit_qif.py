@@ -1,4 +1,4 @@
-# quicken_helper/qif/interfaces/i_has_emit_qif.py
+# quicken_helper/data_model/interfaces/i_has_emit_qif.py
 from __future__ import annotations
 
 from typing import Protocol, runtime_checkable

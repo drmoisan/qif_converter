@@ -13,7 +13,7 @@ from quicken_helper.controllers.category_match_session import CategoryMatchSessi
 
 def test_auto_match_uses_fuzzy_autopairs_and_builds_mapping(monkeypatch):
     """auto_match: delegates to cms.fuzzy_autopairs with the given threshold and
-    updates the session mapping from the returned (qif, excel, score) pairs.
+    updates the session mapping from the returned (data_model, excel, score) pairs.
 
     We monkeypatch cms.fuzzy_autopairs to a deterministic fake so the test
     inspects exactly what was passed and verifies the mapping produced.
@@ -26,7 +26,7 @@ def test_auto_match_uses_fuzzy_autopairs_and_builds_mapping(monkeypatch):
     def fake_fuzzy_autopairs(qif_cats, excel_cats, threshold):
         # capture what was passed
         called["args"] = (tuple(qif_cats), tuple(excel_cats), threshold)
-        # return deterministic pairs (qif, excel, score)
+        # return deterministic pairs (data_model, excel, score)
         return (
             [
                 ("Food:Groceries", "Groceries", 0.91),

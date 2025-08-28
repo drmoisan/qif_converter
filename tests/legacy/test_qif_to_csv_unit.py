@@ -85,7 +85,7 @@ def test__open_for_write_uses_builtins_open(monkeypatch, tmp_path):
     monkeypatch.setattr("builtins.open", fake_open)
 
     # Act
-    with _open_for_write(tmp_path / "x.qif"):
+    with _open_for_write(tmp_path / "x.data_model"):
         pass
 
     # Assert
@@ -115,7 +115,7 @@ def test_write_qif_basic_bank_record_in_memory(memfs):
         }
     ]
 
-    out = Path("MEM://out.qif")
+    out = Path("MEM://out.data_model")
     write_qif(txns, out)
 
     text = memfs.read(out)

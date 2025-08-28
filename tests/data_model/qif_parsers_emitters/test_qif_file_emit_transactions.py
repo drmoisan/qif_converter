@@ -1,4 +1,4 @@
-# quicken_helper/tests/qif/test_qif_file_emit_transactions.py
+# quicken_helper/tests/data_model/test_qif_file_emit_transactions.py
 from __future__ import annotations
 
 from quicken_helper.data_model import (

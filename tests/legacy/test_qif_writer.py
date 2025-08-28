@@ -169,7 +169,7 @@ def test_write_qif_writes_to_path_with_utf8_encoding(tmp_path: Path):
     """
     txns = [{"date": "01/06/2025", "amount": "1.23", "payee": "Café"}]
 
-    out_path = tmp_path / "out.qif"
+    out_path = tmp_path / "out.data_model"
     qw.write_qif(txns, out=out_path)  # default encoding 'utf-8'
 
     text = out_path.read_text(encoding="utf-8")

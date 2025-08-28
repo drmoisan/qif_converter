@@ -96,7 +96,7 @@ class ProbeTab(ttk.Frame):
     def _p_browse_qif(self):
         p = filedialog.askopenfilename(
             title="Select QIF (optional)",
-            filetypes=[("QIF files", "*.qif"), ("All files", "*.*")],
+            filetypes=[("QIF files", "*.data_model"), ("All files", "*.*")],
         )
         if p:
             self.p_qif.set(p)

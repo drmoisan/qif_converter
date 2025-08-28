@@ -234,13 +234,13 @@ class MergeTab(ttk.Frame):
     def _m_browse_qif(self):
         p = filedialog.askopenfilename(
             title="Select input QIF",
-            filetypes=[("QIF files", "*.qif"), ("All files", "*.*")],
+            filetypes=[("QIF files", "*.data_model"), ("All files", "*.*")],
         )
         if p:
             self.m_qif_in.set(p)
             if not self.m_qif_out.get().strip():
                 self.m_qif_out.set(
-                    str(Path(p).with_name(Path(p).stem + "_updated.qif"))
+                    str(Path(p).with_name(Path(p).stem + "_updated.data_model"))
                 )
 
     def _m_browse_xlsx(self):
@@ -254,8 +254,8 @@ class MergeTab(ttk.Frame):
     def _m_browse_out(self):
         p = filedialog.asksaveasfilename(
             title="Select output QIF",
-            defaultextension=".qif",
-            filetypes=[("QIF files", "*.qif"), ("All files", "*.*")],
+            defaultextension=".data_model",
+            filetypes=[("QIF files", "*.data_model"), ("All files", "*.*")],
         )
         if p:
             self.m_qif_out.set(p)

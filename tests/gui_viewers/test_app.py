@@ -194,7 +194,7 @@ def _install_gui_submodule_stubs(monkeypatch):
             self.mb = mb
             self.in_path = _DummyVar("")
             self.out_path = _DummyVar("")
-            self.emit_var = _DummyVar("qif")  # "qif" or "csv"
+            self.emit_var = _DummyVar("data_model")  # "data_model" or "csv"
             self.csv_profile = _DummyVar("quicken-windows")  # CSV profile
             self.explode_var = _DummyVar(False)
             self.match_var = _DummyVar("contains")
@@ -311,7 +311,7 @@ def test_update_output_extension_blank_out_uses_in_path(app_mod, tmp_path):
     """When out_path is blank, _update_output_extension suggests in_path with proper extension."""
     # Arrange
     app = app_mod.App(messagebox_api=_FakeMB())
-    src = tmp_path / "bank.qif"
+    src = tmp_path / "bank.data_model"
     src.write_text("x", encoding="utf-8")
     app.in_path.set(str(src))
     app.out_path.set("")  # blank
@@ -325,10 +325,10 @@ def test_update_output_extension_blank_out_uses_in_path(app_mod, tmp_path):
 
 
 def test_update_output_extension_switches_extension(app_mod, tmp_path):
-    """_update_output_extension switches .qif↔.csv when emit_var changes."""
+    """_update_output_extension switches .data_model↔.csv when emit_var changes."""
     # Arrange
     app = app_mod.App(messagebox_api=_FakeMB())
-    out = tmp_path / "out.qif"
+    out = tmp_path / "out.data_model"
     app.out_path.set(str(out))
     app.emit_var.set("csv")
 
@@ -340,12 +340,12 @@ def test_update_output_extension_switches_extension(app_mod, tmp_path):
         ".csv"
     ), "Expected .csv after switching emit to csv"
 
-    # Flip back to qif
-    app.emit_var.set("qif")
+    # Flip back to data_model
+    app.emit_var.set("data_model")
     app._update_output_extension()
     assert app.out_path.get().endswith(
-        ".qif"
-    ), "Expected .qif after switching emit to qif"
+        ".data_model"
+    ), "Expected .data_model after switching emit to data_model"
 
 
 def test_parse_payee_filters_parses_lines_and_commas(app_mod):
@@ -367,7 +367,7 @@ def test_run_missing_input_shows_error(app_mod, tmp_path):
     mb = _FakeMB()
     app = app_mod.App(messagebox_api=mb)
     app.in_path.set("")  # missing
-    app.out_path.set(str(tmp_path / "out.qif"))
+    app.out_path.set(str(tmp_path / "out.data_model"))
 
     # Act
     app._run()
@@ -383,7 +383,7 @@ def test_run_missing_output_shows_error(app_mod, tmp_path):
     # Arrange
     mb = _FakeMB()
     app = app_mod.App(messagebox_api=mb)
-    src = tmp_path / "input.qif"
+    src = tmp_path / "input.data_model"
     src.write_text("x", encoding="utf-8")
     app.in_path.set(str(src))
     app.out_path.set("")  # missing
@@ -402,13 +402,13 @@ def test_run_decline_overwrite_does_not_write(app_mod, tmp_path):
     # Arrange
     mb = _FakeMB(askyesno_return=False)
     app = app_mod.App(messagebox_api=mb)
-    src = tmp_path / "input.qif"
+    src = tmp_path / "input.data_model"
     src.write_text("x", encoding="utf-8")
-    out = tmp_path / "out.qif"
+    out = tmp_path / "out.data_model"
     out.write_text("keep", encoding="utf-8")
     app.in_path.set(str(src))
     app.out_path.set(str(out))
-    app.emit_var.set("qif")
+    app.emit_var.set("data_model")
 
     # Act
     app._run()
@@ -423,22 +423,22 @@ def test_run_decline_overwrite_does_not_write(app_mod, tmp_path):
 
 
 def test_run_writes_qif_and_shows_info(app_mod, tmp_path, monkeypatch):
-    """Happy path (emit=qif): _run calls writer and notifies the user."""
+    """Happy path (emit=data_model): _run calls writer and notifies the user."""
     # Arrange
     mb = _FakeMB(askyesno_return=True)
     app = app_mod.App(messagebox_api=mb)
-    src = tmp_path / "input.qif"
+    src = tmp_path / "input.data_model"
     src.write_text("x", encoding="utf-8")
-    out = tmp_path / "out.qif"
+    out = tmp_path / "out.data_model"
     app.in_path.set(str(src))
     app.out_path.set(str(out))
-    app.emit_var.set("qif")
+    app.emit_var.set("data_model")
 
     # Stub the writer used by app.py (module-level import alias `mod`)
     monkeypatch.setattr(
         app_mod.mod,
         "write_qif",
-        lambda txns, p: Path(p).write_text("qif", encoding="utf-8"),
+        lambda txns, p: Path(p).write_text("data_model", encoding="utf-8"),
     )
 
     # Also stub parsers so we don't depend on real parsing
@@ -453,7 +453,7 @@ def test_run_writes_qif_and_shows_info(app_mod, tmp_path, monkeypatch):
 
     # Assert
     assert out.exists(), "QIF file should be created"
-    assert out.read_text(encoding="utf-8") == "qif"
+    assert out.read_text(encoding="utf-8") == "data_model"
     assert any(c[0] == "showinfo" for c in mb.calls), "Expected completion info dialog"
 
 
@@ -462,7 +462,7 @@ def test_run_writes_csv_windows_profile(app_mod, tmp_path, monkeypatch):
     # Arrange
     mb = _FakeMB(askyesno_return=True)
     app = app_mod.App(messagebox_api=mb)
-    src = tmp_path / "input.qif"
+    src = tmp_path / "input.data_model"
     src.write_text("x", encoding="utf-8")
     out = tmp_path / "out.csv"
     app.in_path.set(str(src))

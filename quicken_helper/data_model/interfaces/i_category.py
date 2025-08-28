@@ -42,5 +42,5 @@ class ICategory(HasEmitQifWithHeader, Protocol):
     @property
     def tax_schedule(self) -> str: ...
 
-    # # --- qif emission (inherited from HasEmitQif) ---
+    # # --- data_model emission (inherited from HasEmitQif) ---
     # def emit_qif(self, out: TextIO) -> None: ...

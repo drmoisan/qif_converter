@@ -3,7 +3,7 @@
 qdx_probe.py — Quick structural probe for Quicken QDX files
 
 Usage:
-  python -m quicken_helper.tools.qdx_probe --qdx path/to/file.qdx [--qif path/to/file.qif] [--out report.txt]
+  python -m quicken_helper.tools.qdx_probe --qdx path/to/file.qdx [--data_model path/to/file.data_model] [--out report.txt]
 
 What it does:
 - Detects container signatures (ZIP, GZIP) and prints top-level members if ZIP.
@@ -11,7 +11,7 @@ What it does:
 - Extracts interesting ASCII and UTF-16LE strings (length >= 6).
 - Scans for zlib streams (0x78 0x9C/DA) and attempts to decompress them; saves samples.
 - Greps decompressed blobs for XML/JSON-like content and shows snippets.
-- If --qif is provided, counts QIF transactions and compares basic totals.
+- If --data_model is provided, counts QIF transactions and compares basic totals.
 
 Safe: read-only. Writes small artifacts under --out dir if provided.
 """
@@ -286,7 +286,7 @@ def run_probe(
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--qdx", required=True, type=Path)
-    ap.add_argument("--qif", type=Path, help="Optional QIF to compare")
+    ap.add_argument("--data_model", type=Path, help="Optional QIF to compare")
     ap.add_argument(
         "--out", type=Path, help="Optional output report (txt) or directory"
     )

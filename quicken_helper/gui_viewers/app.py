@@ -176,7 +176,7 @@ class App(tk.Tk):
     # ---------- Legacy methods (kept for tests) ----------
     def _update_output_extension(self):
         """Exact behavior kept for tests; operates only on in_path/out_path/emit_var."""
-        desired_ext = ".csv" if self.emit_var.get() == "csv" else ".qif"
+        desired_ext = ".csv" if self.emit_var.get() == "csv" else ".data_model"
         cur = self.out_path.get().strip()
         if not cur:
             in_cur = self.in_path.get().strip()
@@ -187,7 +187,7 @@ class App(tk.Tk):
             return
         p = Path(cur)
         cur_ext = p.suffix.lower()
-        if cur_ext in ("", ".csv", ".qif"):
+        if cur_ext in ("", ".csv", ".data_model"):
             new_path = (
                 str(p.with_suffix(desired_ext)) if cur_ext else str(p) + desired_ext
             )
@@ -285,7 +285,7 @@ class App(tk.Tk):
                 )
 
             self.logln(f"Transactions after filters: {len(txns)}")
-            if emit == "qif":
+            if emit == "data_model":
                 self.logln(f"Writing QIF → {out_path}")
                 mod.write_qif(txns, out_path)
                 mb.showinfo("Done", f"Filtered QIF written:\n{out_path}")

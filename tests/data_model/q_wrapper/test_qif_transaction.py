@@ -1,4 +1,4 @@
-# tests/qif/test_qif_transaction.py
+# tests/data_model/test_qif_transaction.py
 # from openpyxl.descriptors import DateTime
 from datetime import date
 from decimal import Decimal

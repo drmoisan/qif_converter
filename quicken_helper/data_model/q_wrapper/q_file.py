@@ -4,7 +4,10 @@ import inspect
 import io
 from collections.abc import Iterable
 from dataclasses import field
-from typing import cast
+from typing import cast, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..interfaces.i_parser_emitter import IParserEmitter
 
 from ..interfaces import (
     HasEmitQifWithHeader,
@@ -112,6 +115,7 @@ class QuickenFile(IQuickenFile):
         self.categories: list[ICategory] = []
         self.accounts: list[IAccount] = []
         self.transactions: list[ITransaction] = []
+        self.emitter: "IParserEmitter[IQuickenFile] | None" = None
 
     def emit_section(self, xs: Iterable[HasEmitQifWithHeader]) -> str:
         # texts_iter = map(lambda x: x[1].emit_qif(with_header=(x[0] == 0)), enumerate(xs))

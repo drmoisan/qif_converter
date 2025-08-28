@@ -1,4 +1,4 @@
-# tests/qif/test_qif_sections.py
+# tests/data_model/test_qif_sections.py
 from quicken_helper.data_model import QuickenSections as QS
 
 # ---------------------------

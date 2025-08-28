@@ -8,7 +8,7 @@ class MemFS:
     """
     Minimal in-memory FS that can be used by monkeypatching both builtins.open
     and Path.open. Files are addressed by str(path). Supports text mode only.
-    Use scheme 'MEM://' for clarity, e.g., Path('MEM://in.qif').
+    Use scheme 'MEM://' for clarity, e.g., Path('MEM://in.data_model').
     """
 
     def __init__(self):

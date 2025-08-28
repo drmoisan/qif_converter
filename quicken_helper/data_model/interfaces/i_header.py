@@ -1,4 +1,4 @@
-# quicken_helper/qif/i_header.py
+# quicken_helper/data_model/i_header.py
 from __future__ import annotations
 
 from typing import Protocol, runtime_checkable

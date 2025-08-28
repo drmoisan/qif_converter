@@ -15,7 +15,7 @@ def _mk_qif(
     tmp_path: Path, body: str = "!Type:Bank\nD01/01'25\n^\nD01/02'25\n^\n"
 ) -> Path:
     """Create a minimal QIF file with two '^' terminators (2 txns by our counter)."""
-    p = tmp_path / "sample.qif"
+    p = tmp_path / "sample.data_model"
     p.write_text(body, encoding="utf-8")
     return p
 

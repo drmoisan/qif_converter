@@ -54,7 +54,7 @@ def test_protocol_return_types_and_defaults(monkeypatch):
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    txns = ql.load_transactions_protocol(Path("dummy.qif"))
+    txns = ql.load_transactions_protocol(Path("dummy.data_model"))
 
     # Assert
     assert isinstance(txns, list), "Expected a list of transactions"
@@ -92,7 +92,7 @@ def test_date_parsing_qif_formats(monkeypatch, raw, expected):
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    [t] = ql.load_transactions_protocol(Path("dummy.qif"))
+    [t] = ql.load_transactions_protocol(Path("dummy.data_model"))
 
     # Assert
     assert (
@@ -119,7 +119,7 @@ def test_amount_parsing_commas_and_parentheses(monkeypatch, raw, expected):
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    [t] = ql.load_transactions_protocol(Path("dummy.qif"))
+    [t] = ql.load_transactions_protocol(Path("dummy.data_model"))
 
     # Assert
     assert isinstance(t.amount, Decimal), "Amount should be Decimal"
@@ -148,7 +148,7 @@ def test_cleared_status_mapping(monkeypatch, cleared_char, expected):
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    [t] = ql.load_transactions_protocol(Path("dummy.qif"))
+    [t] = ql.load_transactions_protocol(Path("dummy.data_model"))
 
     # Assert
     assert (
@@ -169,7 +169,7 @@ def test_category_tag_splitting(monkeypatch):
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    t1, t2 = ql.load_transactions_protocol(Path("dummy.qif"))
+    t1, t2 = ql.load_transactions_protocol(Path("dummy.data_model"))
 
     # Assert
     assert t1.category == "Groceries", f"Expected 'Groceries', got {t1.category!r}"
@@ -198,7 +198,7 @@ def test_splits_conversion_and_sum(monkeypatch):
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    [t] = ql.load_transactions_protocol(Path("dummy.qif"))
+    [t] = ql.load_transactions_protocol(Path("dummy.data_model"))
 
     # Assert
     assert isinstance(t.splits, list), "splits should be a list"
@@ -225,7 +225,7 @@ def test_investment_action_passthrough(monkeypatch):
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    [t] = ql.load_transactions_protocol(Path("dummy.qif"))
+    [t] = ql.load_transactions_protocol(Path("dummy.data_model"))
 
     # Assert
     # Protocol conformance doesn't require .action, but adapter should carry it through.
