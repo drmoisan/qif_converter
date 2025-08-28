@@ -395,11 +395,13 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
         monkeypatch.setitem(sys.modules, names["quicken_helper"], pkg)
 
     # ---- controllers package ----
+    created_controllers = False
     controllers_mod = sys.modules.get(names["controllers"])
     if controllers_mod is None:
         controllers_mod = types.ModuleType(names["controllers"])
         controllers_mod.__path__ = []  # mark as package
         monkeypatch.setitem(sys.modules, names["controllers"], controllers_mod)
+        created_controllers = True
 
     # ---- qif_loader (stub) ----
     ql = types.ModuleType(names["qif_loader"])
@@ -575,17 +577,23 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
     qw.write_qif = write_qif
     monkeypatch.setitem(sys.modules, names["qif_writer"], qw)
 
+    # ----belt and suspenders: tag stubs for cleanup ----
+    for _m in (ql, qw, mex, ms, cms):
+        setattr(_m, "_is_merge_tab_test_stub", True)
+    if created_controllers:
+        setattr(controllers_mod, "_is_merge_tab_test_stub", True)
+
     # ---- bind subpackages on parent packages ----
     # Bind controllers submodules as attributes
-    setattr(controllers_mod, "qif_loader", ql)
-    setattr(controllers_mod, "match_excel", mex)
-    setattr(controllers_mod, "match_session", ms)
-    setattr(controllers_mod, "category_match_session", cms)
+    monkeypatch.setattr(controllers_mod, "qif_loader", ql)
+    monkeypatch.setattr(controllers_mod, "match_excel", mex)
+    monkeypatch.setattr(controllers_mod, "match_session", ms)
+    monkeypatch.setattr(controllers_mod, "category_match_session", cms)
     # Attach controllers to root package
-    setattr(pkg, "controllers", controllers_mod)
+    monkeypatch.setattr(pkg, "controllers", controllers_mod)
     # Bind legacy.qif_writer and attach legacy on root package
-    setattr(legacy_mod, "qif_writer", qw)
-    setattr(pkg, "legacy", legacy_mod)
+    monkeypatch.setattr(legacy_mod, "qif_writer", qw)
+    monkeypatch.setattr(pkg, "legacy", legacy_mod)
 
 
 # --------------------------
@@ -934,3 +942,22 @@ def test_open_normalize_modal_headless_object_behaves(merge_mod, monkeypatch):
 
     assert calls and calls[-1] == (expected_in, expected_out)
     assert str(result) == expected_out
+
+
+@pytest.fixture(autouse=True)
+def _purge_stubs_after_each_test(monkeypatch):
+    yield
+    # remove only modules we created (tag them when you create them)
+    for name, mod in list(sys.modules.items()):
+        if getattr(mod, "_is_merge_tab_test_stub", False):
+            sys.modules.pop(name, None)
+        importlib.invalidate_caches()
+
+@pytest.fixture(autouse=True, scope="module")
+def _cleanup_module():
+    yield
+    # cleanup here (e.g., purge tagged sys.modules entries)
+    for name, mod in list(sys.modules.items()):
+        if getattr(mod, "_is_merge_tab_test_stub", False):
+            sys.modules.pop(name, None)
+    importlib.invalidate_caches()
