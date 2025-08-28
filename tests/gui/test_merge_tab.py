@@ -335,10 +335,11 @@ class _CategoryMatchSessionStub:
 
     def manual_match(self, excel_name: str, qif_category: str):
         self.mapping[excel_name] = qif_category
-        return True
+        return True, "ok"
 
     def manual_unmatch(self, excel_name: str):
-        return bool(self.mapping.pop(excel_name, None))
+        removed = self.mapping.pop(excel_name, None)
+        return (removed is not None), ("ok" if removed is not None else "not found")
 
     def apply_to_excel(self, xlsx: Path, xlsx_out: Path):
         xlsx_out.write_text("normalized", encoding="utf-8")
@@ -374,12 +375,9 @@ def _get_module_names() -> dict[str, str]:
 
 def _install_project_stubs(monkeypatch, tmp_path=None):
     """
-    Install lightweight quicken_helper stubs used by MergeTab._m_load_and_auto and friends:
-      - quicken_helper.qif_loader.load_transactions
-      - quicken_helper.match_excel.{load_excel_rows, group_excel_rows, build_matched_only_txns,
-                                   extract_qif_categories, extract_excel_categories}
-      - quicken_helper.match_session.MatchSession
-      - quicken_helper.qif_writer.write_qif
+    Install lightweight quicken_helper stubs used by MergeTab._m_load_and_auto and friends.
+    Creates a proper quicken_helper package with .controllers and .legacy subpackages,
+    and registers controller/legacy modules in both sys.modules and as parent attributes.
     """
     import datetime
     import sys
@@ -388,11 +386,22 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
     from decimal import Decimal
 
     names = _get_module_names()
-    pkg = types.ModuleType(names["quicken_helper"])
-    pkg.__path__ = []  # <-- make it a package
-    monkeypatch.setitem(sys.modules, names["quicken_helper"], pkg)
 
-    # ---- qif_loader ----
+    # ---- root package: quicken_helper (package) ----
+    pkg = sys.modules.get(names["quicken_helper"])
+    if pkg is None:
+        pkg = types.ModuleType(names["quicken_helper"])
+        pkg.__path__ = []  # mark as package
+        monkeypatch.setitem(sys.modules, names["quicken_helper"], pkg)
+
+    # ---- controllers package ----
+    controllers_mod = sys.modules.get(names["controllers"])
+    if controllers_mod is None:
+        controllers_mod = types.ModuleType(names["controllers"])
+        controllers_mod.__path__ = []  # mark as package
+        monkeypatch.setitem(sys.modules, names["controllers"], controllers_mod)
+
+    # ---- qif_loader (stub) ----
     ql = types.ModuleType(names["qif_loader"])
 
     class _Key:
@@ -407,24 +416,16 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
             self.category = "Cat"
             self.memo = ""
 
-    def load_transactions(path):
-        # Two simple txns; enough for list population and a match
-        return [_QifTxn(1), _QifTxn(2)]
+    def _legacy_load_transactions(path):
+        # Two simple dict-like txns (legacy shape)
+        return [{"key": {"txn_index": 1}, "amount": 1.0}, {"key": {"txn_index": 2}, "amount": 2.0}]
 
-    # Some paths call parse_qif (normalize modal)
     def parse_qif(path):
-        return load_transactions(path)
+        return _legacy_load_transactions(path)
 
-    ql.load_transactions = load_transactions
-    ql.parse_qif = parse_qif
-    monkeypatch.setitem(sys.modules, names["qif_loader"], ql)
-    setattr(pkg, "qif_loader", ql)
-
-    # Minimal enum-ish object with .name used by MergeTab._cleared_to_char
+    # Minimal enum used by UI
     from quicken_helper.data_model.interfaces import EnumClearedStatus
 
-
-    # Minimal split/txn "protocol-ish" objects
     class _Split:
         def __init__(self, amount="0.00", category="", memo=""):
             self.amount = Decimal(str(amount))
@@ -440,12 +441,11 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
             self.category = kw.get("category", "")
             self.tag = kw.get("tag")
             self.action_chk = kw.get("action_chk")
-            # MergeTab maps by cleared.name: "CLEARED"→"X", "RECONCILED"→"*"
             self.cleared = kw.get("cleared", EnumClearedStatus.NOT_CLEARED)
             self.splits = kw.get("splits", [])
+            self.key = _Key(1)
 
-
-    def fake_load_transactions_protocol(path):
+    def load_transactions_protocol(path):
         return [
             _Txn(
                 amount="12.34",
@@ -457,39 +457,23 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
             )
         ]
 
-    def fake_load_transactions(path):
-        # legacy dict-shaped fallback, if any tests still use it
-        return [{
-            "date": "01/01/2025",
-            "amount": "12.34",
-            "payee": "Acme",
-            "memo": "",
-            "category": "Groceries/Costco",
-            "checknum": None,
-            "cleared": "*",
-            "splits": [
-                {"amount": "10.00", "category": "Groceries", "memo": "Apples"},
-                {"amount": "2.34", "category": "Groceries", "memo": "Bananas"},
-            ],
-        }]
+    # expose both shapes; MergeTab will use protocol path when available
+    ql.load_transactions_protocol = load_transactions_protocol
+    ql.load_transactions = _legacy_load_transactions
+    ql.parse_qif = parse_qif
 
-    ql.load_transactions_protocol = fake_load_transactions_protocol
-    ql.load_transactions = fake_load_transactions
-
-    # install stub module BEFORE importing merge_tab
     monkeypatch.setitem(sys.modules, names["qif_loader"], ql)
 
-    # ---- match_excel ----
+    # ---- match_excel (stub) ----
     mex = types.ModuleType(names["match_excel"])
-    mex.load_transactions = fake_load_transactions
 
-    class _Row:
+    class _Row2:
         def __init__(self, item, category="Cat", rationale=""):
             self.item = item
             self.category = category
             self.rationale = rationale
 
-    class _Group:
+    class _Group2:
         def __init__(self, gid, rows):
             self.gid = gid
             self.rows = rows
@@ -498,16 +482,14 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
 
     def load_excel_rows(path):
         # One group of two rows; good for previews and a match
-        return [_Row("Item1"), _Row("Item2")]
+        return [_Row2("Item1"), _Row2("Item2")]
 
     def group_excel_rows(rows):
-        return [_Group("G1", rows)]
+        return [_Group2("G1", rows)]
 
     def build_matched_only_txns(sess):
-        # Keep it simple: just return all txns (tests don’t inspect contents)
-        return list(sess.txns)
+        return list(getattr(sess, "txns", []))
 
-    # Used by normalize modal
     def extract_qif_categories(txns): return {"Food", "Rent"}
     def extract_excel_categories(xlsx): return {"Groceries", "Housing"}
 
@@ -516,17 +498,17 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
     mex.build_matched_only_txns = build_matched_only_txns
     mex.extract_qif_categories = extract_qif_categories
     mex.extract_excel_categories = extract_excel_categories
-    monkeypatch.setitem(sys.modules, names["match_excel"], mex)
-    setattr(pkg, "match_excel", mex)
 
-    # ---- match_session ----
+    monkeypatch.setitem(sys.modules, names["match_excel"], mex)
+
+    # ---- match_session (stub) ----
     ms = types.ModuleType(names["match_session"])
 
     class MatchSession:
         def __init__(self, txns, excel_groups):
             self.txns = list(txns)
             self.excel_groups = list(excel_groups)
-            self._pairs = []  # list of (qif_txn, group, cost)
+            self._pairs = []  # list[(txn, group, cost)]
 
         def auto_match(self, *a, **k):
             if self.txns and self.excel_groups:
@@ -543,8 +525,7 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
             return [g for g in self.excel_groups if g not in matched]
 
         def manual_match(self, qkey, gi):
-            # Map qkey.txn_index to the actual txn; gi is index into excel_groups
-            q = next((t for t in self.txns if getattr(getattr(t, "key", None), "txn_index", None) == qkey.txn_index), None)
+            q = next((t for t in self.txns if getattr(getattr(t, "key", None), "txn_index", None) == getattr(qkey, "txn_index", None)), None)
             if q is None or gi is None or gi < 0 or gi >= len(self.excel_groups):
                 return False, "Invalid selection."
             g = self.excel_groups[gi]
@@ -556,7 +537,7 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
         def manual_unmatch(self, qkey=None, excel_idx=None):
             if qkey is not None:
                 before = len(self._pairs)
-                self._pairs = [(q, g, c) for (q, g, c) in self._pairs if getattr(q.key, "txn_index", None) != qkey.txn_index]
+                self._pairs = [(q, g, c) for (q, g, c) in self._pairs if getattr(getattr(q, "key", None), "txn_index", None) != getattr(qkey, "txn_index", None)]
                 return len(self._pairs) != before
             if excel_idx is not None:
                 g = self.excel_groups[excel_idx]
@@ -568,34 +549,43 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
         def apply_updates(self):  # no-op for tests
             return None
 
-        # For “why not” path used in UI
         def nonmatch_reason(self, q, grp):
             return "Stub: costs differ."
 
     ms.MatchSession = MatchSession
     monkeypatch.setitem(sys.modules, names["match_session"], ms)
-    setattr(pkg, "match_session", ms)
 
-    # ---- qif_writer ----
+    # ---- category_match_session (stub) ----
+    cms = types.ModuleType(names["category_match_session"])
+    cms.CategoryMatchSession = _CategoryMatchSessionStub
+    monkeypatch.setitem(sys.modules, names["category_match_session"], cms)
+
+    # ---- legacy.qif_writer (stub) ----
+    legacy_pkg_name = names["qif_writer"].rsplit(".", 1)[0]  # e.g., "quicken_helper.legacy"
+    legacy_mod = sys.modules.get(legacy_pkg_name)
+    if legacy_mod is None:
+        legacy_mod = types.ModuleType(legacy_pkg_name)
+        legacy_mod.__path__ = []
+        monkeypatch.setitem(sys.modules, legacy_pkg_name, legacy_mod)
+
     qw = types.ModuleType(names["qif_writer"])
-
     def write_qif(txns, out_path):
         (tmp_path or Path(".")).mkdir(exist_ok=True)
-
+        return None
     qw.write_qif = write_qif
     monkeypatch.setitem(sys.modules, names["qif_writer"], qw)
-    setattr(pkg, "qif_writer", qw)
 
-    # ---- patch controllers module to expose stubs ----
-    controllers_mod = sys.modules.get(names["controllers"])
-    if controllers_mod is None:
-        import types
-        controllers_mod = types.ModuleType(names["controllers"])
-        controllers_mod.__path__ = []  # mark as a package
-        sys.modules[names["controllers"]] = controllers_mod
-
+    # ---- bind subpackages on parent packages ----
+    # Bind controllers submodules as attributes
+    setattr(controllers_mod, "qif_loader", ql)
     setattr(controllers_mod, "match_excel", mex)
-    # repeat similarly for qif_loader, match_session, category_match_session as needed
+    setattr(controllers_mod, "match_session", ms)
+    setattr(controllers_mod, "category_match_session", cms)
+    # Attach controllers to root package
+    setattr(pkg, "controllers", controllers_mod)
+    # Bind legacy.qif_writer and attach legacy on root package
+    setattr(legacy_mod, "qif_writer", qw)
+    setattr(pkg, "legacy", legacy_mod)
 
 
 # --------------------------
@@ -607,7 +597,6 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
 def merge_mod(monkeypatch):
     """Import quicken_helper.gui_viewers.merge_tab with all deps stubbed for headless testing."""
     names_dict = _get_module_names()
-    items = names_dict.items()
     _install_tk_stubs(monkeypatch)      # GUI stubs
     _install_project_stubs(monkeypatch) # quicken_helper stubs
 
@@ -741,7 +730,6 @@ def test_load_and_auto_populates_lists_on_success(merge_mod, monkeypatch):
     mt.m_xlsx.set(xlsx)
 
     # Patch Path.exists so ONLY our two in-memory paths "exist"
-    allowed = {qif_in, xlsx}
     monkeypatch.setattr(merge_mod.Path, "exists", lambda self: True, raising=False)
     monkeypatch.setattr(merge_mod.Path, "is_file", lambda self: True, raising=False)
 
@@ -891,69 +879,15 @@ def test_export_listbox_writes_file(merge_mod, monkeypatch):
     assert any(c[0] == "showinfo" for c in mt.mb.calls), "Expected completion info dialog"
 
 
-# def test_open_normalize_modal_headless_object_behaves(merge_mod, monkeypatch):
-#     """Headless normalize modal exposes actions that work (no filesystem; robust to names)."""
-#     import importlib
-#     import sys
-#
-#     # Arrange: force headless Toplevel & stub project deps; reload module
-#     _install_tk_stubs(monkeypatch, toplevel_raises=True)
-#     _install_project_stubs(monkeypatch)
-#     sys.modules.pop("quicken_helper.gui_viewers.merge_tab", None)
-#     m2 = importlib.import_module("quicken_helper.gui_viewers.merge_tab")
-#
-#     mt = m2.MergeTab(master=None, mb=_FakeMB())
-#     mt.m_qif_in.set("MEM://in.qif")
-#     mt.m_xlsx.set("MEM://in.xlsx")
-#
-#     # No real FS
-#     monkeypatch.setattr(m2.Path, "exists", lambda self: True, raising=False)
-#     monkeypatch.setattr(m2.Path, "is_file", lambda self: True, raising=False)
-#
-#     # Don’t write: capture the apply call and return the out path
-#     calls = []
-#     cms = sys.modules["quicken_helper.controllers.category_match_session"]
-#     def fake_apply(self, xlsx, xlsx_out):
-#         calls.append((str(xlsx), str(xlsx_out)))
-#         return m2.Path(xlsx_out)
-#
-#     monkeypatch.setattr(cms.CategoryMatchSession, "apply_to_excel", fake_apply, raising=False)
-#
-#     # Act
-#     headless = mt.open_normalize_modal()
-#     headless.auto_match()
-#
-#     # Use the session’s own unmatched sets, not hardcoded names
-#     uq, ue = headless.unmatched()
-#     pre_pairs = list(headless.pairs())
-#     if ue and uq:
-#         e = sorted(list(ue))[0]
-#         q = sorted(list(uq))[0]
-#         ok, _ = headless.do_match(e, q)
-#         assert ok, "manual match should succeed"
-#     post_pairs = list(headless.pairs())
-#
-#     # Assert
-#     assert len(post_pairs) >= len(pre_pairs), "pairs should persist or grow after manual match"
-#     out_path = "MEM://normalized.xlsx"
-#     result = headless.apply_and_save(out_path=out_path)
-#
-#     # Normalize expectations using the module's Path (handles slashes on Windows)
-#     expected_in = str(m2.Path("MEM://in.xlsx"))
-#     expected_out = str(m2.Path(out_path))
-#
-#     assert calls and calls[-1] == (expected_in, expected_out)
-#     assert str(result) == expected_out
-
-
-
 def test_open_normalize_modal_headless_object_behaves(merge_mod, monkeypatch):
     """Headless normalize modal exposes actions that work (no filesystem; names from session)."""
+    # IMPORTANT: get real module names first (from the actual package), THEN install stubs
+    names = _get_module_names()
+
     # Arrange: force headless, stub deps, reload
     _install_tk_stubs(monkeypatch, toplevel_raises=True)
     _install_project_stubs(monkeypatch)
-    import sys
-    names = _get_module_names()
+
     sys.modules.pop(names["merge_tab"], None)
     m2 = importlib.import_module(names["merge_tab"])
 
@@ -1000,5 +934,3 @@ def test_open_normalize_modal_headless_object_behaves(merge_mod, monkeypatch):
 
     assert calls and calls[-1] == (expected_in, expected_out)
     assert str(result) == expected_out
-
-

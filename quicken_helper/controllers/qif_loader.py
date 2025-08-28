@@ -1,4 +1,4 @@
-# quicken_helper/qif_loader.py
+# quicken_helper/controllers/qif_loader.py
 from __future__ import annotations
 
 import warnings

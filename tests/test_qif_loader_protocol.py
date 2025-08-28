@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 import pytest
 
-from quicken_helper.controllers.qif_loader import load_transactions_protocol
+import quicken_helper.controllers.qif_loader as ql
 from quicken_helper.data_model.interfaces import EnumClearedStatus
 
 
@@ -50,11 +50,10 @@ def test_protocol_return_types_and_defaults(monkeypatch):
             )
         ]
 
-    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    txns = load_transactions_protocol(Path("dummy.qif"))
+    txns = ql.load_transactions_protocol(Path("dummy.qif"))
 
     # Assert
     assert isinstance(txns, list), "Expected a list of transactions"
@@ -88,11 +87,10 @@ def test_date_parsing_qif_formats(monkeypatch, raw, expected):
     def fake_parse_qif(_path, encoding="utf-8"):
         return [_mk_rec(date=raw, amount="0.00")]
 
-    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    [t] = load_transactions_protocol(Path("dummy.qif"))
+    [t] = ql.load_transactions_protocol(Path("dummy.qif"))
 
     # Assert
     assert t.date == expected, f"Date parsed incorrectly for input {raw!r}: {t.date} != {expected}"
@@ -113,11 +111,10 @@ def test_amount_parsing_commas_and_parentheses(monkeypatch, raw, expected):
     def fake_parse_qif(_path, encoding="utf-8"):
         return [_mk_rec(amount=raw)]
 
-    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    [t] = load_transactions_protocol(Path("dummy.qif"))
+    [t] = ql.load_transactions_protocol(Path("dummy.qif"))
 
     # Assert
     assert isinstance(t.amount, Decimal), "Amount should be Decimal"
@@ -140,11 +137,10 @@ def test_cleared_status_mapping(monkeypatch, cleared_char, expected):
     def fake_parse_qif(_path, encoding="utf-8"):
         return [_mk_rec(cleared=cleared_char)]
 
-    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    [t] = load_transactions_protocol(Path("dummy.qif"))
+    [t] = ql.load_transactions_protocol(Path("dummy.qif"))
 
     # Assert
     assert t.cleared == expected, f"Cleared mapping wrong for {cleared_char!r}: {t.cleared} != {expected}"
@@ -159,11 +155,10 @@ def test_category_tag_splitting(monkeypatch):
             _mk_rec(category="Food:Groceries"),
         ]
 
-    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    t1, t2 = load_transactions_protocol(Path("dummy.qif"))
+    t1, t2 = ql.load_transactions_protocol(Path("dummy.qif"))
 
     # Assert
     assert t1.category == "Groceries", f"Expected 'Groceries', got {t1.category!r}"
@@ -186,11 +181,10 @@ def test_splits_conversion_and_sum(monkeypatch):
             )
         ]
 
-    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    [t] = load_transactions_protocol(Path("dummy.qif"))
+    [t] = ql.load_transactions_protocol(Path("dummy.qif"))
 
     # Assert
     assert isinstance(t.splits, list), "splits should be a list"
@@ -213,11 +207,10 @@ def test_investment_action_passthrough(monkeypatch):
             )
         ]
 
-    import quicken_helper.controllers.qif_loader as ql
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
 
     # Act
-    [t] = load_transactions_protocol(Path("dummy.qif"))
+    [t] = ql.load_transactions_protocol(Path("dummy.qif"))
 
     # Assert
     # Protocol conformance doesn't require .action, but adapter should carry it through.
