@@ -34,20 +34,25 @@ except Exception:
 
 MIN_STR = 6
 
+
 def read_bytes(p: Path) -> bytes:
     with p.open("rb") as f:
         return f.read()
 
+
 def is_zip(data: bytes) -> bool:
     return data.startswith(b"PK\x03\x04")
 
+
 def is_gzip(data: bytes) -> bool:
     return data.startswith(b"\x1f\x8b\x08")
+
 
 def entropy(data: bytes) -> float:
     if not data:
         return 0.0
     from collections import Counter
+
     counts = Counter(data)
     n = len(data)
     ent = 0.0
@@ -56,9 +61,11 @@ def entropy(data: bytes) -> float:
         ent -= p * math.log2(p)
     return ent
 
+
 def hex_head(data: bytes, length=128) -> str:
     b = data[:length]
     return binascii.hexlify(b).decode()
+
 
 def iter_ascii_strings(data: bytes, minlen=MIN_STR):
     buf = []
@@ -71,6 +78,7 @@ def iter_ascii_strings(data: bytes, minlen=MIN_STR):
             buf = []
     if len(buf) >= minlen:
         yield "".join(buf)
+
 
 def iter_utf16le_strings(data: bytes, minlen=MIN_STR):
     """
@@ -112,10 +120,11 @@ def iter_utf16le_strings(data: bytes, minlen=MIN_STR):
 def find_zlib_streams(data: bytes):
     # naive scan for zlib headers 0x78 0x9C / 0x78 0xDA etc.
     offsets = []
-    for i in range(max(0, len(data)-2)):
-        if data[i] == 0x78 and data[i+1] in (0x01, 0x5E, 0x9C, 0xDA):
+    for i in range(max(0, len(data) - 2)):
+        if data[i] == 0x78 and data[i + 1] in (0x01, 0x5E, 0x9C, 0xDA):
             offsets.append(i)
     return offsets
+
 
 def try_decompress_at(data: bytes, off: int):
     # Try zlib decompress starting from off; stop when failure
@@ -130,6 +139,7 @@ def try_decompress_at(data: bytes, off: int):
         except Exception:
             return None
 
+
 def preview_text(blob: bytes, maxlen=600) -> str:
     # Prefer UTF-8; fall back to latin-1
     try:
@@ -141,6 +151,7 @@ def preview_text(blob: bytes, maxlen=600) -> str:
         s = s[:maxlen] + " …"
     return s
 
+
 def count_qif_transactions(qif_path: Path) -> int:
     # very quick counter: count '^' lines
     n = 0
@@ -150,10 +161,13 @@ def count_qif_transactions(qif_path: Path) -> int:
                 n += 1
     return n
 
+
 # --- NEW: library-friendly entry point ---------------------------------------
 
 
-def run_probe(qdx: Path, qif: Optional[Path] = None, out: Optional[Path] = None) -> Tuple[str, List[Path]]:
+def run_probe(
+    qdx: Path, qif: Optional[Path] = None, out: Optional[Path] = None
+) -> Tuple[str, List[Path]]:
     """
     Run the QDX structural probe and return:
       - report_text: str
@@ -163,6 +177,7 @@ def run_probe(qdx: Path, qif: Optional[Path] = None, out: Optional[Path] = None)
     If 'out' is None, nothing is written; returns the report text only.
     """
     import io
+
     data = read_bytes(qdx)
     artifacts: List[Path] = []
 
@@ -190,12 +205,18 @@ def run_probe(qdx: Path, qif: Optional[Path] = None, out: Optional[Path] = None)
         report_io.write("\n## Container: ZIP\n")
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
             for i, zi in enumerate(zf.infolist()):
-                report_io.write(f"  - {i}: {zi.filename} ({zi.file_size} bytes, comp={zi.compress_type})\n")
+                report_io.write(
+                    f"  - {i}: {zi.filename} ({zi.file_size} bytes, comp={zi.compress_type})\n"
+                )
                 if zi.file_size and zi.file_size < 256_000:
                     blob = zf.read(zi)
                     head = preview_text(blob, 280)
-                    if any(tag in head for tag in ("<", "{", "QDF", "ACCOUNT", "PAYEE")):
-                        report_io.write(f"      preview: {head[:200].replace(os.linesep,' ')}\n")
+                    if any(
+                        tag in head for tag in ("<", "{", "QDF", "ACCOUNT", "PAYEE")
+                    ):
+                        report_io.write(
+                            f"      preview: {head[:200].replace(os.linesep, ' ')}\n"
+                        )
     elif is_gzip(data):
         report_io.write("\n## Container: GZIP-like\n")
     else:
@@ -204,12 +225,14 @@ def run_probe(qdx: Path, qif: Optional[Path] = None, out: Optional[Path] = None)
     # Strings
     report_io.write("\n## ASCII strings (sample)\n")
     for i, s in enumerate(iter_ascii_strings(data)):
-        if i >= 25: break
+        if i >= 25:
+            break
         report_io.write(f"  - {s[:160]}\n")
 
     report_io.write("\n## UTF-16LE strings (sample)\n")
     for i, s in enumerate(iter_utf16le_strings(data)):
-        if i >= 25: break
+        if i >= 25:
+            break
         report_io.write(f"  - {s[:160]}\n")
 
     # zlib hunt
@@ -220,8 +243,23 @@ def run_probe(qdx: Path, qif: Optional[Path] = None, out: Optional[Path] = None)
         if decomp:
             report_io.write(f"  - decompressed at 0x{off:08X} → {len(decomp)} bytes\n")
             text = preview_text(decomp, 400)
-            if any(tok in text for tok in ("<", "{", "account", "transactions", "quicken", "json", "xml", "PAYEE", "CATEGORY")):
-                report_io.write(f"      preview: {text.replace(os.linesep,' ')[:300]}\n")
+            if any(
+                tok in text
+                for tok in (
+                    "<",
+                    "{",
+                    "account",
+                    "transactions",
+                    "quicken",
+                    "json",
+                    "xml",
+                    "PAYEE",
+                    "CATEGORY",
+                )
+            ):
+                report_io.write(
+                    f"      preview: {text.replace(os.linesep, ' ')[:300]}\n"
+                )
             if out_dir:
                 out_blob = out_dir / f"zlib_{off:08X}.bin"
                 out_blob.write_bytes(decomp)
@@ -249,11 +287,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--qdx", required=True, type=Path)
     ap.add_argument("--qif", type=Path, help="Optional QIF to compare")
-    ap.add_argument("--out", type=Path, help="Optional output report (txt) or directory")
+    ap.add_argument(
+        "--out", type=Path, help="Optional output report (txt) or directory"
+    )
     args = ap.parse_args()
 
     if not args.qdx.exists():
-        print(f"QDX not found: {args.qdx}", file=sys.stderr); sys.exit(2)
+        print(f"QDX not found: {args.qdx}", file=sys.stderr)
+        sys.exit(2)
 
     report_text, artifacts = run_probe(args.qdx, args.qif, args.out)
 

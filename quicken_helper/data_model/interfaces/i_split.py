@@ -7,6 +7,7 @@ from typing import Protocol, runtime_checkable
 @runtime_checkable
 class ISplit(Protocol):
     """Structural shape of a split row (S/E/$) that can be sorted and emitted."""
+
     category: str
     amount: Decimal
     memo: str

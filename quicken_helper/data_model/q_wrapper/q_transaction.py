@@ -5,17 +5,18 @@ from dataclasses import dataclass, field
 from datetime import date
 from functools import total_ordering
 
-from .q_account import QAccount
-from .qif_header import QifHeader
-from .q_security import QSecurity
-from .q_split import QSplit
-from . import qif_codes as emit_q
 from quicken_helper.data_model.interfaces import (
     EnumClearedStatus,
     ISecurity,
     ISplit,
     ITransaction,
 )
+
+from . import qif_codes as emit_q
+from .q_account import QAccount
+from .q_security import QSecurity
+from .q_split import QSplit
+from .qif_header import QifHeader
 
 _MISSING = QSecurity("", Decimal(0), Decimal(0), Decimal(0), Decimal(0))  # sentinel for "not set"
 

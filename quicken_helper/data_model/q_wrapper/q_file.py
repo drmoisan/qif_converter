@@ -7,7 +7,6 @@ from collections.abc import Iterable
 from dataclasses import field
 from typing import cast
 
-from .q_account import QAccount
 from ..interfaces import (
     HasEmitQifWithHeader,
     IAccount,
@@ -17,6 +16,7 @@ from ..interfaces import (
     ITransaction,
     QuickenSections,
 )
+from .q_account import QAccount
 
 
 def _emit_qif_text(item: object, with_header: bool) -> str:

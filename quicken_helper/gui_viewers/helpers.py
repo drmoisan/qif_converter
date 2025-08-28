@@ -10,6 +10,7 @@ from quicken_helper.legacy import qif_writer as mod
 
 _DATE_FORMATS = ["%m/%d'%y", "%m/%d/%Y", "%Y-%m-%d"]
 
+
 def parse_date_maybe(s: str) -> Optional[datetime]:
     s = (s or "").strip()
     if not s:
@@ -28,7 +29,10 @@ def parse_date_maybe(s: str) -> Optional[datetime]:
                 continue
     return None
 
-def filter_date_range(txns: List[Dict[str, Any]], start_str: str, end_str: str) -> List[Dict[str, Any]]:
+
+def filter_date_range(
+    txns: List[Dict[str, Any]], start_str: str, end_str: str
+) -> List[Dict[str, Any]]:
     def _d(s):
         d = parse_date_maybe(s)
         return d.date() if d else None
@@ -49,6 +53,7 @@ def filter_date_range(txns: List[Dict[str, Any]], start_str: str, end_str: str) 
         out.append(t)
     return out
 
+
 def local_filter_by_payee(txns, query, mode="contains", case_sensitive=False):
     if mode != "regex" and mode != "glob" and not case_sensitive:
         query_cmp = str(query).lower()
@@ -57,7 +62,9 @@ def local_filter_by_payee(txns, query, mode="contains", case_sensitive=False):
     out = []
     for t in txns:
         payee = t.get("payee", "")
-        payee_cmp = payee if (case_sensitive or mode in ("regex","glob")) else payee.lower()
+        payee_cmp = (
+            payee if (case_sensitive or mode in ("regex", "glob")) else payee.lower()
+        )
         match = False
         if mode == "contains":
             match = query_cmp in payee_cmp
@@ -68,8 +75,12 @@ def local_filter_by_payee(txns, query, mode="contains", case_sensitive=False):
         elif mode == "endswith":
             match = payee_cmp.endswith(query_cmp)
         elif mode == "glob":
-            pattern = "^" + re.escape(query).replace(r"\*", ".*").replace(r"\?", ".") + "$"
-            smart_case = case_sensitive or any(ch.isalpha() and ch.isupper() for ch in query)
+            pattern = (
+                "^" + re.escape(query).replace(r"\*", ".*").replace(r"\?", ".") + "$"
+            )
+            smart_case = case_sensitive or any(
+                ch.isalpha() and ch.isupper() for ch in query
+            )
             flags = 0 if smart_case else re.IGNORECASE
             match = re.search(pattern, payee, flags) is not None
         elif mode == "regex":
@@ -78,6 +89,7 @@ def local_filter_by_payee(txns, query, mode="contains", case_sensitive=False):
         if match:
             out.append(t)
     return out
+
 
 def apply_multi_payee_filters(
     txns: List[Dict[str, Any]],
@@ -92,9 +104,14 @@ def apply_multi_payee_filters(
 
     def run_filter(tlist, q):
         if hasattr(mod, "filter_by_payee"):
-            return [t for t in tlist if t in mod.filter_by_payee(
-                tlist, q, mode=mode, case_sensitive=case_sensitive
-            )]
+            return [
+                t
+                for t in tlist
+                if t
+                in mod.filter_by_payee(
+                    tlist, q, mode=mode, case_sensitive=case_sensitive
+                )
+            ]
         return local_filter_by_payee(tlist, q, mode=mode, case_sensitive=case_sensitive)
 
     if combine == "any":
@@ -113,6 +130,7 @@ def apply_multi_payee_filters(
             cur = run_filter(cur, q)
         return cur
 
+
 def _set_text(widget, text: str):
     try:
         widget.configure(state="normal")
@@ -122,11 +140,14 @@ def _set_text(widget, text: str):
     except Exception:
         pass
 
+
 def _fmt_txn(t: dict) -> str:
     if not isinstance(t, dict):
         return str(t)
+
     def g(k, d=""):
         return str(t.get(k, d) or "")
+
     lines = [
         f"Date: {g('date')}",
         f"Amount: {g('amount')}",
@@ -139,17 +160,30 @@ def _fmt_txn(t: dict) -> str:
     if splits:
         lines.append("Splits:")
         for i, s in enumerate(splits, 1):
-            lines.append(f"  {i}. {str(s.get('category',''))} | {str(s.get('memo',''))} | {str(s.get('amount',''))}")
+            lines.append(
+                f"  {i}. {str(s.get('category', ''))} | {str(s.get('memo', ''))} | {str(s.get('amount', ''))}"
+            )
     return "\n".join(lines)
+
 
 def _fmt_excel_row(row) -> str:
     if hasattr(row, "to_dict"):
         row = row.to_dict()
     if not isinstance(row, dict):
         return str(row)
-    def g(c): return str(row.get(c, "") or "")
-    cols = ["Date", "Amount", "Item", "Canonical MECE Category", "Categorization Rationale"]
+
+    def g(c):
+        return str(row.get(c, "") or "")
+
+    cols = [
+        "Date",
+        "Amount",
+        "Item",
+        "Canonical MECE Category",
+        "Categorization Rationale",
+    ]
     return "\n".join(f"{c}: {g(c)}" for c in cols)
+
 
 # ---------- probe helpers ----------
 
@@ -164,12 +198,14 @@ def _looks_binary(data: bytes) -> bool:
     printable = sum(1 for b in sample if 32 <= b <= 126 or b in (9, 10, 13))
     return printable / len(sample) < 0.5
 
+
 def _too_many_controls(s: str) -> bool:
     if not s:
         return False
     sample = s[:4096]
     controls = sum(1 for ch in sample if ord(ch) < 32 and ch not in ("\n", "\r", "\t"))
     return controls / max(1, len(sample)) > 0.10
+
 
 def decode_best_effort(data: bytes) -> Optional[str]:
     if _looks_binary(data):

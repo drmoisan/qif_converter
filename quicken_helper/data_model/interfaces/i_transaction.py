@@ -11,6 +11,7 @@ from .i_header import IHeader
 from .i_security import ISecurity
 from .i_split import ISplit
 
+
 @runtime_checkable
 class ITransaction(Protocol):
     """Structural shape of a QIF transaction sufficient for file emission."""

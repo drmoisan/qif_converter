@@ -4,8 +4,9 @@ from _decimal import Decimal
 from dataclasses import dataclass
 from functools import total_ordering
 
-from ..interfaces import ISplit
 import quicken_helper.data_model.q_wrapper.qif_codes as emit_q
+
+from ..interfaces import ISplit
 
 
 @total_ordering
@@ -14,6 +15,7 @@ class QSplit(ISplit):
     """
     Represents a single QIF split transaction.
     """
+
     category: str
     amount: Decimal
     memo: str
@@ -36,10 +38,12 @@ class QSplit(ISplit):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, ISplit):
             return NotImplemented
-        return (self.category == other.category
-                and self.amount == other.amount
-                and self.tag == other.tag
-                and self.memo == other.memo)
+        return (
+            self.category == other.category
+            and self.amount == other.amount
+            and self.tag == other.tag
+            and self.memo == other.memo
+        )
 
     def __hash__(self) -> int:
         # Required if you want to use instances in sets/dicts and keep it consistent with __eq__
@@ -68,7 +72,9 @@ class QSplit(ISplit):
         """
         return {
             "category": self.category,
-            "amount": str(self.amount),  # Convert Decimal to string for JSON serialization
+            "amount": str(
+                self.amount
+            ),  # Convert Decimal to string for JSON serialization
             "memo": self.memo,
-            "tag": self.tag
+            "tag": self.tag,
         }

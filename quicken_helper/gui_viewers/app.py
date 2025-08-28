@@ -36,6 +36,7 @@ class App(tk.Tk):
     Top-level window that hosts three tabs.
     For test-compatibility, we expose a few legacy attributes and methods.
     """
+
     def __init__(self, messagebox_api=None):
         super().__init__()
         # NEW: auto font scaling
@@ -54,9 +55,12 @@ class App(tk.Tk):
         # Base font → slightly larger & bold for tabs
         try:
             base = tkfont.nametofont("TkDefaultFont")
-            tab_font = tkfont.Font(self, family=base.cget("family"),
-                                   size=max(12, int(base.cget("size")) + 2),
-                                   weight="bold")
+            tab_font = tkfont.Font(
+                self,
+                family=base.cget("family"),
+                size=max(12, int(base.cget("size")) + 2),
+                weight="bold",
+            )
         except Exception:
             tab_font = ("Segoe UI", 12, "bold")
 
@@ -66,7 +70,7 @@ class App(tk.Tk):
             background="#d1d5db",  # notebook area behind tabs
             borderwidth=2,
             relief="ridge",
-            tabmargins=(12, 6, 12, 0)  # extra air around tabs
+            tabmargins=(12, 6, 12, 0),  # extra air around tabs
         )
 
         # Tab base (unselected) appearance
@@ -77,7 +81,7 @@ class App(tk.Tk):
             borderwidth=2,
             relief="raised",
             background="#e5e7eb",  # light gray when not selected
-            foreground="black"
+            foreground="black",
         )
 
         # State-driven colors: selected and hover
@@ -86,13 +90,13 @@ class App(tk.Tk):
             background=[
                 ("selected", "#2563eb"),  # vivid blue when selected
                 ("active", "#3b82f6"),  # lighter blue on hover
-                ("!selected", "#e5e7eb")
+                ("!selected", "#e5e7eb"),
             ],
             foreground=[
                 ("selected", "white"),
                 ("active", "white"),
-                ("!selected", "black")
-            ]
+                ("!selected", "black"),
+            ],
         )
 
         # Apply the custom style to your Notebook
@@ -150,12 +154,14 @@ class App(tk.Tk):
         self.payees_text = self.convert_tab.payees_text
         self.log = self.convert_tab.log
 
-        def _update_output_extension(self): return self.convert_tab._update_output_extension()
+        def _update_output_extension(self):
+            return self.convert_tab._update_output_extension()
 
-        def _parse_payee_filters(self):     return self.convert_tab._parse_payee_filters()
+        def _parse_payee_filters(self):
+            return self.convert_tab._parse_payee_filters()
 
-        def logln(self, msg: str):          return self.convert_tab.logln(msg)
-
+        def logln(self, msg: str):
+            return self.convert_tab.logln(msg)
 
         # ----- Merge tab shims (tests poke these on App) -----
         self.m_qif_in = self.merge_tab.m_qif_in
@@ -182,7 +188,9 @@ class App(tk.Tk):
         p = Path(cur)
         cur_ext = p.suffix.lower()
         if cur_ext in ("", ".csv", ".qif"):
-            new_path = str(p.with_suffix(desired_ext)) if cur_ext else str(p) + desired_ext
+            new_path = (
+                str(p.with_suffix(desired_ext)) if cur_ext else str(p) + desired_ext
+            )
             self.out_path.set(new_path)
 
     def _parse_payee_filters(self) -> List[str]:
@@ -230,7 +238,10 @@ class App(tk.Tk):
                 mb.showerror("Error", "Please choose an output file.")
                 return
             if out_path.exists():
-                if not mb.askyesno("Confirm Overwrite", f"The file already exists:\n\n{out_path}\n\nOverwrite?"):
+                if not mb.askyesno(
+                    "Confirm Overwrite",
+                    f"The file already exists:\n\n{out_path}\n\nOverwrite?",
+                ):
                     return
 
             emit = self.emit_var.get()
@@ -256,12 +267,22 @@ class App(tk.Tk):
                 txns = [self._txn_to_dict(t) for t in txns_proto]
 
             if df or dt:
-                self.logln(f"Filtering by date range: from={df or 'MIN'} to={dt or 'MAX'}")
+                self.logln(
+                    f"Filtering by date range: from={df or 'MIN'} to={dt or 'MAX'}"
+                )
                 txns = filter_date_range(txns, df, dt)
 
             if payees:
-                self.logln(f"Applying payee filters: {payees} (mode={match_mode}, case={'yes' if case_sensitive else 'no'}, combine={combine})")
-                txns = apply_multi_payee_filters(txns, payees, mode=match_mode, case_sensitive=case_sensitive, combine=combine)
+                self.logln(
+                    f"Applying payee filters: {payees} (mode={match_mode}, case={'yes' if case_sensitive else 'no'}, combine={combine})"
+                )
+                txns = apply_multi_payee_filters(
+                    txns,
+                    payees,
+                    mode=match_mode,
+                    case_sensitive=case_sensitive,
+                    combine=combine,
+                )
 
             self.logln(f"Transactions after filters: {len(txns)}")
             if emit == "qif":
@@ -273,10 +294,12 @@ class App(tk.Tk):
             if csv_profile == "quicken-windows":
                 self.logln(f"Writing CSV (Quicken Windows profile) → {out_path}")
                 from quicken_helper.gui_viewers.utils import write_csv_quicken_windows
+
                 write_csv_quicken_windows(txns, out_path)
             elif csv_profile == "quicken-mac":
                 self.logln(f"Writing CSV (Quicken Mac/Mint profile) → {out_path}")
                 from quicken_helper.gui_viewers.utils import write_csv_quicken_mac
+
                 write_csv_quicken_mac(txns, out_path)
             else:
                 if explode:

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .qif_header import QifHeader
 from quicken_helper.data_model.interfaces import IHeader, ITag
+
+from .qif_header import QifHeader
 
 
 @dataclass

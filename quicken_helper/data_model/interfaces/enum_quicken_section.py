@@ -7,6 +7,7 @@ class QuickenSections(IntFlag):
     Enum representing the sections of a QIF file.
     Each section is represented by a bit flag.
     """
+
     NONE = 0
     TAGS = auto()
     CATEGORIES = auto()
