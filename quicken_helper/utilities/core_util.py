@@ -9,12 +9,23 @@ Features:
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, time
 from pathlib import Path
 from dataclasses import is_dataclass, fields
 from decimal import Decimal
 from enum import Enum
-from typing import get_origin, get_args, Union, Any
+from typing import (
+    get_origin,
+    get_args,
+    Union,
+    Any,
+    Dict,
+    get_type_hints,
+    Annotated,
+    Callable,
+)
+import types
+from collections import deque
 
 
 def parse_date_string(s: object, should_raise: bool = False) -> date | None:
@@ -142,99 +153,236 @@ TRANSFER_RE = re.compile(
 )  # e.g., [Savings]
 
 
-def _is_dataclass_type(t) -> bool:
-    try:
-        return is_dataclass(t)
-    except TypeError:
-        return False
+# ---------------------------
+# Small scalar conversion helpers + dispatch
+# ---------------------------
 
-def _convert_value(target_type: Any, value: Any) -> Any:
-    if value is None:
-        return None
+_ALLOW_BOOL_TO_INT = True
+_TRUE_STRINGS = {"1", "true", "t", "yes", "y", "on"}
 
-    origin = get_origin(target_type)
+def _bad(value: Any, target: str) -> ValueError:
+    return ValueError(f"Cannot convert {type(value).__name__} to {target}")
+
+def _to_date(value):
+    return parse_date_string(value, should_raise=True)
+
+def _to_datetime(value):
+    if isinstance(value, datetime):
+        return value
+    # date → datetime (midnight, naive)
+    if isinstance(value, date):
+        return datetime.combine(value, time())
+    # POSIX timestamp → datetime (naive, local time)
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value)
+    # ISO 8601 string → datetime
+    if isinstance(value, str):
+        s = value.strip()
+        # allow trailing 'Z' as UTC
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        try:
+            return datetime.fromisoformat(s)
+        except ValueError:
+            pass
+    raise ValueError(f"Cannot convert {type(value).__name__} to datetime")
+
+def _to_decimal(v: Any) -> Decimal:
+    if isinstance(v, Decimal):
+        return v
+    if isinstance(v, (int, float)):
+        return Decimal(str(v))  # avoid float->Decimal binary quirks
+    if isinstance(v, str):
+        return Decimal(v.strip())
+    raise _bad(v, "Decimal")
+
+def _to_int(v: Any) -> int:
+    # bool is a subclass of int; decide policy explicitly
+    if isinstance(v, bool):
+        if _ALLOW_BOOL_TO_INT:
+            return int(v)
+        raise _bad(v, "int")
+    if isinstance(v, int):
+        return v
+    if isinstance(v, Decimal):
+        return int(v)
+    if isinstance(v, float):
+        if not v.is_integer():
+            raise ValueError(f"Non-integer float {v} for int field")
+        return int(v)
+    if isinstance(v, str):
+        return int(v.strip())
+    raise _bad(v, "int")
+
+def _to_float(v: Any) -> float:
+    if isinstance(v, float):
+        return v
+    if isinstance(v, (int, bool, Decimal)):
+        return float(v)
+    if isinstance(v, str):
+        return float(v.strip())
+    raise _bad(v, "float")
+
+def _to_bool(v: Any) -> bool:
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.strip().lower() in _TRUE_STRINGS
+    if isinstance(v, (int, float, Decimal)):
+        return bool(v)
+    raise _bad(v, "bool")
+
+def _to_str(v: Any) -> str:
+    return "" if v is None else str(v)
+
+
+_SCALAR_CONVERTERS: Dict[type, Any] = {
+    Decimal: _to_decimal,
+    int: _to_int,
+    float: _to_float,
+    bool: _to_bool,
+    str: _to_str,
+    date: _to_date,
+    datetime: _to_datetime,
+}
+
+def _to_list(args, value, cv):
+    (T,) = args or (object,)
+    seq = list(value)  # let this raise if it's not iterable
+    # (optional) guard: treat str/bytes as atomic, not iterable
+    if isinstance(value, (str, bytes)):
+        seq = [value]
+    return [cv(T, v) for v in seq]
+
+def _to_set(args, value, cv):
+    (T,) = args or (object,)
+    return {cv(T, v) for v in value}  # dedup by design
+
+def _to_frozenset(args, value, cv):
+    (T,) = args or (object,)
+    return frozenset(cv(T, v) for v in value)
+
+def _to_tuple(args, value, cv):
+    seq = list(value)
+    if not args:
+        return tuple(seq)
+    # tuple[T, ...] => homogeneous
+    if len(args) == 2 and args[1] is Ellipsis:
+        T = args[0]
+        return tuple(cv(T, v) for v in seq)
+    # tuple[T1, T2, ...] => fixed, heterogeneous
+    if len(seq) != len(args):
+        raise ValueError(f"Tuple arity mismatch: expected {len(args)}, got {len(seq)}")
+    return tuple(cv(T, v) for T, v in zip(args, seq))
+
+def _to_dict(args, value, cv):
+    KT, VT = args or (object, object)
+    items = dict(value).items()  # raises if not mapping-like
+    return {cv(KT, k): cv(VT, v) for k, v in items}
+
+def _to_deque(args, value, cv):
+    (T,) = args or (object,)
+    return deque(cv(T, v) for v in value)
+
+# signature: (type args, value, recursive-converter) -> converted
+CollectionConverter = Callable[[tuple[type, ...], Any, Callable[[Any, Any], Any]], Any]
+
+_COLLECTION_CONVERTERS: dict[type[Any], CollectionConverter] = {
+    list: _to_list,
+    set: _to_set,
+    frozenset: _to_frozenset,
+    tuple: _to_tuple,
+    dict: _to_dict,
+    deque: _to_deque,
+}
+
+_UNION_TYPES = (Union, types.UnionType)
+
+def __unwrap_union(target_type, value):
     args = get_args(target_type)
+    if value is None and type(None) in args:
+        return None
+    for arg in args:
+        if arg is type(None):
+            continue
+        try:
+            return convert_value(arg, value)
+        except Exception:
+            pass
+    raise ValueError(f"Cannot convert {value!r} to {target_type!r}")
 
-    # Optional/Union
-    if origin is Union:
-        non_none = [t for t in args if t is not type(None)]
-        for t in non_none:
+def __convert_dataclass_instance(target_type, value):
+    if isinstance(value, target_type):
+        return value
+    if isinstance(value, dict):
+        # expects `from_dict` in scope
+        return from_dict(target_type, value)
+    raise ValueError(
+        f"Expected dict for {target_type.__name__}, got {type(value).__name__}"
+    )
+
+def __convert_enum(target_type, value):
+    if isinstance(value, target_type):
+        return value
+    try:
+        return target_type(value)  # by value
+    except Exception:
+        if isinstance(value, str):
             try:
-                return _convert_value(t, value)
+                return target_type[value]  # by name
             except Exception:
                 pass
-        return value
+        raise
 
-    # Scalars
-    if target_type is Decimal:
-        return value if isinstance(value, Decimal) else Decimal(str(value))
-    if target_type is int:
-        return int(value)
-    if target_type is float:
-        return float(value)
-    if target_type is bool:
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            s = value.strip().lower()
-            if s in {"true","1","yes","y","t"}:
-                return True
-            if s in {"false","0","no","n","f"}:
-                return False
-        return bool(value)
-    if target_type is str:
-        return str(value)
-    if target_type is Path:
-        return Path(value)
+def _normalize_type(t):
+    # Unwrap Annotated
+    if get_origin(t) is Annotated:
+        return get_args(t)[0]
+    # If someone passed a bare string like "int", map a few safe builtins
+    if isinstance(t, str):
+        _map = {"int": int, "float": float, "str": str, "bool": bool, "Decimal": Decimal}
+        return _map.get(t, t)
+    return t
 
-    # Enums
-    if isinstance(target_type, type) and issubclass(target_type, Enum):
-        if isinstance(value, target_type):
-            return value
-        try:
-            return target_type[value]  # by name
-        except Exception:
-            return target_type(value)  # by value
+def convert_value(target_type, value):
+    target_type = _normalize_type(target_type)
+    origin = get_origin(target_type)
+    is_class = isinstance(target_type, type)
 
-    # Dates/times (ISO ‘YYYY-MM-DD’, ‘YYYY-MM-DDTHH:MM:SS’)
-    if target_type is date:
-        if isinstance(value, date) and not isinstance(value, datetime):
-            return value
-        if isinstance(value, datetime):
-            return value.date()
-        return parse_date_string(value, should_raise=True)
-    if target_type is datetime:
-        if isinstance(value, datetime):
-            return value
-        return datetime.fromisoformat(str(value))
+    # 1) Union / Optional
+    if origin in _UNION_TYPES:
+        return __unwrap_union(target_type, value)
 
-    # Collections
-    if origin in (list, set, tuple):
-        item_t = args[0] if args else Any
-        converted = [_convert_value(item_t, v) for v in value]
-        if origin is list:
-            return converted
-        if origin is set:
-            return set(converted)
-        if origin is tuple:
-            # fixed-length tuple support
-            if len(args) > 1 and args[-1] is not Ellipsis:
-                return tuple(_convert_value(t, v) for t, v in zip(args, value))
-            return tuple(converted)
+    # 2) Real classes (avoid issubclass()/is_dataclass() TypeError on typing constructs)
+    if is_class:
+        if is_dataclass(target_type):
+            return __convert_dataclass_instance(target_type, value)
+        if issubclass(target_type, Enum):
+            return __convert_enum(target_type, value)
+        if target_type in _SCALAR_CONVERTERS:
+            return _SCALAR_CONVERTERS[target_type](value)
 
+    # 3) Parameterized collections
+    if isinstance(origin, type) and origin in _COLLECTION_CONVERTERS:
+        args = get_args(target_type)
+        return _COLLECTION_CONVERTERS[origin](args, value, convert_value)
+
+    # 4) dict[K, V]
     if origin is dict:
-        kt, vt = (args + (Any, Any))[:2]
-        return {
-            _convert_value(kt, k): _convert_value(vt, v)
-            for k, v in value.items()
-        }
+        key_t, val_t = get_args(target_type) or (object, object)
+        return {convert_value(key_t, k): convert_value(val_t, v)
+                for k, v in dict(value).items()}
 
-    # Nested dataclasses
-    if _is_dataclass_type(target_type) and isinstance(value, dict):
-        return from_dict(target_type, value)
+    # 5) Fallback: direct construction
+    if is_class:
+        try:
+            return target_type(value)
+        except Exception:
+            pass
 
-    return value
-
+    raise ValueError(
+        f"Don’t know how to convert {type(value).__name__} -> {target_type!r}"
+    )
 
 def from_dict(cls, src):
     """Reconstruct dataclass `cls` from a plain dict (handles nesting, lists, dicts)."""
@@ -247,32 +395,6 @@ def from_dict(cls, src):
             continue
         val = src[f.name]
         ftype = f.type
-        origin = get_origin(ftype)
-        args = get_args(ftype)
-
-        if _is_dataclass_type(ftype) and isinstance(val, dict):
-            kwargs[f.name] = from_dict(ftype, val)
-        elif origin in (list, set, tuple) and isinstance(val, (list, tuple, set)):
-            item_t = args[0] if args else Any
-            items = [_convert_value(item_t, v) for v in val]
-            if origin is list:
-                kwargs[f.name] = items
-            elif origin is set:
-                kwargs[f.name] = set(items)
-            else:  # tuple
-                if len(args) > 1 and args[-1] is not Ellipsis:
-                    kwargs[f.name] = tuple(
-                        _convert_value(t, v) for t, v in zip(args, val)
-                    )
-                else:
-                    kwargs[f.name] = tuple(items)
-        elif origin is dict and isinstance(val, dict):
-            kt, vt = (args + (Any, Any))[:2]
-            kwargs[f.name] = {
-                _convert_value(kt, k): _convert_value(vt, v)
-                for k, v in val.items()
-            }
-        else:
-            kwargs[f.name] = _convert_value(ftype, val)
-
+        typed_value = convert_value(ftype, val)
+        kwargs[f.name] = typed_value
     return cls(**kwargs)
