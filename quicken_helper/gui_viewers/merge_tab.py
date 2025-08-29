@@ -234,13 +234,13 @@ class MergeTab(ttk.Frame):
     def _m_browse_qif(self):
         p = filedialog.askopenfilename(
             title="Select input QIF",
-            filetypes=[("QIF files", "*.data_model"), ("All files", "*.*")],
+            filetypes=[("QIF files", "*.qif"), ("All files", "*.*")],
         )
         if p:
             self.m_qif_in.set(p)
             if not self.m_qif_out.get().strip():
                 self.m_qif_out.set(
-                    str(Path(p).with_name(Path(p).stem + "_updated.data_model"))
+                    str(Path(p).with_name(Path(p).stem + "_updated.qif"))
                 )
 
     def _m_browse_xlsx(self):
@@ -254,8 +254,8 @@ class MergeTab(ttk.Frame):
     def _m_browse_out(self):
         p = filedialog.asksaveasfilename(
             title="Select output QIF",
-            defaultextension=".data_model",
-            filetypes=[("QIF files", "*.data_model"), ("All files", "*.*")],
+            defaultextension=".qif",
+            filetypes=[("QIF files", "*.qif"), ("All files", "*.*")],
         )
         if p:
             self.m_qif_out.set(p)
@@ -422,9 +422,9 @@ class MergeTab(ttk.Frame):
                 return None
 
             # Build session
-            from quicken_helper.controllers.qif_loader import parse_qif
+            from quicken_helper.controllers.qif_loader import open_and_parse_qif
 
-            txns = parse_qif(qif_in)
+            txns = open_and_parse_qif(qif_in)
             qif_cats = mex.extract_qif_categories(txns)
             excel_cats = mex.extract_excel_categories(xlsx)
             sess = CategoryMatchSession(qif_cats, excel_cats)

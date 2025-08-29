@@ -51,7 +51,7 @@ def test_protocol_return_types_and_defaults(monkeypatch):
             )
         ]
 
-    monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
+    monkeypatch.setattr(ql, "open_and_parse_qif", fake_parse_qif)
 
     # Act
     txns = ql.load_transactions_protocol(Path("dummy.data_model"))
@@ -89,7 +89,7 @@ def test_date_parsing_qif_formats(monkeypatch, raw, expected):
     def fake_parse_qif(_path, encoding="utf-8"):
         return [_mk_rec(date=raw, amount="0.00")]
 
-    monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
+    monkeypatch.setattr(ql, "open_and_parse_qif", fake_parse_qif)
 
     # Act
     [t] = ql.load_transactions_protocol(Path("dummy.data_model"))
@@ -116,7 +116,7 @@ def test_amount_parsing_commas_and_parentheses(monkeypatch, raw, expected):
     def fake_parse_qif(_path, encoding="utf-8"):
         return [_mk_rec(amount=raw)]
 
-    monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
+    monkeypatch.setattr(ql, "open_and_parse_qif", fake_parse_qif)
 
     # Act
     [t] = ql.load_transactions_protocol(Path("dummy.data_model"))
@@ -145,7 +145,7 @@ def test_cleared_status_mapping(monkeypatch, cleared_char, expected):
     def fake_parse_qif(_path, encoding="utf-8"):
         return [_mk_rec(cleared=cleared_char)]
 
-    monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
+    monkeypatch.setattr(ql, "open_and_parse_qif", fake_parse_qif)
 
     # Act
     [t] = ql.load_transactions_protocol(Path("dummy.data_model"))
@@ -166,7 +166,7 @@ def test_category_tag_splitting(monkeypatch):
             _mk_rec(category="Food:Groceries"),
         ]
 
-    monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
+    monkeypatch.setattr(ql, "open_and_parse_qif", fake_parse_qif)
 
     # Act
     t1, t2 = ql.load_transactions_protocol(Path("dummy.data_model"))
@@ -195,7 +195,7 @@ def test_splits_conversion_and_sum(monkeypatch):
             )
         ]
 
-    monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
+    monkeypatch.setattr(ql, "open_and_parse_qif", fake_parse_qif)
 
     # Act
     [t] = ql.load_transactions_protocol(Path("dummy.data_model"))
@@ -222,7 +222,7 @@ def test_investment_action_passthrough(monkeypatch):
             )
         ]
 
-    monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
+    monkeypatch.setattr(ql, "open_and_parse_qif", fake_parse_qif)
 
     # Act
     [t] = ql.load_transactions_protocol(Path("dummy.data_model"))

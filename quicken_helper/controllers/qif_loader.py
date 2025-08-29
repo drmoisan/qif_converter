@@ -10,7 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
-from quicken_helper.data_model import QAccount, QifHeader, QuickenFile
+from quicken_helper.data_model import QAccount, QifHeader, QuickenFile, IQuickenFile
 
 # Protocols (structural typing) and enums
 from quicken_helper.data_model.interfaces import (
@@ -50,7 +50,13 @@ def parse_qif_unified(path: Path, encoding: str = "utf-8") -> ParsedQIF:
       tolerant to format variants; unknown sections are preserved in other_sections.
     """
     # 1) Always use your mature parser for transactions
-    transactions = parse_qif(path, encoding=encoding)
+    with _open_for_read(
+        path=path, binary=False, encoding=encoding, errors="replace"
+    ) as f:
+        lines = f.read().splitlines()
+
+    transactions = parse_qif(lines)
+    #transactions = open_and_parse_qif(path, encoding=encoding)
 
     # 2) Parse other sections defensively
     (
@@ -75,7 +81,7 @@ def parse_qif_unified(path: Path, encoding: str = "utf-8") -> ParsedQIF:
     )
 
 
-def parse_qif_unified_protocol(path: Path, encoding: str = "utf-8") -> ParsedQIF:
+def parse_qif_unified_protocol(path: Path, encoding: str = "utf-8") -> IQuickenFile:
     """
     Unified QIF loader.
     - Transactions: delegated to parse_qif (your current canonical parser).
@@ -83,32 +89,34 @@ def parse_qif_unified_protocol(path: Path, encoding: str = "utf-8") -> ParsedQIF
       tolerant to format variants; unknown sections are preserved in other_sections.
     """
     # 1) Always use your mature parser for transactions
-    raw = parse_qif(path, encoding=encoding)
+    raw = open_and_parse_qif(path, encoding=encoding)
     txns = [_adapt_txn(rec) for rec in raw]
 
     # 2) Parse other sections defensively
-    (
-        accounts,
-        categories,
-        memorized,
-        securities,
-        business_or_class,
-        payees,
-        other_sections,
-    ) = _parse_non_txn_sections(path, encoding=encoding)
+    # (
+    #     accounts,
+    #     categories,
+    #     memorized,
+    #     securities,
+    #     business_or_class,
+    #     payees,
+    #     other_sections,
+    # ) = _parse_non_txn_sections(path, encoding=encoding)
 
-    qif_file = QuickenFile()
+    quicken_file = QuickenFile()
+    quicken_file.transactions = txns
 
-    return ParsedQIF(
-        transactions=txns,
-        accounts=accounts,
-        categories=categories,
-        memorized_payees=memorized,
-        securities=securities,
-        business_list=business_or_class,
-        payees=payees,
-        other_sections=other_sections,
-    )
+    return quicken_file
+    # return ParsedQIF(
+    #     transactions=txns,
+    #     accounts=accounts,
+    #     categories=categories,
+    #     memorized_payees=memorized,
+    #     securities=securities,
+    #     business_list=business_or_class,
+    #     payees=payees,
+    #     other_sections=other_sections,
+    # )
 
 
 # def parse_qif_unified_protocol(path: Path, encoding: str = "utf-8") -> UnifiedQifProtocol:
@@ -141,8 +149,10 @@ def load_transactions_protocol(
     Return transactions adapted to the ITransaction/ISplit interfaces.
     Delegates parsing to parse_qif(...) and adapts each dict record.
     """
-    raw = parse_qif(path, encoding=encoding)
-    return [_adapt_txn(rec) for rec in raw]
+    transactions = parse_qif_unified_protocol(path, encoding=encoding).transactions
+    return transactions
+    # raw = open_and_parse_qif(path, encoding=encoding)
+    # return [_adapt_txn(rec) for rec in raw]
 
 
 # --------------------------------------
@@ -311,7 +321,20 @@ def _parse_non_txn_sections(path: Path, encoding: str = "utf-8") -> Tuple[
     return accounts, categories, memorized, securities, classes, payees, other_sections
 
 
-def parse_qif(path: Path, encoding: str = "utf-8") -> List[Dict[str, Any]]:
+def open_and_parse_qif(path: Path, encoding: str = "utf-8") -> List[Dict[str, Any]]:
+    """
+    Open a QIF file and parse it into a list of transaction dicts.
+    This is a convenience function that combines file opening and parsing.
+    """
+    # --- read all lines, then close the file before parsing ---
+    with _open_for_read(path=path, binary=False, encoding=encoding, errors="replace") as f:
+        lines = f.read().splitlines()
+    # ----------------------------------------------------------
+
+    return parse_qif(lines)
+
+
+def parse_qif(lines: list[str]) -> List[Dict[str, Any]]:
     """Parse a QIF file into a list of transaction dicts."""
     txns: List[Dict[str, Any]] = []
     current_type: Optional[str] = None
@@ -335,108 +358,113 @@ def parse_qif(path: Path, encoding: str = "utf-8") -> List[Dict[str, Any]]:
         rec.setdefault("splits", [])
         txns.append(rec)
 
-    with _open_for_read(
-        path=path, binary=False, encoding=encoding, errors="replace"
-    ) as f:
-        # with path.open("r", encoding=encoding, errors="replace") as f:
-        rec: Dict[str, Any] = {}
-        pending_split: Optional[Dict[str, str]] = None
-        for raw_line in f:
-            line = raw_line.rstrip("\r\n").lstrip()
-            if not line:
-                continue
-            if line.startswith(QIF_SECTION_PREFIX):
-                if rec:
-                    finalize_tx(rec)
-                    rec = {}
-                    pending_split = None
-                current_type = line[len(QIF_SECTION_PREFIX) :].strip()
-                in_account_block = False
-                continue
-            if line.startswith(QIF_ACCOUNT_HEADER):
-                if rec:
-                    finalize_tx(rec)
-                    rec = {}
-                    pending_split = None
-                in_account_block = True
-                account_props = {}
-                continue
-            if line.strip() == "^":
-                if in_account_block:
-                    current_account = (
-                        account_props.get("N")
-                        or account_props.get("name")
-                        or current_account
-                    )
-                    in_account_block = False
-                    account_props = {}
-                else:
-                    if pending_split is not None:
-                        rec.setdefault("splits", []).append(pending_split)
-                        pending_split = None
-                    finalize_tx(rec)
-                    rec = {}
-                continue
+
+
+    rec: Dict[str, Any] = {}
+    pending_split: Optional[Dict[str, str]] = None
+
+    for raw_line in lines:
+        # splitlines() removed the newline chars; keep behavior of lstrip from original code
+        line = raw_line.lstrip()
+        if not line:
+            continue
+
+        if line.startswith(QIF_SECTION_PREFIX):
+            if rec:
+                finalize_tx(rec)
+                rec = {}
+                pending_split = None
+            current_type = line[len(QIF_SECTION_PREFIX):].strip()
+            in_account_block = False
+            continue
+
+        if line.startswith(QIF_ACCOUNT_HEADER):
+            if rec:
+                finalize_tx(rec)
+                rec = {}
+                pending_split = None
+            in_account_block = True
+            account_props = {}
+            continue
+
+        if line.strip() == "^":
             if in_account_block:
-                code = line[:1]
-                value = line[1:].rstrip()
-                account_props[code] = value
-                continue
-
-            code = line[:1]
-            value = line[1:].rstrip()
-            if code == "D":
-                rec["date"] = value
-            elif code == "T":
-                rec["amount"] = value
-            elif code == "P":
-                rec["payee"] = value
-            elif code == "M":
-                prior = rec.get("memo", "")
-                rec["memo"] = (prior + "\n" + value).strip() if prior else value
-            elif code == "L":
-                rec["category"] = value
-                m = TRANSFER_RE.match(value.strip())
-                rec["transfer_account"] = (
-                    m.group("acct").strip() if m else rec.get("transfer_account", "")
+                current_account = (
+                    account_props.get("N")
+                    or account_props.get("name")
+                    or current_account
                 )
-
-            elif code == "N":
-                if current_type and str(current_type).lower().startswith("invst"):
-                    rec["action"] = value
-                else:
-                    rec["checknum"] = value
-            elif code == "C":
-                rec["cleared"] = value
-            elif code == "A":
-                value = value.replace("\\n", "\n")
-                rec.setdefault("_address_lines", []).append(value)
-            elif code == "Y":
-                rec["security"] = value
-            elif code == "Q":
-                rec["quantity"] = value
-            elif code == "I":
-                rec["price"] = value
-            elif code == "O":
-                rec["commission"] = value
-            elif code == "S":
+                in_account_block = False
+                account_props = {}
+            else:
                 if pending_split is not None:
                     rec.setdefault("splits", []).append(pending_split)
-                pending_split = {"category": value, "memo": "", "amount": ""}
-            elif code == "E":
-                if pending_split is None:
-                    pending_split = {"category": "", "memo": value, "amount": ""}
-                else:
-                    pending_split["memo"] = value
-            elif code == "$":
-                if pending_split is None:
-                    pending_split = {"category": "", "memo": "", "amount": value}
-                else:
-                    pending_split["amount"] = value
+                    pending_split = None
+                finalize_tx(rec)
+                rec = {}
+            continue
+
+        if in_account_block:
+            code = line[:1]
+            value = line[1:].rstrip()
+            account_props[code] = value
+            continue
+
+        code = line[:1]
+        value = line[1:].rstrip()
+        if code == "D":
+            rec["date"] = value
+        elif code == "T":
+            rec["amount"] = value
+        elif code == "P":
+            rec["payee"] = value
+        elif code == "M":
+            prior = rec.get("memo", "")
+            rec["memo"] = (prior + "\n" + value).strip() if prior else value
+        elif code == "L":
+            rec["category"] = value
+            m = TRANSFER_RE.match(value.strip())
+            rec["transfer_account"] = (
+                m.group("acct").strip() if m else rec.get("transfer_account", "")
+            )
+        elif code == "N":
+            if current_type and str(current_type).lower().startswith("invst"):
+                rec["action"] = value
             else:
-                pass
-        if rec:
-            finalize_tx(rec)
+                rec["checknum"] = value
+        elif code == "C":
+            rec["cleared"] = value
+        elif code == "A":
+            value = value.replace("\\n", "\n")
+            rec.setdefault("_address_lines", []).append(value)
+        elif code == "Y":
+            rec["security"] = value
+        elif code == "Q":
+            rec["quantity"] = value
+        elif code == "I":
+            rec["price"] = value
+        elif code == "O":
+            rec["commission"] = value
+        elif code == "S":
+            if pending_split is not None:
+                rec.setdefault("splits", []).append(pending_split)
+            pending_split = {"category": value, "memo": "", "amount": ""}
+        elif code == "E":
+            if pending_split is None:
+                pending_split = {"category": "", "memo": value, "amount": ""}
+            else:
+                pending_split["memo"] = value
+        elif code == "$":
+            if pending_split is None:
+                pending_split = {"category": "", "memo": "", "amount": value}
+            else:
+                pending_split["amount"] = value
+        else:
+            pass
+
+    if rec:
+        finalize_tx(rec)
+
     return txns
 
 

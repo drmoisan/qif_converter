@@ -41,7 +41,7 @@ def test_parse_qif_simple_bank_txn_fields_and_defaults(monkeypatch):
     monkeypatch.setattr(ql, "_open_for_read", _mk_open(qif_text))
 
     # Act
-    txns = ql.parse_qif(path=None)  # path ignored by our monkeypatch
+    txns = ql.open_and_parse_qif(path=None)  # path ignored by our monkeypatch
 
     # Assert
     assert len(txns) == 1, "Exactly one transaction should be parsed."
@@ -69,7 +69,7 @@ def test_parse_qif_account_block_sets_account_for_later_txns(monkeypatch):
     monkeypatch.setattr(ql, "_open_for_read", _mk_open(qif_text))
 
     # Act
-    txns = ql.parse_qif(path=None)
+    txns = ql.open_and_parse_qif(path=None)
 
     # Assert
     assert len(txns) == 1
@@ -96,7 +96,7 @@ def test_parse_qif_investment_action_vs_checknum(monkeypatch):
     monkeypatch.setattr(ql, "_open_for_read", _mk_open(qif_text))
 
     # Act
-    txns = ql.parse_qif(path=None)
+    txns = ql.open_and_parse_qif(path=None)
 
     # Assert
     assert len(txns) == 1
@@ -136,7 +136,7 @@ def test_parse_qif_handles_splits_and_memo(monkeypatch):
     monkeypatch.setattr(ql, "_open_for_read", _mk_open(qif_text))
 
     # Act
-    txns = ql.parse_qif(path=None)
+    txns = ql.open_and_parse_qif(path=None)
 
     # Assert
     assert len(txns) == 1
@@ -154,7 +154,7 @@ def test_parse_qif_transfer_account_extracted_from_category(monkeypatch):
     monkeypatch.setattr(ql, "_open_for_read", _mk_open(qif_text))
 
     # Act
-    txns = ql.parse_qif(path=None)
+    txns = ql.open_and_parse_qif(path=None)
 
     # Assert
     assert len(txns) == 1
@@ -176,7 +176,7 @@ def test_parse_qif_address_escaped_newlines(monkeypatch):
     monkeypatch.setattr(ql, "_open_for_read", _mk_open(qif_text))
 
     # Act
-    txns = ql.parse_qif(path=None)
+    txns = ql.open_and_parse_qif(path=None)
 
     # Assert
     assert len(txns) == 1
@@ -193,7 +193,7 @@ def test_parse_qif_finalize_on_eof_without_caret(monkeypatch):
     monkeypatch.setattr(ql, "_open_for_read", _mk_open(qif_text))
 
     # Act
-    txns = ql.parse_qif(path=None)
+    txns = ql.open_and_parse_qif(path=None)
 
     # Assert
     assert (
@@ -217,7 +217,7 @@ def test_parse_qif_whitespace_and_unknown_lines_do_not_break(monkeypatch):
     monkeypatch.setattr(ql, "_open_for_read", _mk_open(qif_text))
 
     # Act
-    txns = ql.parse_qif(path=None)
+    txns = ql.open_and_parse_qif(path=None)
 
     # Assert
     assert len(txns) == 1
@@ -247,7 +247,7 @@ def test_parse_qif_transfer_variants(monkeypatch, cat_line, expected_acct):
     monkeypatch.setattr(ql, "_open_for_read", _mk_open(qif_text))
 
     # Act
-    txns = ql.parse_qif(path=None)
+    txns = ql.open_and_parse_qif(path=None)
 
     # Assert
     assert len(txns) == 1

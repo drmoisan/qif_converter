@@ -1,6 +1,8 @@
 # tests/test_qif_loader_parse_qif_unified.py
 from __future__ import annotations
 
+from contextlib import contextmanager, nullcontext
+from io import StringIO
 from typing import Any, Dict, List, Tuple
 
 import quicken_helper.controllers.qif_loader as ql
@@ -26,18 +28,25 @@ def _stub_non_txn_sections() -> Tuple[
         {"Foo": [{"raw": ["Xcustom: 1"], "raw_X": ["custom: 1"]}]},  # other
     )
 
+def _mk_open(qif_text: str):
+    # Return a callable that returns a context manager when invoked
+    def fake_open(*, path, binary=False, **kwargs):
+        assert not binary, "This test stub only handles text mode"
+        return nullcontext(StringIO(qif_text))
+    return fake_open
 
 def test_parse_qif_unified_delegates_and_combines(monkeypatch):
     # Arrange
     txns = [{"date": "2025-01-01", "amount": "-12.34", "payee": "Coffee"}]
 
-    def fake_parse_qif(path, encoding="utf-8"):
+    def fake_parse_qif(lines: List[str]):
         # Return the exact list (not a copy) so we can assert identity if desired
         return txns
 
     def fake_parse_other(path, encoding="utf-8"):
         return _stub_non_txn_sections()
 
+    monkeypatch.setattr(ql, "_open_for_read", _mk_open("dummy text"), raising=True)
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
     monkeypatch.setattr(ql, "_parse_non_txn_sections", fake_parse_other)
 
@@ -65,7 +74,15 @@ def test_parse_qif_unified_empty_non_txn_lists(monkeypatch):
     # Arrange
     txns = [{"date": "2025-02-02", "amount": "100.00", "payee": "Deposit"}]
 
-    monkeypatch.setattr(ql, "parse_qif", lambda p, encoding="utf-8": txns)
+    def fake_parse_qif(lines: List[str]):
+        # Return the exact list (not a copy) so we can assert identity if desired
+        return txns
+
+    def fake_parse_other(path, encoding="utf-8"):
+        return _stub_non_txn_sections()
+
+    monkeypatch.setattr(ql, "_open_for_read", _mk_open("dummy text"), raising=True)
+    monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
     monkeypatch.setattr(
         ql,
         "_parse_non_txn_sections",
@@ -90,14 +107,15 @@ def test_parse_qif_unified_propagates_encoding(monkeypatch):
     # Arrange
     seen = {"pq": None, "po": None}
 
-    def fake_parse_qif(path, encoding="utf-8"):
-        seen["pq"] = encoding
+    def fake_parse_qif(lines: list[str]):
+        seen["pq"] = enc
         return [{"date": "2025-03-03", "amount": "1.23"}]
 
     def fake_parse_other(path, encoding="utf-8"):
         seen["po"] = encoding
         return ([], [], [], [], [], [], {})
 
+    monkeypatch.setattr(ql, "_open_for_read", _mk_open("dummy text"), raising=True)
     monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
     monkeypatch.setattr(ql, "_parse_non_txn_sections", fake_parse_other)
 
@@ -113,7 +131,10 @@ def test_parse_qif_unified_propagates_encoding(monkeypatch):
 
 def test_parse_qif_unified_unknown_sections_preserved(monkeypatch):
     # Arrange
-    monkeypatch.setattr(ql, "parse_qif", lambda p, encoding="utf-8": [])
+    def fake_parse_qif(lines: list[str]):
+        return []
+    monkeypatch.setattr(ql, "_open_for_read", _mk_open("dummy text"), raising=True)
+    monkeypatch.setattr(ql, "parse_qif", fake_parse_qif)
     other = {"WeirdBlock": [{"raw": ["Zsome"], "raw_Z": ["some"]}]}
     monkeypatch.setattr(
         ql,

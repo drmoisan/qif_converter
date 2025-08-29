@@ -554,6 +554,9 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
     def parse_qif(path):
         return _legacy_load_transactions(path)
 
+    def open_and_parse_qif(path):
+        return _legacy_load_transactions(path)
+
     # Minimal enum used by UI
     from quicken_helper.data_model.interfaces import EnumClearedStatus
 
@@ -594,6 +597,7 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
     ql.load_transactions_protocol = load_transactions_protocol
     ql.load_transactions = _legacy_load_transactions
     ql.parse_qif = parse_qif
+    ql.open_and_parse_qif = open_and_parse_qif
 
     monkeypatch.setitem(sys.modules, names["qif_loader"], ql)
 
@@ -801,7 +805,7 @@ def test_browse_qif_sets_in_and_suggests_out(merge_mod, monkeypatch):
 
     # Arrange: inject a memory path and reload so the module uses our filedialog
     names = _get_module_names()
-    chosen_in = "MEM://in.data_model"
+    chosen_in = "MEM://in.qif"
     fd_over = {"askopenfilename": lambda **k: chosen_in}
     _install_tk_stubs(monkeypatch, filedialog_overrides=fd_over)
     _install_project_stubs(monkeypatch)
@@ -821,7 +825,7 @@ def test_browse_qif_sets_in_and_suggests_out(merge_mod, monkeypatch):
     # Assert
     assert mt.m_qif_in.get() == chosen_in
     # Compare only the file name to avoid platform separators
-    assert m2.Path(mt.m_qif_out.get()).name == "in_updated.data_model"
+    assert m2.Path(mt.m_qif_out.get()).name == "in_updated.qif"
 
 
 def test_browse_out_sets_out_path(merge_mod, monkeypatch):

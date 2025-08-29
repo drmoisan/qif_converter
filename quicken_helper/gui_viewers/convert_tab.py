@@ -149,8 +149,8 @@ class ConvertTab(ttk.Frame):
         path = filedialog.askopenfilename(
             title="Select input file",
             filetypes=[
-                ("QIF / QFX files", ("*.data_model", "*.qfx", "*.ofx")),
-                ("QIF files", "*.data_model"),
+                ("QIF / QFX files", ("*.qif", "*.qfx", "*.ofx")),
+                ("QIF files", "*.qif"),
                 ("QFX/OFX files", ("*.qfx", "*.ofx")),
                 ("All files", "*.*"),
             ],
@@ -161,8 +161,8 @@ class ConvertTab(ttk.Frame):
     def _browse_out(self):
         emit = self.emit_var.get()
         if emit == "data_model":
-            default_ext = ".data_model"
-            ft = [("QIF files", "*.data_model"), ("All files", "*.*")]
+            default_ext = ".qif"
+            ft = [("QIF files", "*.qif"), ("All files", "*.*")]
         else:
             default_ext = ".csv"
             ft = [("CSV files", "*.csv"), ("All files", "*.*")]
@@ -189,7 +189,7 @@ class ConvertTab(ttk.Frame):
         return parts
 
     def _update_output_extension(self):
-        desired_ext = ".csv" if self.emit_var.get() == "csv" else ".data_model"
+        desired_ext = ".csv" if self.emit_var.get() == "csv" else ".qif"
         cur = self.out_path.get().strip()
         if not cur:
             in_cur = self.in_path.get().strip()
@@ -200,7 +200,7 @@ class ConvertTab(ttk.Frame):
             return
         p = Path(cur)
         cur_ext = p.suffix.lower()
-        if cur_ext in ("", ".csv", ".data_model"):
+        if cur_ext in ("", ".csv", ".qif"):
             new_path = (
                 str(p.with_suffix(desired_ext)) if cur_ext else str(p) + desired_ext
             )
@@ -254,7 +254,7 @@ class ConvertTab(ttk.Frame):
                         txns = qfx.parse_qfx(in_path)
                     else:
                         self.logln("Parsing QIF…")
-                        txns = quicken_helper.controllers.qif_loader.parse_qif(in_path)
+                        txns = quicken_helper.controllers.qif_loader.open_and_parse_qif(in_path)
 
             if df or dt:
                 self.logln(
