@@ -11,9 +11,13 @@ from __future__ import annotations
 import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from dataclasses import is_dataclass, fields
+from decimal import Decimal
+from enum import Enum
+from typing import get_origin, get_args, Union, Any
 
 
-def parse_date_string(s: object) -> date | None:
+def parse_date_string(s: object, should_raise: bool = False) -> date | None:
     """
     Parse common QIF and adjacent date encodings into a date.
 
@@ -73,10 +77,10 @@ def parse_date_string(s: object) -> date | None:
             continue
 
     # Heuristic for D/M/Y vs M/D/Y ambiguity:
-    m = re.match(r"^\s*(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\s*$", txt)
+    m = re.match(r"^\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\s*$", txt)
     if m:
         a, b, c = m.groups()
-        sep = re.search(r"[\/\-.]", txt).group(0)
+        sep = re.search(r"[/\-.]", txt).group(0)
         first = int(a)
         second = int(b)
         year_fmt = "%Y" if len(c) == 4 else "%y"
@@ -120,6 +124,8 @@ def parse_date_string(s: object) -> date | None:
                 return d
 
     # Nothing matched
+    if should_raise:
+        raise ValueError(f"Unrecognized date format: {s!r}")
     return None
 
 
@@ -134,3 +140,139 @@ TRANSFER_RE = re.compile(
     r"^\[(?:transfer:?\s*)?(?P<acct>.+?)]$",
     re.IGNORECASE,
 )  # e.g., [Savings]
+
+
+def _is_dataclass_type(t) -> bool:
+    try:
+        return is_dataclass(t)
+    except TypeError:
+        return False
+
+def _convert_value(target_type: Any, value: Any) -> Any:
+    if value is None:
+        return None
+
+    origin = get_origin(target_type)
+    args = get_args(target_type)
+
+    # Optional/Union
+    if origin is Union:
+        non_none = [t for t in args if t is not type(None)]
+        for t in non_none:
+            try:
+                return _convert_value(t, value)
+            except Exception:
+                pass
+        return value
+
+    # Scalars
+    if target_type is Decimal:
+        return value if isinstance(value, Decimal) else Decimal(str(value))
+    if target_type is int:
+        return int(value)
+    if target_type is float:
+        return float(value)
+    if target_type is bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            s = value.strip().lower()
+            if s in {"true","1","yes","y","t"}:
+                return True
+            if s in {"false","0","no","n","f"}:
+                return False
+        return bool(value)
+    if target_type is str:
+        return str(value)
+    if target_type is Path:
+        return Path(value)
+
+    # Enums
+    if isinstance(target_type, type) and issubclass(target_type, Enum):
+        if isinstance(value, target_type):
+            return value
+        try:
+            return target_type[value]  # by name
+        except Exception:
+            return target_type(value)  # by value
+
+    # Dates/times (ISO ‘YYYY-MM-DD’, ‘YYYY-MM-DDTHH:MM:SS’)
+    if target_type is date:
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return value
+        if isinstance(value, datetime):
+            return value.date()
+        return parse_date_string(value, should_raise=True)
+    if target_type is datetime:
+        if isinstance(value, datetime):
+            return value
+        return datetime.fromisoformat(str(value))
+
+    # Collections
+    if origin in (list, set, tuple):
+        item_t = args[0] if args else Any
+        converted = [_convert_value(item_t, v) for v in value]
+        if origin is list:
+            return converted
+        if origin is set:
+            return set(converted)
+        if origin is tuple:
+            # fixed-length tuple support
+            if len(args) > 1 and args[-1] is not Ellipsis:
+                return tuple(_convert_value(t, v) for t, v in zip(args, value))
+            return tuple(converted)
+
+    if origin is dict:
+        kt, vt = (args + (Any, Any))[:2]
+        return {
+            _convert_value(kt, k): _convert_value(vt, v)
+            for k, v in value.items()
+        }
+
+    # Nested dataclasses
+    if _is_dataclass_type(target_type) and isinstance(value, dict):
+        return from_dict(target_type, value)
+
+    return value
+
+
+def from_dict(cls, src):
+    """Reconstruct dataclass `cls` from a plain dict (handles nesting, lists, dicts)."""
+    if not is_dataclass(cls):
+        return src  # primitive or already-built
+
+    kwargs = {}
+    for f in fields(cls):
+        if f.name not in src:  # let dataclass defaults apply
+            continue
+        val = src[f.name]
+        ftype = f.type
+        origin = get_origin(ftype)
+        args = get_args(ftype)
+
+        if _is_dataclass_type(ftype) and isinstance(val, dict):
+            kwargs[f.name] = from_dict(ftype, val)
+        elif origin in (list, set, tuple) and isinstance(val, (list, tuple, set)):
+            item_t = args[0] if args else Any
+            items = [_convert_value(item_t, v) for v in val]
+            if origin is list:
+                kwargs[f.name] = items
+            elif origin is set:
+                kwargs[f.name] = set(items)
+            else:  # tuple
+                if len(args) > 1 and args[-1] is not Ellipsis:
+                    kwargs[f.name] = tuple(
+                        _convert_value(t, v) for t, v in zip(args, val)
+                    )
+                else:
+                    kwargs[f.name] = tuple(items)
+        elif origin is dict and isinstance(val, dict):
+            kt, vt = (args + (Any, Any))[:2]
+            kwargs[f.name] = {
+                _convert_value(kt, k): _convert_value(vt, v)
+                for k, v in val.items()
+            }
+        else:
+            kwargs[f.name] = _convert_value(ftype, val)
+
+    return cls(**kwargs)

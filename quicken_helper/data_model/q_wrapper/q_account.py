@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
+from datetime import date
 
+from ..interfaces import IAccount
 from .qif_header import QifHeader
 
 
 @dataclass
-class QAccount:
+class QAccount(IAccount):
     """
     Represents an account in QIF format.
     """
@@ -14,6 +17,8 @@ class QAccount:
     name: str = ""
     type: str = ""
     description: str = ""
+    limit: Decimal | None = None
+    balance_date: date | None = None
 
     @property
     def header(self) -> QifHeader:

@@ -70,7 +70,7 @@ def test__parse_non_txn_sections_parses_accounts_cats_payees_and_unknown(monkeyp
 
     # Act
     accounts, categories, memorized, securities, business, payees, other = (
-        ql._parse_non_txn_sections(Path("MEM://ignore.data_model"))
+        ql._parse_non_txn_sections(qif_text.splitlines())
     )
 
     # Assert
@@ -125,7 +125,7 @@ def test__parse_non_txn_sections_returns_empty_when_only_txns(monkeypatch):
 
     # Act
     accounts, categories, memorized, securities, business, payees, other = (
-        ql._parse_non_txn_sections(Path("MEM://ignore.data_model"))
+        ql._parse_non_txn_sections(qif_text.splitlines())
     )
 
     # Assert
@@ -150,7 +150,8 @@ def test__parse_non_txn_sections_multiple_unknown_sections(monkeypatch):
     monkeypatch.setattr(ql.Path, "open", _mk_open(qif_text), raising=True)
 
     # Act
-    *_, other = ql._parse_non_txn_sections(Path("MEM://ignore.data_model"))
+    #*_, other = ql._parse_non_txn_sections(Path("MEM://ignore.data_model"))
+    *_, other = ql._parse_non_txn_sections(qif_text.splitlines())
 
     # Assert
     assert set(other.keys()) == {"Unknown:Foo", "Unknown:Bar"}

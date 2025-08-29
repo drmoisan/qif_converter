@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
+from decimal import Decimal
+from datetime import date
 
 from .i_header import IHeader
 
@@ -14,6 +16,9 @@ class IAccount(Protocol):
     name: str
     type: str
     description: str
+    limit: Decimal | None = None
+    balance_date: date | None = None
+    balance_amount: Decimal | None = None
 
     # --- header (read-only) ---
     @property

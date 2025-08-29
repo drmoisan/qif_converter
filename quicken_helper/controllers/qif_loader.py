@@ -67,7 +67,7 @@ def parse_qif_unified(path: Path, encoding: str = "utf-8") -> ParsedQIF:
         business_or_class,
         payees,
         other_sections,
-    ) = _parse_non_txn_sections(path, encoding=encoding)
+    ) = _parse_non_txn_sections(lines)
 
     return ParsedQIF(
         transactions=transactions,
@@ -213,7 +213,7 @@ _FIELD_MAP = {
 }
 
 
-def _parse_non_txn_sections(path: Path, encoding: str = "utf-8") -> Tuple[
+def _parse_non_txn_sections(lines: list[str]) -> Tuple[
     List[Dict[str, Any]],  # accounts
     List[Dict[str, Any]],  # categories
     List[Dict[str, Any]],  # memorized
@@ -255,62 +255,62 @@ def _parse_non_txn_sections(path: Path, encoding: str = "utf-8") -> Tuple[
             push(current_section, cur_entry)
         cur_entry = None
 
-    with path.open("r", encoding=encoding, errors="ignore") as f:
-        for raw in f:
-            line = raw.rstrip("\n\r")
-            if not line:
-                continue
+    #with path.open("r", encoding=encoding, errors="ignore") as f:
+    for raw in lines:
+        line = raw.rstrip("\n\r")
+        if not line:
+            continue
 
-            if line.startswith("!"):  # Start of a new section
-                # Close previous entry when switching sections
-                commit_entry()
-                current_section = _SECTION_NORMALIZE.get(
-                    line.strip().lower(), line.strip()[1:]
-                )
-                # For unknown sections, we'll still parse entries generically into other_sections
-                continue
+        if line.startswith("!"):  # Start of a new section
+            # Close previous entry when switching sections
+            commit_entry()
+            current_section = _SECTION_NORMALIZE.get(
+                line.strip().lower(), line.strip()[1:]
+            )
+            # For unknown sections, we'll still parse entries generically into other_sections
+            continue
 
-            if line == "^":  # End of current entry
-                commit_entry()
-                continue
+        if line == "^":  # End of current entry
+            commit_entry()
+            continue
 
-            # If we are not in a non-txn section of interest, ignore the content
-            if not current_section:
-                continue
+        # If we are not in a non-txn section of interest, ignore the content
+        if not current_section:
+            continue
 
-            # Start a new entry lazily when first data line arrives
-            if cur_entry is None:
-                cur_entry = {"raw": []}
+        # Start a new entry lazily when first data line arrives
+        if cur_entry is None:
+            cur_entry = {"raw": []}
 
-            # Try to parse single-letter field code (like QIF normally does)
-            # e.g., "NCategory Name" → code "N", value "Category Name"
-            code = line[:1]
-            value = line[1:]
-            cur_entry["raw"].append(line)
+        # Try to parse single-letter field code (like QIF normally does)
+        # e.g., "NCategory Name" → code "N", value "Category Name"
+        code = line[:1]
+        value = line[1:]
+        cur_entry["raw"].append(line)
 
-            fmap = _FIELD_MAP.get(current_section, {})
-            mapping = fmap.get(code)
+        fmap = _FIELD_MAP.get(current_section, {})
+        mapping = fmap.get(code)
 
-            if mapping is None:
-                # Not in map: just keep under 'raw_<code>' so data is never lost
-                cur_entry.setdefault(f"raw_{code}", []).append(value)
-                continue
+        if mapping is None:
+            # Not in map: just keep under 'raw_<code>' so data is never lost
+            cur_entry.setdefault(f"raw_{code}", []).append(value)
+            continue
 
-            if isinstance(mapping, tuple) and mapping[0] == "flag":
-                # Boolean flags: presence of code implies True
-                cur_entry[mapping[1]] = True
-                continue
+        if isinstance(mapping, tuple) and mapping[0] == "flag":
+            # Boolean flags: presence of code implies True
+            cur_entry[mapping[1]] = True
+            continue
 
-            key = mapping
+        key = mapping
 
-            if code in ("A",):  # address lines can repeat → join
-                cur_entry.setdefault(key, []).append(value)
-                continue
+        if code in ("A",):  # address lines can repeat → join
+            cur_entry.setdefault(key, []).append(value)
+            continue
 
-            # Normal scalar assignment; if repeats, keep last and store repeats in extras
-            if key in cur_entry:
-                cur_entry.setdefault(f"{key}_extra", []).append(value)
-            cur_entry[key] = value
+        # Normal scalar assignment; if repeats, keep last and store repeats in extras
+        if key in cur_entry:
+            cur_entry.setdefault(f"{key}_extra", []).append(value)
+        cur_entry[key] = value
 
     # Normalize joined multi-line fields
     for col in (accounts, categories, memorized, securities, classes, payees):
