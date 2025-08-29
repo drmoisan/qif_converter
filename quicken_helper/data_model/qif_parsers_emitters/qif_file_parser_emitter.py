@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Callable
+from ctypes.wintypes import tagMSG
 
 from pyparsing import Empty
 
-from quicken_helper.data_model import IAccount
-from quicken_helper.data_model.interfaces import IParserEmitter, IQuickenFile, QuickenFileType
-from quicken_helper.utilities.core_util import from_dict
-from quicken_helper.data_model.q_wrapper import QuickenFile, QAccount
+from quicken_helper.data_model.interfaces import IParserEmitter, IQuickenFile, QuickenFileType, ITag, IAccount
+from quicken_helper.utilities.core_util import from_dict, convert_value
+from quicken_helper.data_model.q_wrapper import QuickenFile, QAccount, QTag
 from itertools import pairwise  # Python 3.10+
+import logging
+import logging.config
+from quicken_helper.utilities import LOGGING
+logging.config.dictConfig(LOGGING)
+
+log = logging.getLogger(__name__)
 
 class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
     """Parse text into IQuickenFile objects and emit them back to text."""
@@ -24,7 +30,7 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
         # build the concrete file(s)
         f = self._make_file()
         # ...fill f.sections/tags/accounts/transactions here...
-
+        f = self._parse(unparsed_string)
         f.emitter = (
             self  # set back-reference (safe: typed as IParserEmitter[IQuickenFile])
         )
@@ -87,7 +93,7 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
             "T": "type",
             "D": "description",
         },
-        "Class": {
+        "Tag": {
             "N": "name",
             "D": "description",
         },
@@ -177,10 +183,12 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
         if line is None:
             return "Unknown"
 
+        if line.startswith("!clear:autoswitch"):
+            return "skip"
         # Resolve auto-switch directives by peeking at the neighbor line
-        if line.startswith(("!option:autoswitch", "!clear:autoswitch")):
-            neighbor = (start + 1 if line.startswith("!option:autoswitch") else start - 1)
-            line = norm(neighbor)
+        if line.startswith("!option:autoswitch"):
+            start += 1
+            line = norm(start)
             if line is None:
                 return "Unknown"
 
@@ -206,7 +214,7 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
         pairs: list[tuple[str, int]] = []
         for i in starts:
             key = self._classify_header_type(lines, i)
-            if not pairs or pairs[-1][0] != key:
+            if key != "skip" and (not pairs or pairs[-1][0] != key):
                 pairs.append((key, i))
 
         # Add a sentinel end so we can slice with pairwise
@@ -217,7 +225,7 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
 
     def parse_account_entry(
             self,
-            field_map: dict[str, str] | dict[str, str | tuple[str, str]],
+            field_map: dict,
             entry_lines: list[str]
     ) -> IAccount | None:
         """Parse a single account entry from its lines into an IAccount object."""
@@ -234,24 +242,78 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
             mapping = field_map.get(code)
             account_data[mapping] = value
 
-
-        if "name" not in account_data or "type" not in account_data:
+        try:
+            account = from_dict(QAccount, account_data)
+            return account
+        except Exception as e:
+            log.exception(f"Error constructing IAccount from data {account_data}\nException: {e}")
             return None
 
     def parse_accounts(self, lines: list[str]) -> list[IAccount]:
-        field_map = self._FIELD_MAP.get("Account", {})
-        cleaned_lines = self._preprocess_section(lines, drop_if_contains=["!Account","AutoSwitch"])
-        entries = self._split_on_caret(cleaned_lines,keep_empty=False)
+        field_map: dict = self._FIELD_MAP.get("Account", {})
+        cleaned_lines = self._preprocess_section(
+            lines, drop_if_contains=["!Account", "AutoSwitch"]
+        )
+        entries = self._split_on_caret(cleaned_lines, keep_empty=False)
         if not entries:
             return []
+        accounts = [
+            account
+            for entry in entries
+            if (account := self.parse_account_entry(field_map, entry)) is not None
+        ]
+        return accounts
 
+    def parse_tag_entry(
+            self,
+            field_map: dict,
+            entry_lines: list[str]
+        ) -> ITag | None:
+        if not entry_lines or field_map is Empty:
+            return None
+        tag_data = {}
+        for line in entry_lines:
+            if not line:
+                continue
+            code = line[0]
+            value = line[1:].strip() if len(line) > 1 else ""
+            if code not in field_map:
+                raise ValueError(
+                    f"Unknown field code {code} while parsing tag entry {'\r\n'.join(entry_lines)}"
+                )
+            mapping = field_map.get(code)
+            tag_data[mapping] = value
+        try:
+            tag = from_dict(QTag, tag_data)
+            return tag
+        except Exception as e:
+            log.exception(f"Error constructing IAccount from data {tag_data}\nException: {e}")
+            return None
 
-        return []
+    def parse_tags(self, lines: list[str]) -> list[ITag]:
+        field_map: dict = self._FIELD_MAP.get("Tag", {})
+        cleaned_lines = self._preprocess_section(
+            lines, drop_if_contains=["!Type:Tag"]
+        )
+        entries = self._split_on_caret(cleaned_lines, keep_empty=False)
+        if not entries:
+            return []
+        tags = [
+            tag
+            for entry in entries
+            if (tag := self.parse_tag_entry(field_map, entry)) is not None
+        ]
+        return tags
 
 
     def _parse(self, unparsed_string: str) -> IQuickenFile:
         """Parse `unparsed_string` into a single IQuickenFile."""
         lines = unparsed_string.splitlines()
         sections = self.break_into_sections(lines)
-        return QuickenFile()
+        qf = QuickenFile()
+        if "Account" in sections:
+            qf.accounts = self.parse_accounts(sections["Account"])
+        if "Tag" in sections:
+            qf.tags = self.parse_tags(sections["Tag"])
+        return qf
         

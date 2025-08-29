@@ -17,8 +17,8 @@ class QAccount(IAccount):
     name: str = ""
     type: str = ""
     description: str = ""
-    limit: Decimal | None = None
-    balance_date: date | None = None
+    limit: Decimal = Decimal("0.0")
+    balance_date: date = date(1985, 11, 5)
 
     @property
     def header(self) -> QifHeader:
