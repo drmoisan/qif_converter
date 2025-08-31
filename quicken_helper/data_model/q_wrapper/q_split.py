@@ -18,8 +18,8 @@ class QSplit(ISplit):
 
     category: str
     amount: Decimal
-    memo: str
-    tag: str
+    memo: str = ""
+    tag: str = ""
 
     def emit_qif(self) -> str:
         """

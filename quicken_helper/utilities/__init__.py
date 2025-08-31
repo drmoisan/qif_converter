@@ -6,6 +6,7 @@ from .core_util import (
     TRANSFER_RE,
     from_dict,
     convert_value,
+    is_null_or_whitespace,
 )
 
 from .config_logging import LOGGING

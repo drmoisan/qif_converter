@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 from .qif_header import QifHeader
 
@@ -13,6 +14,10 @@ class QCategory:
 
     name: str = ""
     description: str = ""
+    tax_related: bool = False
+    tax_schedule: str = ""
+    income_category: bool = False
+    expense_category: bool = False
 
     @property
     def header(self) -> QifHeader:

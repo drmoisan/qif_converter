@@ -30,16 +30,16 @@ class QTransaction(ITransaction):
     Represents a single QIF transaction.
     """
 
-    account: QAccount
-    type: QifHeader
-    date: date
-    action_chk: str
-    amount: Decimal
-    cleared: EnumClearedStatus
-    payee: str
-    memo: str
-    category: str
-    tag: str
+    account: QAccount = field(default_factory=QAccount)
+    type: QifHeader = field(default_factory=QifHeader)
+    date: date = date(1985, 11, 5)
+    action_chk: str = field(default_factory=str)
+    amount: Decimal = Decimal(0)
+    cleared: EnumClearedStatus = field(default_factory=EnumClearedStatus)
+    payee: str = field(default_factory=str)
+    memo: str = field(default_factory=str)
+    category: str = field(default_factory=str)
+    tag: str = field(default_factory=str)
 
     splits: list[ISplit] = field(default_factory=list[QSplit])
     _security: ISecurity = field(

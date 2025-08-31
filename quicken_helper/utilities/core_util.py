@@ -23,10 +23,16 @@ from typing import (
     get_type_hints,
     Annotated,
     Callable,
+    Optional,
+    Mapping,
 )
 import types
 from collections import deque
 
+
+def is_null_or_whitespace(s: Optional[str]) -> bool:
+    """Check if a string is None, empty, or consists only of whitespace."""
+    return s is None or s.strip() == ""
 
 def parse_date_string(s: object, should_raise: bool = False) -> date | None:
     """
@@ -344,6 +350,14 @@ def _normalize_type(t):
         return _map.get(t, t)
     return t
 
+# near the other helpers
+def _is_protocol_type(t: object) -> bool:
+    return isinstance(t, type) and getattr(t, "_is_protocol", False)
+
+def _is_runtime_protocol_type(t: object) -> bool:
+    return _is_protocol_type(t) and getattr(t, "_is_runtime_protocol", False)
+
+
 def convert_value(target_type, value):
     target_type = _normalize_type(target_type)
     origin = get_origin(target_type)
@@ -359,6 +373,21 @@ def convert_value(target_type, value):
             return __convert_dataclass_instance(target_type, value)
         if issubclass(target_type, Enum):
             return __convert_enum(target_type, value)
+        # --- NEW: Protocol support ---
+        if _is_protocol_type(target_type):
+            # If the protocol is runtime-checkable, enforce it;
+            # otherwise, pass through (can’t check safely at runtime).
+            if _is_runtime_protocol_type(target_type):
+                if isinstance(value, target_type):
+                    return value
+                raise TypeError(
+                    f"Value of type {type(value).__name__} "
+                    f"does not implement protocol {target_type.__name__}"
+                )
+            # Non-runtime-checkable protocol: trust the caller and pass through.
+            return value
+        # --- end NEW ---
+
         if target_type in _SCALAR_CONVERTERS:
             return _SCALAR_CONVERTERS[target_type](value)
 
@@ -385,16 +414,39 @@ def convert_value(target_type, value):
     )
 
 def from_dict(cls, src):
-    """Reconstruct dataclass `cls` from a plain dict (handles nesting, lists, dicts)."""
-    if not is_dataclass(cls):
-        return src  # primitive or already-built
+    """
+    Reconstruct dataclass `cls` from a plain dict (handles nesting, unions, containers).
+    If `cls` is not a dataclass (e.g., int, str, Decimal, list[int], etc.), this
+    function delegates to `convert_value` and returns its result.
+    """
+    # If not a dataclass target, treat as a general conversion (pass-through for primitives)
+    try:
+        is_dc = is_dataclass(cls)
+    except TypeError:
+        is_dc = False
+
+    if not is_dc:
+        # e.g., from_dict(int, 123) -> 123; from_dict(list[int], ["1","2"]) -> [1,2]
+        return convert_value(cls, src)
+
+    # Dataclass branch: require a mapping
+    if not isinstance(src, Mapping):
+        raise TypeError(
+            f"from_dict expects a mapping for {cls.__name__}, got {type(src).__name__}"
+        )
+
+    # Resolve forward references (PEP 563 / __future__.annotations)
+    type_hints = get_type_hints(cls)
 
     kwargs = {}
     for f in fields(cls):
-        if f.name not in src:  # let dataclass defaults apply
+        if f.name not in src:
+            # let dataclass defaults apply
             continue
+
         val = src[f.name]
-        ftype = f.type
-        typed_value = convert_value(ftype, val)
-        kwargs[f.name] = typed_value
+        # Prefer resolved type; fall back to the raw annotation if it's missing
+        ftype = type_hints.get(f.name, f.type)
+
+        kwargs[f.name] = convert_value(ftype, val)
     return cls(**kwargs)
