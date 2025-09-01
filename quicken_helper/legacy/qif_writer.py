@@ -24,7 +24,8 @@ from pathlib import Path
 from typing import IO, Any, Dict, Iterable, List, Optional, TextIO, Union
 
 from quicken_helper.data_model import ITransaction
-from quicken_helper.utilities.core_util import parse_date_string
+from quicken_helper.utilities import parse_date_string
+
 
 # ------------------------ Filtering helpers ------------------------
 

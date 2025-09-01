@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from quicken_helper.utilities.core_util import parse_date_string
+from quicken_helper.utilities import parse_date_string
 
 
 # ---------- _parse_qif_date ----------
@@ -22,7 +22,7 @@ def test__parse_qif_date_formats(raw, expect_iso):
 
 def test__open_for_read_uses_builtins_open(monkeypatch, tmp_path):
     # Arrange
-    from quicken_helper.utilities.core_util import _open_for_read
+    from quicken_helper.utilities.core_util import open_for_read
 
     opened = {"called": False}
     expected = "hello world"
@@ -47,7 +47,7 @@ def test__open_for_read_uses_builtins_open(monkeypatch, tmp_path):
     p = tmp_path / "sample.data_model"
 
     # Act
-    with _open_for_read(p) as f:
+    with open_for_read(p) as f:
         data = f.read()
 
     # Assert

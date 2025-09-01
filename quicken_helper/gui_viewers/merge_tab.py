@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import tkinter as tk
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from tkinter import filedialog, ttk
@@ -19,6 +20,14 @@ from quicken_helper.gui_viewers.helpers import _fmt_excel_row, _fmt_txn, _set_te
 # import qif_item_key
 from quicken_helper.legacy import qif_writer as mod
 from quicken_helper.legacy.qif_item_key import QIFItemKey
+
+@dataclass
+class _ListColumn:
+    frame: ttk.LabelFrame
+    listbox: tk.Listbox
+    preview: tk.Text
+
+
 
 
 class MergeTab(ttk.Frame):
@@ -41,17 +50,51 @@ class MergeTab(ttk.Frame):
 
         self._build()
 
-    def _build(self):
-        pad = {"padx": 8, "pady": 6}
+    def _build(self) -> None:
+        self._init_state_vars()
+        self._build_files_section()
+        self._build_controls_section()
+        self._build_actions_section()
+        self._build_lists_section()  # internally builds the 3 columns via a reusable helper
+        self._build_footer_section()
+        self._build_info_section()
+        self._bind_preview_events()
 
+    def _build_list_column(self, parent: tk.Misc, title: str, export_slug: str,) -> _ListColumn:
+        lf = ttk.LabelFrame(parent, text=title)
+        lf.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+
+        container = ttk.Frame(lf)
+        container.pack(fill="both", expand=True)
+
+        lbx = tk.Listbox(container, exportselection=False)
+        lbx.pack(fill="both", expand=True, padx=4, pady=4)
+
+        btns = ttk.Frame(container)
+        btns.pack(fill="x", padx=4, pady=(0, 4))
+        ttk.Button(
+            btns,
+            text="Export…",
+            command=lambda: self._export_listbox(lbx, export_slug),
+        ).pack(side="left")
+
+        prev = tk.Text(container, height=8, wrap="word")
+        prev.pack_forget()
+
+        return _ListColumn(frame=lf, listbox=lbx, preview=prev)
+
+    def _init_state_vars(self) -> None:
         self.m_qif_in = tk.StringVar()
         self.m_xlsx = tk.StringVar()
         self.m_qif_out = tk.StringVar()
         self.m_only_matched = tk.BooleanVar(value=False)
         self.m_preview_var = tk.BooleanVar(value=False)
 
+    def _build_files_section(self) -> None:
+        pad = {"padx": 8, "pady": 6}
         files = ttk.LabelFrame(self, text="Files")
         files.pack(fill="x", **pad)
+
         ttk.Label(files, text="Input QIF:").grid(row=0, column=0, sticky="w")
         ttk.Entry(files, textvariable=self.m_qif_in, width=90).grid(
             row=0, column=1, sticky="we", padx=5
@@ -59,6 +102,7 @@ class MergeTab(ttk.Frame):
         ttk.Button(files, text="Browse…", command=self._m_browse_qif).grid(
             row=0, column=2
         )
+
         ttk.Label(files, text="Excel (.xlsx):").grid(row=1, column=0, sticky="w")
         ttk.Entry(files, textvariable=self.m_xlsx, width=90).grid(
             row=1, column=1, sticky="we", padx=5
@@ -66,6 +110,7 @@ class MergeTab(ttk.Frame):
         ttk.Button(files, text="Browse…", command=self._m_browse_xlsx).grid(
             row=1, column=2
         )
+
         ttk.Label(files, text="Output QIF:").grid(row=2, column=0, sticky="w")
         ttk.Entry(files, textvariable=self.m_qif_out, width=90).grid(
             row=2, column=1, sticky="we", padx=5
@@ -73,8 +118,10 @@ class MergeTab(ttk.Frame):
         ttk.Button(files, text="Browse…", command=self._m_browse_out).grid(
             row=2, column=2
         )
+
         files.columnconfigure(1, weight=1)
 
+    def _build_controls_section(self) -> None:
         controls = ttk.Frame(self)
         controls.pack(anchor="w", padx=12, pady=(0, 6), fill="x")
         ttk.Checkbutton(
@@ -87,6 +134,8 @@ class MergeTab(ttk.Frame):
             command=self._m_toggle_previews,
         ).pack(side="left", padx=(12, 0))
 
+    def _build_actions_section(self) -> None:
+        pad = {"padx": 8, "pady": 6}
         actions = ttk.Frame(self)
         actions.pack(fill="x", **pad)
         ttk.Button(
@@ -99,73 +148,25 @@ class MergeTab(ttk.Frame):
             actions, text="Apply Updates & Save", command=self._m_apply_and_save
         ).pack(side="right")
 
+    def _build_lists_section(self) -> None:
+        pad = {"padx": 8, "pady": 6}
         lists = ttk.Frame(self)
         lists.pack(fill="both", expand=True, **pad)
 
-        # Left: Unmatched QIF
-        left = ttk.LabelFrame(lists, text="Unmatched QIF items")
-        left.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-        left_container = ttk.Frame(left)
-        left_container.pack(fill="both", expand=True)
+        # Build columns via reusable helper and attach to self
+        left = self._build_list_column(lists, "Unmatched QIF items", "unmatched_qif")
+        self.lbx_unqif, self.prev_unqif = left.listbox, left.preview
 
-        self.lbx_unqif = tk.Listbox(left_container, exportselection=False)
-        self.lbx_unqif.pack(fill="both", expand=True, padx=4, pady=4)
+        mid = self._build_list_column(lists, "Matched pairs", "matched_pairs")
+        self.lbx_pairs, self.prev_pairs = mid.listbox, mid.preview
 
-        # Export button (Unmatched QIF)
-        left_btns = ttk.Frame(left_container)
-        left_btns.pack(fill="x", padx=4, pady=(0, 4))
-        ttk.Button(
-            left_btns,
-            text="Export…",
-            command=lambda: self._export_listbox(self.lbx_unqif, "unmatched_qif"),
-        ).pack(side="left")
+        right = self._build_list_column(
+            lists, "Unmatched Excel rows", "unmatched_excel"
+        )
+        self.lbx_unx, self.prev_unx = right.listbox, right.preview
 
-        self.prev_unqif = tk.Text(left_container, height=8, wrap="word")
-        self.prev_unqif.pack_forget()
-
-        # Middle: Matched pairs
-        mid = ttk.LabelFrame(lists, text="Matched pairs")
-        mid.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-        mid_container = ttk.Frame(mid)
-        mid_container.pack(fill="both", expand=True)
-
-        self.lbx_pairs = tk.Listbox(mid_container, exportselection=False)
-        self.lbx_pairs.pack(fill="both", expand=True, padx=4, pady=4)
-
-        # Export button (Matched pairs)
-        mid_btns = ttk.Frame(mid_container)
-        mid_btns.pack(fill="x", padx=4, pady=(0, 4))
-        ttk.Button(
-            mid_btns,
-            text="Export…",
-            command=lambda: self._export_listbox(self.lbx_pairs, "matched_pairs"),
-        ).pack(side="left")
-
-        self.prev_pairs = tk.Text(mid_container, height=8, wrap="word")
-        self.prev_pairs.pack_forget()
-
-        # Right: Unmatched Excel
-        right = ttk.LabelFrame(lists, text="Unmatched Excel rows")
-        right.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-        right_container = ttk.Frame(right)
-        right_container.pack(fill="both", expand=True)
-
-        self.lbx_unx = tk.Listbox(right_container, exportselection=False)
-        self.lbx_unx.pack(fill="both", expand=True, padx=4, pady=4)
-
-        # Export button (Unmatched Excel)
-        right_btns = ttk.Frame(right_container)
-        right_btns.pack(fill="x", padx=4, pady=(0, 4))
-        ttk.Button(
-            right_btns,
-            text="Export…",
-            command=lambda: self._export_listbox(self.lbx_unx, "unmatched_excel"),
-        ).pack(side="left")
-
-        self.prev_unx = tk.Text(right_container, height=8, wrap="word")
-        self.prev_unx.pack_forget()
-
-        # Footer: Manual match/unmatch + reason
+    def _build_footer_section(self) -> None:
+        pad = {"padx": 8, "pady": 6}
         foot = ttk.Frame(self)
         foot.pack(fill="x", **pad)
         ttk.Button(foot, text="Match Selected →", command=self._m_manual_match).pack(
@@ -178,12 +179,14 @@ class MergeTab(ttk.Frame):
             side="left", padx=8
         )
 
+    def _build_info_section(self) -> None:
+        pad = {"padx": 8, "pady": 6}
         infof = ttk.LabelFrame(self, text="Info")
         infof.pack(fill="x", **pad)
         self.txt_info = tk.Text(infof, height=6, wrap="word")
         self.txt_info.pack(fill="x", padx=8, pady=6)
 
-        # Bind previews after widgets exist
+    def _bind_preview_events(self) -> None:
         self.lbx_unqif.bind(
             "<<ListboxSelect>>", lambda e: self._m_update_preview("unqif")
         )
@@ -191,6 +194,157 @@ class MergeTab(ttk.Frame):
             "<<ListboxSelect>>", lambda e: self._m_update_preview("pairs")
         )
         self.lbx_unx.bind("<<ListboxSelect>>", lambda e: self._m_update_preview("unx"))
+
+    # def _build(self):
+    #     pad = {"padx": 8, "pady": 6}
+    #
+    #     self.m_qif_in = tk.StringVar()
+    #     self.m_xlsx = tk.StringVar()
+    #     self.m_qif_out = tk.StringVar()
+    #     self.m_only_matched = tk.BooleanVar(value=False)
+    #     self.m_preview_var = tk.BooleanVar(value=False)
+    #
+    #     files = ttk.LabelFrame(self, text="Files")
+    #     files.pack(fill="x", **pad)
+    #     ttk.Label(files, text="Input QIF:").grid(row=0, column=0, sticky="w")
+    #     ttk.Entry(files, textvariable=self.m_qif_in, width=90).grid(
+    #         row=0, column=1, sticky="we", padx=5
+    #     )
+    #     ttk.Button(files, text="Browse…", command=self._m_browse_qif).grid(
+    #         row=0, column=2
+    #     )
+    #     ttk.Label(files, text="Excel (.xlsx):").grid(row=1, column=0, sticky="w")
+    #     ttk.Entry(files, textvariable=self.m_xlsx, width=90).grid(
+    #         row=1, column=1, sticky="we", padx=5
+    #     )
+    #     ttk.Button(files, text="Browse…", command=self._m_browse_xlsx).grid(
+    #         row=1, column=2
+    #     )
+    #     ttk.Label(files, text="Output QIF:").grid(row=2, column=0, sticky="w")
+    #     ttk.Entry(files, textvariable=self.m_qif_out, width=90).grid(
+    #         row=2, column=1, sticky="we", padx=5
+    #     )
+    #     ttk.Button(files, text="Browse…", command=self._m_browse_out).grid(
+    #         row=2, column=2
+    #     )
+    #     files.columnconfigure(1, weight=1)
+    #
+    #     controls = ttk.Frame(self)
+    #     controls.pack(anchor="w", padx=12, pady=(0, 6), fill="x")
+    #     ttk.Checkbutton(
+    #         controls, text="Output Only Matched Items", variable=self.m_only_matched
+    #     ).pack(side="left")
+    #     ttk.Checkbutton(
+    #         controls,
+    #         text="Preview Window",
+    #         variable=self.m_preview_var,
+    #         command=self._m_toggle_previews,
+    #     ).pack(side="left", padx=(12, 0))
+    #
+    #     actions = ttk.Frame(self)
+    #     actions.pack(fill="x", **pad)
+    #     ttk.Button(
+    #         actions, text="Load + Auto-Match", command=self._m_load_and_auto
+    #     ).pack(side="left")
+    #     ttk.Button(
+    #         actions, text="Normalize Categories", command=self._m_normalize_categories
+    #     ).pack(side="left", padx=6)
+    #     ttk.Button(
+    #         actions, text="Apply Updates & Save", command=self._m_apply_and_save
+    #     ).pack(side="right")
+    #
+    #     lists = ttk.Frame(self)
+    #     lists.pack(fill="both", expand=True, **pad)
+    #
+    #     # Left: Unmatched QIF
+    #     left = ttk.LabelFrame(lists, text="Unmatched QIF items")
+    #     left.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+    #     left_container = ttk.Frame(left)
+    #     left_container.pack(fill="both", expand=True)
+    #
+    #     self.lbx_unqif = tk.Listbox(left_container, exportselection=False)
+    #     self.lbx_unqif.pack(fill="both", expand=True, padx=4, pady=4)
+    #
+    #     # Export button (Unmatched QIF)
+    #     left_btns = ttk.Frame(left_container)
+    #     left_btns.pack(fill="x", padx=4, pady=(0, 4))
+    #     ttk.Button(
+    #         left_btns,
+    #         text="Export…",
+    #         command=lambda: self._export_listbox(self.lbx_unqif, "unmatched_qif"),
+    #     ).pack(side="left")
+    #
+    #     self.prev_unqif = tk.Text(left_container, height=8, wrap="word")
+    #     self.prev_unqif.pack_forget()
+    #
+    #     # Middle: Matched pairs
+    #     mid = ttk.LabelFrame(lists, text="Matched pairs")
+    #     mid.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+    #     mid_container = ttk.Frame(mid)
+    #     mid_container.pack(fill="both", expand=True)
+    #
+    #     self.lbx_pairs = tk.Listbox(mid_container, exportselection=False)
+    #     self.lbx_pairs.pack(fill="both", expand=True, padx=4, pady=4)
+    #
+    #     # Export button (Matched pairs)
+    #     mid_btns = ttk.Frame(mid_container)
+    #     mid_btns.pack(fill="x", padx=4, pady=(0, 4))
+    #     ttk.Button(
+    #         mid_btns,
+    #         text="Export…",
+    #         command=lambda: self._export_listbox(self.lbx_pairs, "matched_pairs"),
+    #     ).pack(side="left")
+    #
+    #     self.prev_pairs = tk.Text(mid_container, height=8, wrap="word")
+    #     self.prev_pairs.pack_forget()
+    #
+    #     # Right: Unmatched Excel
+    #     right = ttk.LabelFrame(lists, text="Unmatched Excel rows")
+    #     right.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+    #     right_container = ttk.Frame(right)
+    #     right_container.pack(fill="both", expand=True)
+    #
+    #     self.lbx_unx = tk.Listbox(right_container, exportselection=False)
+    #     self.lbx_unx.pack(fill="both", expand=True, padx=4, pady=4)
+    #
+    #     # Export button (Unmatched Excel)
+    #     right_btns = ttk.Frame(right_container)
+    #     right_btns.pack(fill="x", padx=4, pady=(0, 4))
+    #     ttk.Button(
+    #         right_btns,
+    #         text="Export…",
+    #         command=lambda: self._export_listbox(self.lbx_unx, "unmatched_excel"),
+    #     ).pack(side="left")
+    #
+    #     self.prev_unx = tk.Text(right_container, height=8, wrap="word")
+    #     self.prev_unx.pack_forget()
+    #
+    #     # Footer: Manual match/unmatch + reason
+    #     foot = ttk.Frame(self)
+    #     foot.pack(fill="x", **pad)
+    #     ttk.Button(foot, text="Match Selected →", command=self._m_manual_match).pack(
+    #         side="left"
+    #     )
+    #     ttk.Button(foot, text="Unmatch Selected", command=self._m_manual_unmatch).pack(
+    #         side="left", padx=8
+    #     )
+    #     ttk.Button(foot, text="Why not matched?", command=self._m_why_not).pack(
+    #         side="left", padx=8
+    #     )
+    #
+    #     infof = ttk.LabelFrame(self, text="Info")
+    #     infof.pack(fill="x", **pad)
+    #     self.txt_info = tk.Text(infof, height=6, wrap="word")
+    #     self.txt_info.pack(fill="x", padx=8, pady=6)
+    #
+    #     # Bind previews after widgets exist
+    #     self.lbx_unqif.bind(
+    #         "<<ListboxSelect>>", lambda e: self._m_update_preview("unqif")
+    #     )
+    #     self.lbx_pairs.bind(
+    #         "<<ListboxSelect>>", lambda e: self._m_update_preview("pairs")
+    #     )
+    #     self.lbx_unx.bind("<<ListboxSelect>>", lambda e: self._m_update_preview("unx"))
 
     # --------- Protocol→dict adapters (temporary during migration) ---------
     @staticmethod
