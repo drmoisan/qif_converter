@@ -1,6 +1,6 @@
 # PowerShell
 param(
-  [string]$Output = "commit_context.txt"
+  [string]$Output = "logs/commit_context.txt"
 )
 
 $ErrorActionPreference = "Stop"

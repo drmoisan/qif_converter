@@ -13,18 +13,50 @@ from __future__ import annotations
 import importlib
 import sys
 import types
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
-from quicken_helper.data_model import ITransaction
+from quicken_helper.data_model import (
+    ITransaction,
+    IQuickenFile,
+    EnumClearedStatus,
+    QTransaction,
+)
+
 
 # --------------------------
 # Tk / ttk / filedialog / messagebox stubs
 # --------------------------
 
+class _FileStub(IQuickenFile):
+    """Minimal IQuickenFile implementation for MergeTab tests."""
+
+    def __init__(self, path=""):
+        self.path = path
+        self.transactions = []
+        self.accounts = []
+        self.headers = []
+        self.other_sections = {}
+
+class _TransactionStub(ITransaction):
+    """Minimal ITransaction implementation for MergeTab tests."""
+    def __init__(self, **kw):
+        self.date = kw.get("date", date(1985, 11, 5))
+        self.amount = kw.get("amount", Decimal(0))
+        self.payee = kw.get("payee", "")
+        self.memo = kw.get("memo", "")
+        self.category = kw.get("category", "")
+        self.tag = kw.get("tag", "")
+        self.action_chk = kw.get("action_chk", "")
+        self.cleared = kw.get("cleared", EnumClearedStatus.UNKNOWN)
+        self.splits = kw.get("splits", [])
+        self._dict = kw.get("_dict", {})
+    def to_dict(self):
+        return self._dict
 
 class _DummyVar:
     """
@@ -557,6 +589,13 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
     def open_and_parse_qif(path):
         return _legacy_load_transactions(path)
 
+    def parse_qif_unified_protocol(path):
+        file = _FileStub(path)
+        file.transactions.append(_TransactionStub(amount=Decimal(1.0),_dict={"key": {"txn_index": 1}, "amount": 1.0}))
+        file.transactions.append(_TransactionStub(amount=Decimal(2.0),_dict={"key": {"txn_index": 2}, "amount": 2.0}))
+        return file
+
+
     # Minimal enum used by UI
     from quicken_helper.data_model.interfaces import EnumClearedStatus
 
@@ -598,6 +637,8 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
     ql.load_transactions = _legacy_load_transactions
     ql.parse_qif = parse_qif
     ql.open_and_parse_qif = open_and_parse_qif
+    ql.parse_qif_unified_protocol = parse_qif_unified_protocol
+
 
     monkeypatch.setitem(sys.modules, names["qif_loader"], ql)
 
