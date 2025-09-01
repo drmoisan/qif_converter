@@ -422,9 +422,12 @@ class MergeTab(ttk.Frame):
                 return None
 
             # Build session
-            from quicken_helper.controllers.qif_loader import open_and_parse_qif
+            from quicken_helper.controllers.qif_loader import parse_qif_unified_protocol
+            quicken_file = parse_qif_unified_protocol(qif_in)
 
-            txns = open_and_parse_qif(qif_in)
+            transactions = quicken_file.transactions
+            txns = [t.to_dict() for t in transactions]
+            # txns = open_and_parse_qif(qif_in)
             qif_cats = mex.extract_qif_categories(txns)
             excel_cats = mex.extract_excel_categories(xlsx)
             sess = CategoryMatchSession(qif_cats, excel_cats)

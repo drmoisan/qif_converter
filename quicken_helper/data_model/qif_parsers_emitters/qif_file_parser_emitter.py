@@ -28,7 +28,7 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
 
     # --- required by IParserEmitter ---
 
-    def parse(self, unparsed_string: str) -> Iterable[IQuickenFile]:
+    def parse(self, unparsed_string: str) -> IQuickenFile:
         """Return an iterable of IQuickenFile parsed from `unparsed_string`."""
         # build the concrete file(s)
         f = self._make_file()
@@ -42,7 +42,7 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
         f.emitter = (
             self  # set back-reference (safe: typed as IParserEmitter[IQuickenFile])
         )
-        return [f]
+        return f
 
     def emit(self, obj: Iterable[IQuickenFile] | IQuickenFile) -> str:
         def _one(x: IQuickenFile) -> str:
