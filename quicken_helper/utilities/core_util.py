@@ -252,6 +252,8 @@ _SCALAR_CONVERTERS: Dict[type, Any] = {
     datetime: _to_datetime,
 }
 
+protocol_implementation: Dict[type, type] = {}
+
 def _to_list(args, value, cv):
     (T,) = args or (object,)
     seq = list(value)  # let this raise if it's not iterable
@@ -375,16 +377,29 @@ def convert_value(target_type, value):
             return __convert_enum(target_type, value)
         # --- NEW: Protocol support ---
         if _is_protocol_type(target_type):
+            # Look up the preferred concrete type for this protocol, if any.
+            impl_type = protocol_implementation.get(target_type, None)
             # If the protocol is runtime-checkable, enforce it;
             # otherwise, pass through (can’t check safely at runtime).
             if _is_runtime_protocol_type(target_type):
                 if isinstance(value, target_type):
                     return value
+                if impl_type is not None:
+                    # If it's already the preferred impl, keep it; otherwise convert.
+                    candidate = value if isinstance(value, impl_type) else convert_value(impl_type, value)
+                    # Must satisfy the protocol after conversion.
+                    if isinstance(candidate, target_type):
+                        return candidate
+                # No viable impl or conversion didn't satisfy the protocol → hard error.
                 raise TypeError(
                     f"Value of type {type(value).__name__} "
                     f"does not implement protocol {target_type.__name__}"
                 )
-            # Non-runtime-checkable protocol: trust the caller and pass through.
+            # Non-runtime-checkable Protocols:
+            # We can't isinstance-check the protocol; if we know a preferred impl, convert to it.
+            if impl_type is not None and not isinstance(value, impl_type):
+                return convert_value(impl_type, value)
+            # Otherwise, trust the caller and pass the value through.
             return value
         # --- end NEW ---
 

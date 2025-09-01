@@ -54,6 +54,15 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
 
     # ------- internal parsing helpers -------
 
+    _PROTOCOL_IMPLEMENTATION = {
+        IQuickenFile: QuickenFileType,
+        ITransaction: QTransaction,
+        ITag: QTag,
+        IAccount: QAccount,
+        ICategory: QCategory,
+        IHeader: QifHeader,
+    }
+
     _SECTION_NORMALIZE = {
         "!account": "Account",
         "!type:cat": "Category",
