@@ -7,6 +7,7 @@ from tkinter import filedialog, ttk
 from typing import List
 
 import quicken_helper.controllers.qif_loader
+from quicken_helper.data_model.qif_parsers_emitters.qif_file_parser_emitter import QifFileParserEmitter
 from quicken_helper.gui_viewers.csv_profiles import (
     write_csv_quicken_mac,
     write_csv_quicken_windows,
@@ -254,7 +255,10 @@ class ConvertTab(ttk.Frame):
                         txns = qfx.parse_qfx(in_path)
                     else:
                         self.logln("Parsing QIF…")
-                        txns = quicken_helper.controllers.qif_loader.open_and_parse_qif(in_path)
+                        quicken_file = quicken_helper.controllers.qif_loader.parse_qif_unified_protocol(in_path)
+                        transactions = quicken_file.transactions
+                        txns = [t.to_dict() for t in transactions]
+                        # txns = quicken_helper.controllers.qif_loader.open_and_parse_qif(in_path)
 
             if df or dt:
                 self.logln(

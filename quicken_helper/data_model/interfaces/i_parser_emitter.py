@@ -41,7 +41,7 @@ inheritance.
 
 from __future__ import annotations
 
-from typing import Iterable, Protocol, TypeVar, overload, runtime_checkable
+from typing import Iterable, Protocol, TypeVar, runtime_checkable
 
 from .enum_quicken_file_types import QuickenFileType
 
@@ -90,7 +90,7 @@ class IParserEmitter(Protocol[T]):
 
     file_format: QuickenFileType
 
-    def parse(self, unparsed_string: str) -> Iterable[T]:
+    def parse(self, unparsed_string: str) -> T:
         """
         Parse a complete textual document into an iterable of items.
 
@@ -128,42 +128,41 @@ class IParserEmitter(Protocol[T]):
           interleave item types, or you may choose to model ``T`` as a union.
         """
 
-    @overload
-    def emit(self, items: Iterable[T]) -> str:
-        """
-        Serialize an iterable of items into a single textual document.
+    # @overload
+    # def emit(self, items: Iterable[T]) -> str:
+    #     """
+    #     Serialize an iterable of items into a single textual document.
+    #
+    #     Parameters
+    #     ----------
+    #     items : Iterable[T]
+    #         Items to serialize. Implementations may validate invariants (for
+    #         example, that split amounts total to the parent amount) and should
+    #         raise with context if violations are encountered.
+    #
+    #     Returns
+    #     -------
+    #     str
+    #         The emitted document as a Unicode string, formatted canonically
+    #         (stable ordering, consistent whitespace/line endings) so that
+    #         ``emit(parse(s))`` is stable modulo normalization.
+    #
+    #     Raises
+    #     ------
+    #     ValueError
+    #         If one or more items cannot be represented in the target format, or
+    #         required fields are missing.
+    #     NotImplementedError
+    #         If the implementation does not support emitting specific features
+    #         for the declared ``file_format``.
+    #
+    #     Notes
+    #     -----
+    #     - Emitters should prefer ``\\n`` for line endings unless the ecosystem
+    #       requires platform-native endings; this choice should be documented.
+    #     - Implementers should not mutate ``items`` during emission.
+    #     """
 
-        Parameters
-        ----------
-        items : Iterable[T]
-            Items to serialize. Implementations may validate invariants (for
-            example, that split amounts total to the parent amount) and should
-            raise with context if violations are encountered.
-
-        Returns
-        -------
-        str
-            The emitted document as a Unicode string, formatted canonically
-            (stable ordering, consistent whitespace/line endings) so that
-            ``emit(parse(s))`` is stable modulo normalization.
-
-        Raises
-        ------
-        ValueError
-            If one or more items cannot be represented in the target format, or
-            required fields are missing.
-        NotImplementedError
-            If the implementation does not support emitting specific features
-            for the declared ``file_format``.
-
-        Notes
-        -----
-        - Emitters should prefer ``\\n`` for line endings unless the ecosystem
-          requires platform-native endings; this choice should be documented.
-        - Implementers should not mutate ``items`` during emission.
-        """
-
-    @overload
     def emit(self, item: T) -> str:
         """
         Serialize an item of type ``T`` into a single textual document.
