@@ -10,6 +10,8 @@ from types import SimpleNamespace
 from typing import Any, Dict, List
 
 from quicken_helper.controllers.qif_loader import load_transactions_protocol
+from quicken_helper.controllers.data_session import DataSession
+
 
 # from quicken_helper.qif_loader import (
 #     load_transactions,                  # legacy (dicts) — kept for back-compat
@@ -21,6 +23,7 @@ from quicken_helper.gui_viewers.convert_tab import ConvertTab
 # project modules
 from quicken_helper.gui_viewers.merge_tab import MergeTab
 from quicken_helper.gui_viewers.probe_tab import ProbeTab
+from quicken_helper.controllers.data_session import DataSession
 from quicken_helper.gui_viewers.utils import (
     apply_multi_payee_filters,
     filter_date_range,
@@ -137,8 +140,9 @@ class App(tk.Tk):
 
         # after: self.nb = ttk.Notebook(self); self.nb.pack(...)
         # Build tabs (inject messagebox wrapper)
-        self.convert_tab = ConvertTab(self, self.mb)
-        self.merge_tab = MergeTab(self, self.mb)
+        self.session = DataSession()
+        self.convert_tab = ConvertTab(self, self.mb, session=self.session)
+        self.merge_tab = MergeTab(self, self.mb, session=self.session)
         self.probe_tab = ProbeTab(self, self.mb)
 
         # NOTEBOOK ORDER (Merge first, per your preference)

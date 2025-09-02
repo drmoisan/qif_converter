@@ -11,6 +11,13 @@ from typing import Optional
 
 from quicken_helper.gui_viewers.helpers import decode_best_effort
 from quicken_helper.legacy import qdx_probe
+import logging
+import logging.config
+from quicken_helper.utilities import LOGGING
+
+logging.config.dictConfig(LOGGING)
+log = logging.getLogger(__name__)
+
 
 
 class ProbeTab(ttk.Frame):
@@ -113,6 +120,7 @@ class ProbeTab(ttk.Frame):
     # actions
     def _p_run_probe(self):
         try:
+            log.info("ProbeTab._p_run_probe start")
             qdx = Path(self.p_qdx.get().strip())
             if not qdx.exists():
                 self.mb.showerror("Error", "Please pick a valid QDX file.")
@@ -120,6 +128,7 @@ class ProbeTab(ttk.Frame):
             qif = Path(self.p_qif.get().strip()) if self.p_qif.get().strip() else None
             out = Path(self.p_out.get().strip()) if self.p_out.get().strip() else None
 
+            log.debug("Running qdx_probe.run_probe | qdx=%s qif=%s out=%s", qdx, qif, out)
             report, artifacts = qdx_probe.run_probe(qdx, qif, out)
             self.p_report.delete("1.0", "end")
             self.p_report.insert("end", report)
@@ -128,6 +137,7 @@ class ProbeTab(ttk.Frame):
                 self.p_artifacts.insert("end", str(a))
             self.mb.showinfo("QDX Probe", "Probe completed.")
         except Exception as e:
+            log.exception("ProbeTab._p_run_probe failed")
             self.mb.showerror("Error", str(e))
 
     def _p_selected_artifact(self) -> Optional[Path]:

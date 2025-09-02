@@ -189,7 +189,7 @@ def _install_gui_submodule_stubs(monkeypatch):
     convert_tab = types.ModuleType("quicken_helper.gui_viewers.convert_tab")
 
     class ConvertTab:
-        def __init__(self, app, mb):
+        def __init__(self, app, mb, session=None):
             self.app = app
             self.mb = mb
             self.in_path = _DummyVar("")

@@ -26,7 +26,7 @@ function Write-Err ($msg) { Write-Host "[ERROR] $msg" -ForegroundColor Red }
 # names to suppress in the brief's layout
 $Global:ExcludeNames = @(
   ".git", ".idea", "__pycache__", ".mypy_cache", ".pytest_cache",
-  "venv", ".venv", "dist", "build"
+  "venv", ".venv", "dist", "build", ".ruff_cache", "logs"
 )
 
 function Should-Exclude([string]$name) {
@@ -146,7 +146,6 @@ try {
   $brief += $layout
   $brief += '```'
   $brief += ''
-  $brief += 'Tip: when you upload the zip, also tell ChatGPT which files/dirs to focus on.'
 
   $brief | Set-Content -Encoding UTF8 $OutBrief
 

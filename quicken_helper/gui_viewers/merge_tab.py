@@ -18,6 +18,7 @@ from quicken_helper.data_model import EnumClearedStatus, ITransaction
 from quicken_helper.data_model.excel import ExcelTransaction, ExcelTxnGroup, map_group_to_excel_txn
 from quicken_helper.gui_viewers.helpers import _fmt_excel_row, _fmt_txn, _set_text
 from quicken_helper.gui_viewers.category_popout import open_normalize_modal as open_category_popout
+from quicken_helper.controllers.data_session import DataSession
 
 # import qif_item_key
 from quicken_helper.legacy import qif_writer as mod
@@ -42,7 +43,7 @@ class _ListColumn:
 class MergeTab(ttk.Frame):
     """Primary function: Excel ↔ QIF merge + manual matching + previews."""
 
-    def __init__(self, master, mb):
+    def __init__(self, master, mb, session: DataSession | None = None):
         """Initialize UI state, bind actions, and prepare empty `MatchSession`.
 
         Does not perform any I/O. File selection or drag-drop handlers call
@@ -50,6 +51,7 @@ class MergeTab(ttk.Frame):
         """
         super().__init__(master)
         self.mb = mb
+        self.session = session
         self._merge_session: Optional[MatchSession] = None
 
         # Ensure test-visible lists always exist (even if load/refresh bails early)
@@ -316,13 +318,19 @@ class MergeTab(ttk.Frame):
                 self.mb.showerror("Error", "Please choose a valid Excel (.xlsx).")
                 return
 
-            # Bank side: already ITransaction via loader
-            bank_txns = load_transactions_protocol(qif_in)
+            # Bank/Excel side: prefer cached DataSession if available
+            if self.session:
+                bank_txns = self.session.load_qif(qif_in)
+                excel_txns = self.session.load_excel(xlsx)
+                rows = self.session.excel_rows or []
+            else:
+                # Bank side: already ITransaction via loader
+                bank_txns = load_transactions_protocol(qif_in)
+                # Excel side: rows -> groups -> ITransaction (via adapter)
+                rows = mex.load_excel_rows(xlsx)
+                groups = mex.group_excel_rows(rows)
+                excel_txns = [map_group_to_excel_txn(g) for g in groups]
 
-            # Excel side: rows -> groups -> ITransaction (via adapter)
-            rows = mex.load_excel_rows(xlsx)
-            groups = mex.group_excel_rows(rows)
-            excel_txns = [map_group_to_excel_txn(g) for g in groups]
 
             # ✅ Protocol-only session: (bank_txns, excel_txns)
             sess = MatchSession(bank_txns, excel_txns)
