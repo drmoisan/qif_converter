@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from tkinter import filedialog, ttk
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from quicken_helper.controllers import match_excel as mex
 from quicken_helper.controllers.category_match_session import CategoryMatchSession
@@ -15,19 +15,27 @@ from quicken_helper.controllers.match_session import MatchSession
 # from quicken_helper.qif_loader import load_transactions
 from quicken_helper.controllers.qif_loader import load_transactions_protocol
 from quicken_helper.data_model import EnumClearedStatus, ITransaction
+from quicken_helper.data_model.excel import ExcelTransaction, ExcelTxnGroup, map_group_to_excel_txn
 from quicken_helper.gui_viewers.helpers import _fmt_excel_row, _fmt_txn, _set_text
 
 # import qif_item_key
 from quicken_helper.legacy import qif_writer as mod
 from quicken_helper.legacy.qif_item_key import QIFItemKey
 
+import logging
+import logging.config
+from quicken_helper.utilities import LOGGING
+
+
+logging.config.dictConfig(LOGGING)
+log = logging.getLogger(__name__)
+
+
 @dataclass
 class _ListColumn:
     frame: ttk.LabelFrame
     listbox: tk.Listbox
     preview: tk.Text
-
-
 
 
 class MergeTab(ttk.Frame):
@@ -195,156 +203,6 @@ class MergeTab(ttk.Frame):
         )
         self.lbx_unx.bind("<<ListboxSelect>>", lambda e: self._m_update_preview("unx"))
 
-    # def _build(self):
-    #     pad = {"padx": 8, "pady": 6}
-    #
-    #     self.m_qif_in = tk.StringVar()
-    #     self.m_xlsx = tk.StringVar()
-    #     self.m_qif_out = tk.StringVar()
-    #     self.m_only_matched = tk.BooleanVar(value=False)
-    #     self.m_preview_var = tk.BooleanVar(value=False)
-    #
-    #     files = ttk.LabelFrame(self, text="Files")
-    #     files.pack(fill="x", **pad)
-    #     ttk.Label(files, text="Input QIF:").grid(row=0, column=0, sticky="w")
-    #     ttk.Entry(files, textvariable=self.m_qif_in, width=90).grid(
-    #         row=0, column=1, sticky="we", padx=5
-    #     )
-    #     ttk.Button(files, text="Browse…", command=self._m_browse_qif).grid(
-    #         row=0, column=2
-    #     )
-    #     ttk.Label(files, text="Excel (.xlsx):").grid(row=1, column=0, sticky="w")
-    #     ttk.Entry(files, textvariable=self.m_xlsx, width=90).grid(
-    #         row=1, column=1, sticky="we", padx=5
-    #     )
-    #     ttk.Button(files, text="Browse…", command=self._m_browse_xlsx).grid(
-    #         row=1, column=2
-    #     )
-    #     ttk.Label(files, text="Output QIF:").grid(row=2, column=0, sticky="w")
-    #     ttk.Entry(files, textvariable=self.m_qif_out, width=90).grid(
-    #         row=2, column=1, sticky="we", padx=5
-    #     )
-    #     ttk.Button(files, text="Browse…", command=self._m_browse_out).grid(
-    #         row=2, column=2
-    #     )
-    #     files.columnconfigure(1, weight=1)
-    #
-    #     controls = ttk.Frame(self)
-    #     controls.pack(anchor="w", padx=12, pady=(0, 6), fill="x")
-    #     ttk.Checkbutton(
-    #         controls, text="Output Only Matched Items", variable=self.m_only_matched
-    #     ).pack(side="left")
-    #     ttk.Checkbutton(
-    #         controls,
-    #         text="Preview Window",
-    #         variable=self.m_preview_var,
-    #         command=self._m_toggle_previews,
-    #     ).pack(side="left", padx=(12, 0))
-    #
-    #     actions = ttk.Frame(self)
-    #     actions.pack(fill="x", **pad)
-    #     ttk.Button(
-    #         actions, text="Load + Auto-Match", command=self._m_load_and_auto
-    #     ).pack(side="left")
-    #     ttk.Button(
-    #         actions, text="Normalize Categories", command=self._m_normalize_categories
-    #     ).pack(side="left", padx=6)
-    #     ttk.Button(
-    #         actions, text="Apply Updates & Save", command=self._m_apply_and_save
-    #     ).pack(side="right")
-    #
-    #     lists = ttk.Frame(self)
-    #     lists.pack(fill="both", expand=True, **pad)
-    #
-    #     # Left: Unmatched QIF
-    #     left = ttk.LabelFrame(lists, text="Unmatched QIF items")
-    #     left.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-    #     left_container = ttk.Frame(left)
-    #     left_container.pack(fill="both", expand=True)
-    #
-    #     self.lbx_unqif = tk.Listbox(left_container, exportselection=False)
-    #     self.lbx_unqif.pack(fill="both", expand=True, padx=4, pady=4)
-    #
-    #     # Export button (Unmatched QIF)
-    #     left_btns = ttk.Frame(left_container)
-    #     left_btns.pack(fill="x", padx=4, pady=(0, 4))
-    #     ttk.Button(
-    #         left_btns,
-    #         text="Export…",
-    #         command=lambda: self._export_listbox(self.lbx_unqif, "unmatched_qif"),
-    #     ).pack(side="left")
-    #
-    #     self.prev_unqif = tk.Text(left_container, height=8, wrap="word")
-    #     self.prev_unqif.pack_forget()
-    #
-    #     # Middle: Matched pairs
-    #     mid = ttk.LabelFrame(lists, text="Matched pairs")
-    #     mid.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-    #     mid_container = ttk.Frame(mid)
-    #     mid_container.pack(fill="both", expand=True)
-    #
-    #     self.lbx_pairs = tk.Listbox(mid_container, exportselection=False)
-    #     self.lbx_pairs.pack(fill="both", expand=True, padx=4, pady=4)
-    #
-    #     # Export button (Matched pairs)
-    #     mid_btns = ttk.Frame(mid_container)
-    #     mid_btns.pack(fill="x", padx=4, pady=(0, 4))
-    #     ttk.Button(
-    #         mid_btns,
-    #         text="Export…",
-    #         command=lambda: self._export_listbox(self.lbx_pairs, "matched_pairs"),
-    #     ).pack(side="left")
-    #
-    #     self.prev_pairs = tk.Text(mid_container, height=8, wrap="word")
-    #     self.prev_pairs.pack_forget()
-    #
-    #     # Right: Unmatched Excel
-    #     right = ttk.LabelFrame(lists, text="Unmatched Excel rows")
-    #     right.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-    #     right_container = ttk.Frame(right)
-    #     right_container.pack(fill="both", expand=True)
-    #
-    #     self.lbx_unx = tk.Listbox(right_container, exportselection=False)
-    #     self.lbx_unx.pack(fill="both", expand=True, padx=4, pady=4)
-    #
-    #     # Export button (Unmatched Excel)
-    #     right_btns = ttk.Frame(right_container)
-    #     right_btns.pack(fill="x", padx=4, pady=(0, 4))
-    #     ttk.Button(
-    #         right_btns,
-    #         text="Export…",
-    #         command=lambda: self._export_listbox(self.lbx_unx, "unmatched_excel"),
-    #     ).pack(side="left")
-    #
-    #     self.prev_unx = tk.Text(right_container, height=8, wrap="word")
-    #     self.prev_unx.pack_forget()
-    #
-    #     # Footer: Manual match/unmatch + reason
-    #     foot = ttk.Frame(self)
-    #     foot.pack(fill="x", **pad)
-    #     ttk.Button(foot, text="Match Selected →", command=self._m_manual_match).pack(
-    #         side="left"
-    #     )
-    #     ttk.Button(foot, text="Unmatch Selected", command=self._m_manual_unmatch).pack(
-    #         side="left", padx=8
-    #     )
-    #     ttk.Button(foot, text="Why not matched?", command=self._m_why_not).pack(
-    #         side="left", padx=8
-    #     )
-    #
-    #     infof = ttk.LabelFrame(self, text="Info")
-    #     infof.pack(fill="x", **pad)
-    #     self.txt_info = tk.Text(infof, height=6, wrap="word")
-    #     self.txt_info.pack(fill="x", padx=8, pady=6)
-    #
-    #     # Bind previews after widgets exist
-    #     self.lbx_unqif.bind(
-    #         "<<ListboxSelect>>", lambda e: self._m_update_preview("unqif")
-    #     )
-    #     self.lbx_pairs.bind(
-    #         "<<ListboxSelect>>", lambda e: self._m_update_preview("pairs")
-    #     )
-    #     self.lbx_unx.bind("<<ListboxSelect>>", lambda e: self._m_update_preview("unx"))
 
     # --------- Protocol→dict adapters (temporary during migration) ---------
     @staticmethod
@@ -353,34 +211,64 @@ class MergeTab(ttk.Frame):
         return f"{d.month:02d}/{d.day:02d}/{d.year:04d}"
 
     @staticmethod
-    def _cleared_to_char(cleared: EnumClearedStatus) -> str:
-        if cleared == EnumClearedStatus.CLEARED:
-            return "X"
-        if cleared == EnumClearedStatus.RECONCILED:
-            return "*"
-        return ""
+    def _cleared_to_char(val) -> str:
+        """
+        Map a cleared-like value to a single display char without assuming the value is hashable.
+        Accepts:
+          - Enum-like (has .name)
+          - strings ("yes", "reconciled", "no", "c", "r", etc.)
+          - ints (0/1/2) or bools
+          - None
+        """
+        if val is None:
+            name = ""
+        elif isinstance(val, str):
+            name = val
+        else:
+            # Enum-like or other object: prefer .name; fallback to str()
+            name = getattr(val, "name", None)
+            if name is None:
+                # Some stubs stringify to something useful, e.g. "EnumClearedStatus.NO"
+                name = str(val)
+        name = (name or "").strip().upper()
+
+        # Common “uncleared/unknown” cases
+        if name in {"", "NO", "UNKNOWN", "UNCLEARED", "FALSE", "0"}:
+            return " "
+        # “cleared”
+        if name in {"YES", "CLEARED", "TRUE", "C", "1"}:
+            return "c"
+        # “reconciled”
+        if name in {"RECONCILED", "R", "2"}:
+            return "R"
+
+        # Fallback to blank
+        return " "
 
     @classmethod
     def _txn_to_dict(cls, t: ITransaction) -> Dict[str, Any]:
-        """Shape a protocol transaction into the legacy dict used by MatchSession/mex helpers."""
-        category = t.category or ""
-        if t.tag:
-            category = f"{category}/{t.tag}" if category else t.tag
+        """Shape a protocol transaction for display (robust to missing optional attrs)."""
+        category = getattr(t, "category", "") or ""
+        tag = getattr(t, "tag", "") or ""
+        if tag:
+            category = f"{category}/{tag}" if category else tag
         return {
-            "date": cls._format_date(t.date),
-            "amount": str(t.amount),  # keep as string to match legacy behavior
-            "payee": t.payee or "",
-            "memo": t.memo or "",
+            "date": cls._format_date(getattr(t, "date", date.today())),
+            "amount": str(getattr(t, "amount", "")),
+            "payee": getattr(t, "payee", "") or "",
+            "memo": getattr(t, "memo", "") or "",
             "category": category,
-            "checknum": t.action_chk or None,
-            "cleared": cls._cleared_to_char(t.cleared),
+            "checknum": getattr(t, "action_chk", None),
+            "cleared": cls._cleared_to_char(
+                getattr(t, "cleared", EnumClearedStatus.UNKNOWN)
+            ),
             "splits": [
                 {
-                    "amount": str(s.amount),
-                    "category": s.category or "",
-                    "memo": s.memo or "",
+                    "amount": str(getattr(s, "amount", "")),
+                    "category": getattr(s, "category", "") or "",
+                    "memo": getattr(s, "memo", "") or "",
                 }
-                for s in (t.splits or [])
+                for s in (getattr(t, "splits", None) or [])
             ],
         }
 
@@ -415,10 +303,11 @@ class MergeTab(ttk.Frame):
             self.m_qif_out.set(p)
 
     # ---------- actions ----------
-    def _m_load_and_auto(self):
+    def _m_load_and_auto(self) -> None:
         try:
             qif_in = Path(self.m_qif_in.get().strip())
             xlsx = Path(self.m_xlsx.get().strip())
+
             if not qif_in.exists():
                 self.mb.showerror("Error", "Please choose a valid input QIF.")
                 return
@@ -426,70 +315,84 @@ class MergeTab(ttk.Frame):
                 self.mb.showerror("Error", "Please choose a valid Excel (.xlsx).")
                 return
 
-            txns_proto = load_transactions_protocol(qif_in)
-            txns = [self._txn_to_dict(t) for t in txns_proto]
+            # Bank side: already ITransaction via loader
+            bank_txns = load_transactions_protocol(qif_in)
 
-            # Split-aware loading: rows → groups (by TxnID)
+            # Excel side: rows -> groups -> ITransaction (via adapter)
             rows = mex.load_excel_rows(xlsx)
             groups = mex.group_excel_rows(rows)
-            sess = MatchSession(txns, excel_groups=groups)
+            excel_txns = [map_group_to_excel_txn(g) for g in groups]
+
+            # ✅ Protocol-only session: (bank_txns, excel_txns)
+            sess = MatchSession(bank_txns, excel_txns)
             sess.auto_match()
+
+            # Publish session and refresh UI
             self._merge_session = sess
             self._m_refresh_lists()
             self._m_info(
                 "Loaded "
-                f"{len(txns)} QIF transactions and "
-                f"{len(groups)} Excel TxnID groups "
+                f"{len(bank_txns)} QIF transactions and "
+                f"{len(excel_txns)} Excel groups (as transactions) "
                 f"({len(rows)} split rows).\n"
-                f"Matched pairs: {len(sess.matched_pairs())} | "
-                f"Unmatched QIF: {len(sess.unmatched_qif())} | "
-                f"Unmatched Excel groups: {len(sess.unmatched_excel())}"
+                f"Matched pairs: {len(sess.pairs)} | "
+                f"Unmatched QIF: {len(sess.unmatched_bank)} | "
+                f"Unmatched Excel: {len(sess.unmatched_excel)}"
             )
         except Exception as e:
-            self.mb.showerror("Error", str(e))
+            # Keep the test-visible failure simple
+            self._merge_session = None
+            self.mb.showerror("Error", f"{e}")
 
     def _m_manual_match(self):
         s = self._merge_session
         if not s:
             self.mb.showerror("Error", "No session loaded.")
             return
-        qkey = self._m_selected_unqif_key()
-        gi = self._m_selected_unx_idx()
-        if qkey is None or gi is None:
+        bi = self._m_selected_unqif_index()
+        ei = self._m_selected_unx_index()
+        if bi is None or ei is None:
             self.mb.showerror(
-                "Error", "Select one QIF item and one Excel group to match."
+                "Error", "Select one QIF item and one Excel item to match."
             )
             return
-        ok, msg = s.manual_match(qkey, gi)
-        self._m_info(("Matched." if ok else "Not matched.") + " " + msg)
+        s.manual_match(bank_index=bi, excel_index=ei)
+        self._m_info("Matched.")
         self._m_refresh_lists()
 
     def _m_manual_unmatch(self):
         s = self._merge_session
         if not s:
             return
+
+        # If a pair is selected, unmatch by its bank index
         sel = self.lbx_pairs.curselection()
         if sel:
             try:
-                qv, grp, _ = self._pairs_sorted[sel[0]]
+                bi, ei, _b, _e = self._pairs_sorted[sel[0]]
             except Exception:
-                # fallback to session in unlikely desync
-                qv, grp, _ = s.matched_pairs()[sel[0]]
-            s.manual_unmatch(qkey=qv.key)
+                b, e = s.pairs[sel[0]]
+                bi = s.bank_txns.index(b)
+            s.manual_unmatch(bank_index=bi)
             self._m_info("Unmatched selected pair.")
             self._m_refresh_lists()
             return
 
-        qkey = self._m_selected_unqif_key()
-        if qkey is not None and s.manual_unmatch(qkey=qkey):
+        # Otherwise, unmatch by whichever unmatched list has selection
+        bi = self._m_selected_unqif_index()
+        if bi is not None:
+            s.manual_unmatch(bank_index=bi)
             self._m_info("Unmatched QIF item.")
             self._m_refresh_lists()
             return
-        gi = self._m_selected_unx_idx()
-        if gi is not None and s.manual_unmatch(excel_idx=gi):
-            self._m_info("Unmatched Excel group.")
+
+        ei = self._m_selected_unx_index()
+        if ei is not None:
+            s.manual_unmatch(excel_index=ei)
+            self._m_info("Unmatched Excel item.")
             self._m_refresh_lists()
             return
+
         self.mb.showinfo("Info", "Nothing selected to unmatch.")
 
     def _m_apply_and_save(self):
@@ -799,137 +702,231 @@ class MergeTab(ttk.Frame):
         return self.open_normalize_modal()
 
     # ---------- list/preview plumbing ----------
-    def _m_refresh_lists(self):
+    def _m_refresh_lists(self) -> None:
+        # Clear listboxes
         self.lbx_pairs.delete(0, "end")
         self.lbx_unqif.delete(0, "end")
         self.lbx_unx.delete(0, "end")
-        s = self._merge_session
+
+        s = getattr(self, "_merge_session", None)
+        # Initialize caches and test-visible mirrors
+        self._pairs_sorted = []
+        self._unqif_sorted = []
+        self._unx_sorted = []
+        self.m_pairs = []
+        self.m_unmatched_qif = []
+        self.m_unmatched_excel = []
+
         if not s:
-            self.m_pairs = []
-            self.m_unmatched_qif = []
-            self.m_unmatched_excel = []
-            # keep sorted holders empty too
-            self._pairs_sorted = []
-            self._unqif_sorted = []
-            self._unx_sorted = []
             return
 
-        # ---------- Matched pairs (QIF txn ↔ Excel group) ----------
-        self._pairs_sorted = sorted(
-            s.matched_pairs(), key=lambda t: (t[0].date, t[1].date)
-        )
-        pairs_preview = []
-        for q, grp, cost in self._pairs_sorted:
-            label = (
-                f"[d+{cost}] QIF#{q.key.txn_index} "
-                f"{q.date.isoformat()} {q.amount} |→ "
-                f"Excel[{grp.gid}] {grp.date.isoformat()} {grp.total_amount} | {len(grp.rows)} split(s)"
-            )
-            self.lbx_pairs.insert("end", label)
-            qif_dict = {
-                "date": getattr(q, "date", None) and q.date.isoformat(),
-                "amount": getattr(q, "amount", ""),
-                "payee": getattr(q, "payee", ""),
-                "category": getattr(q, "category", ""),
-                "memo": getattr(q, "memo", ""),
-                "transfer_account": getattr(
-                    getattr(q, "key", None), "transfer_account", ""
-                ),
-            }
-            # Provide a compact Excel preview: first row + totals and count
-            excel_dict = {
-                "TxnID": grp.gid,
-                "Date": grp.date.isoformat(),
-                "Total Amount": grp.total_amount,
-                "Split Count": len(grp.rows),
-                "First Item": grp.rows[0].item if grp.rows else "",
-                "First Category": grp.rows[0].category if grp.rows else "",
-                "First Rationale": grp.rows[0].rationale if grp.rows else "",
-            }
-            pairs_preview.append((excel_dict, qif_dict))
+        # ----- Matched pairs -----
+        try:
+            # Stable sort by (bank date, excel date, bank amount) for deterministic UI/tests
+            def _pair_key(t):
+                b, e = t
+                b_d = getattr(b, "date", None)
+                e_d = getattr(e, "date", None)
+                b_ds = b_d.isoformat() if b_d else ""
+                e_ds = e_d.isoformat() if e_d else ""
+                return (b_ds, e_ds, str(getattr(b, "amount", "")))
 
-        # ---------- Unmatched QIF ----------
-        self._unqif_sorted = sorted(s.unmatched_qif(), key=lambda x: x.date)
-        unqif_preview = []
-        for q in self._unqif_sorted:
-            label = (
-                f"QIF#{q.key.txn_index} "
-                f"{q.date.isoformat()} {q.amount} | {q.payee} | {q.memo or q.category}"
-            )
-            self.lbx_unqif.insert("end", label)
-            unqif_preview.append(
-                {
-                    "date": q.date.isoformat(),
-                    "amount": q.amount,
-                    "payee": getattr(q, "payee", ""),
-                    "category": getattr(q, "category", ""),
-                    "memo": getattr(q, "memo", ""),
-                    "transfer_account": getattr(
-                        getattr(q, "key", None), "transfer_account", ""
-                    ),
-                }
-            )
+            pairs_sorted = sorted(s.pairs, key=_pair_key)
 
-        # ---------- Unmatched Excel groups ----------
-        self._unx_sorted = sorted(s.unmatched_excel(), key=lambda x: x.date)
-        unx_preview = []
-        for grp in self._unx_sorted:
-            label = f"Excel[{grp.gid}] {grp.date.isoformat()} {grp.total_amount} | {len(grp.rows)} split(s)"
-            self.lbx_unx.insert("end", label)
-            # preview of group (first row details, plus count/total)
-            first = grp.rows[0] if grp.rows else None
-            unx_preview.append(
-                {
-                    "TxnID": grp.gid,
-                    "Date": grp.date.isoformat(),
-                    "Total Amount": grp.total_amount,
-                    "Split Count": len(grp.rows),
-                    "First Item": first.item if first else "",
-                    "First Category": first.category if first else "",
-                    "First Rationale": first.rationale if first else "",
-                }
-            )
+            for b, e in pairs_sorted:
+                # Map back to indices for later manual unmatch ops
+                try:
+                    bi = s.bank_txns.index(b)
+                except ValueError:
+                    bi = -1
+                try:
+                    ei = s.excel_txns.index(e)
+                except ValueError:
+                    ei = -1
 
-        self.m_pairs = pairs_preview
-        self.m_unmatched_qif = unqif_preview
-        self.m_unmatched_excel = unx_preview
+                self._pairs_sorted.append((bi, ei, b, e))
+                self.m_pairs.append((b, e))
 
+                label = (
+                    f"{getattr(b, 'date', None).isoformat() if getattr(b, 'date', None) else ''} "
+                    f"{getattr(b, 'amount', '')} — {getattr(b, 'payee', '')}  "
+                    f"↔  Excel[{getattr(e, 'id', '')}] "
+                    f"{getattr(e, 'date', None).isoformat() if getattr(e, 'date', None) else ''} "
+                    f"{getattr(e, 'amount', '')} | "
+                    f"{len(getattr(e, 'splits', []) or [])} split(s)"
+                )
+                self.lbx_pairs.insert("end", label)
+        except Exception as e:
+            log.exception("Operation failed: %s", e)
+            # Keep UI resilient; leave pairs empty on error
+            pass
+
+        # ----- Unmatched QIF (bank side) -----
+        try:
+
+            def _bank_key(t):
+                d = getattr(t, "date", None)
+                ds = d.isoformat() if d else ""
+                return (ds, str(getattr(t, "amount", "")), getattr(t, "payee", ""))
+
+            for b in sorted(s.unmatched_bank, key=_bank_key):
+                try:
+                    bi = s.bank_txns.index(b)
+                except ValueError:
+                    bi = -1
+                self._unqif_sorted.append((bi, b))
+                self.m_unmatched_qif.append(b)
+                self.lbx_unqif.insert(
+                    "end",
+                    f"{getattr(b, 'date', None).isoformat() if getattr(b, 'date', None) else ''} "
+                    f"{getattr(b, 'amount', '')} — {getattr(b, 'payee', '')}",
+                )
+        except Exception as e:
+            log.exception("Operation failed: %s", e)
+            pass
+
+        # ----- Unmatched Excel (excel side) -----
+        try:
+
+            def _excel_key(t):
+                """Deterministic sort key for Excel-side ITransaction objects."""
+                d = getattr(t, "date", None)
+                ds = d.isoformat() if d else ""
+                # amount may be Decimal; stringify for consistent tuple ordering
+                try:
+                    amt = str(getattr(t, "amount", ""))
+                except Exception:
+                    amt = ""
+                payee = getattr(t, "payee", "") or ""
+                return (ds, amt, payee)
+
+            for e in sorted(s.unmatched_excel, key=_excel_key):
+                try:
+                    ei = s.excel_txns.index(e)
+                except ValueError:
+                    ei = -1
+                self._unx_sorted.append((ei, e))
+                self.m_unmatched_excel.append(e)
+                self.lbx_unx.insert(
+                    "end",
+                    f"Excel[{getattr(e, 'id', '')}] "
+                    f"{getattr(e, 'date', None).isoformat() if getattr(e, 'date', None) else ''} "
+                    f"{getattr(e, 'amount', '')} | "
+                    f"{len(getattr(e, 'splits', []) or [])} split(s)",
+                )
+        except Exception as e:
+            log.exception("Operation failed: %s", e)
+            pass
+
+        # ----- Seed previews if the toggle is on -----
         if self.m_preview_var.get():
-            self._m_update_preview("pairs")
-            self._m_update_preview("unqif")
-            self._m_update_preview("unx")
+            try:
+                # Unmatched QIF preview
+                if self._unqif_sorted:
+                    _bi, b = self._unqif_sorted[0]
+                    _set_text(
+                        self.prev_unqif,
+                        _fmt_txn(
+                            {
+                                "date": getattr(b, "date", None).isoformat()
+                                if getattr(b, "date", None)
+                                else "",
+                                "amount": str(getattr(b, "amount", "")),
+                                "payee": getattr(b, "payee", "") or "",
+                                "category": getattr(b, "category", "") or "",
+                                "memo": getattr(b, "memo", "") or "",
+                            }
+                        ),
+                    )
+                # Unmatched Excel preview
+                if self._unx_sorted:
+                    _ei, e = self._unx_sorted[0]
+                    first = (getattr(e, "splits", None) or [None])[0]
+                    _set_text(
+                        self.prev_unx,
+                        _fmt_excel_row(
+                            {
+                                "TxnID": getattr(e, "id", "") or "",
+                                "Date": getattr(e, "date", None).isoformat()
+                                if getattr(e, "date", None)
+                                else "",
+                                "Total Amount": str(getattr(e, "amount", "")),
+                                "Split Count": len(getattr(e, "splits", []) or []),
+                                "First Item": getattr(first, "memo", "")
+                                if first
+                                else "",
+                                "First Category": getattr(first, "category", "")
+                                if first
+                                else "",
+                                "First Rationale": getattr(e, "memo", "") or "",
+                            }
+                        ),
+                    )
+                # First pair preview
+                if self._pairs_sorted:
+                    _bi, _ei, b, e = self._pairs_sorted[0]
+                    excel_view = {
+                        "TxnID": getattr(e, "id", "") or "",
+                        "Date": getattr(e, "date", None).isoformat()
+                        if getattr(e, "date", None)
+                        else "",
+                        "Total Amount": str(getattr(e, "amount", "")),
+                        "Split Count": len(getattr(e, "splits", []) or []),
+                        "First Item": getattr(
+                            (getattr(e, "splits", None) or [None])[0], "memo", ""
+                        )
+                        if getattr(e, "splits", None)
+                        else "",
+                        "First Category": getattr(
+                            (getattr(e, "splits", None) or [None])[0], "category", ""
+                        )
+                        if getattr(e, "splits", None)
+                        else "",
+                        "First Rationale": getattr(e, "memo", "") or "",
+                    }
+                    qif_view = {
+                        "date": getattr(b, "date", None).isoformat() if getattr(b, "date", None) else "",
+                        "amount": str(getattr(b, "amount", "")),
+                        "payee": getattr(b, "payee", "") or "",
+                        "category": getattr(b, "category", "") or "",
+                        "memo": getattr(b, "memo", "") or "",
+                    }
+                    _set_text(self.prev_pairs, "[Excel]\n" + _fmt_excel_row(excel_view) + "\n\n[QIF]\n" + _fmt_txn(qif_view))
+            except Exception:
+                # Preview is non-critical; ignore errors to keep UI stable
+                pass
 
-    def _m_selected_unqif_key(self) -> Optional[QIFItemKey]:
+    def _m_selected_unqif_index(self) -> Optional[int]:
         if not getattr(self, "_unqif_sorted", None):
             return None
         sel = self.lbx_unqif.curselection()
         if not sel:
             return None
-        return self._unqif_sorted[sel[0]].key
+        # stored as (bank_index, txn)
+        bi, _ = self._unqif_sorted[sel[0]]
+        return bi
 
-    def _m_selected_unx_idx(self) -> Optional[int]:
+
+    def _m_selected_unx_index(self) -> Optional[int]:
         if not getattr(self, "_unx_sorted", None):
             return None
         sel = self.lbx_unx.curselection()
         if not sel:
             return None
-        # in group view, selection maps to group index in session.excel_groups
-        return self._merge_session.excel_groups.index(self._unx_sorted[sel[0]])
+        # stored as (excel_index, txn)
+        ei, _ = self._unx_sorted[sel[0]]
+        return ei
+
 
     def _m_why_not(self):
         s = self._merge_session
         if not s:
             return
-        sel_q = self._m_selected_unqif_key()
-        sel_e = self._m_selected_unx_idx()
-        if sel_q is None or sel_e is None:
-            self.mb.showinfo(
-                "Info", "Pick one unmatched QIF and one unmatched Excel to explain."
-            )
+        bi = self._m_selected_unqif_index()
+        if bi is None:
+            self.mb.showinfo("Info", "Pick one unmatched QIF item to explain.")
             return
-        q = next(x for x in s.unmatched_qif() if x.key == sel_q)
-        grp = s.excel_groups[sel_e]
-        self._m_info(s.nonmatch_reason(q, grp))
+        self._m_info(s.nonmatch_reason(bank_index=bi))
 
     def _m_toggle_previews(self):
         show = bool(self.m_preview_var.get())
@@ -955,70 +952,71 @@ class MergeTab(ttk.Frame):
                 if not idxs:
                     _set_text(self.prev_unqif, "")
                     return
-                q = self._unqif_sorted[idxs[0]]
-                tx = {
-                    "date": q.date.isoformat(),
-                    "amount": getattr(q, "amount", ""),
-                    "payee": getattr(q, "payee", ""),
-                    "category": getattr(q, "category", ""),
-                    "memo": getattr(q, "memo", ""),
-                    "transfer_account": getattr(
-                        getattr(q, "key", None), "transfer_account", ""
+                _bi, b = self._unqif_sorted[idxs[0]]
+                _set_text(
+                    self.prev_unqif,
+                    _fmt_txn(
+                        {
+                            "date": b.date.isoformat(),
+                            "amount": str(getattr(b, "amount", "")),
+                            "payee": getattr(b, "payee", ""),
+                            "category": getattr(b, "category", ""),
+                            "memo": getattr(b, "memo", ""),
+                        }
                     ),
-                }
-                _set_text(self.prev_unqif, _fmt_txn(tx))
+                )
 
             elif which == "unx":
                 idxs = self.lbx_unx.curselection()
                 if not idxs:
                     _set_text(self.prev_unx, "")
                     return
-                grp = self._unx_sorted[idxs[0]]
-                first = grp.rows[0] if grp.rows else None
-                row = {
-                    "TxnID": grp.gid,
-                    "Date": grp.date.isoformat(),
-                    "Total Amount": grp.total_amount,
-                    "Split Count": len(grp.rows),
-                    "First Item": first.item if first else "",
-                    "First Category": first.category if first else "",
-                    "First Rationale": first.rationale if first else "",
-                }
-                _set_text(self.prev_unx, _fmt_excel_row(row))
+                _ei, e = self._unx_sorted[idxs[0]]
+                first = (e.splits or [None])[0]
+                _set_text(
+                    self.prev_unx,
+                    _fmt_excel_row(
+                        {
+                            "TxnID": getattr(e, "id", ""),
+                            "Date": e.date.isoformat(),
+                            "Total Amount": getattr(e, "amount", ""),
+                            "Split Count": len(e.splits or []),
+                            "First Item": getattr(first, "memo", "") if first else "",
+                            "First Category": getattr(first, "category", "")
+                            if first
+                            else "",
+                            "First Rationale": getattr(e, "memo", ""),
+                        }
+                    ),
+                )
 
             elif which == "pairs":
                 idxs = self.lbx_pairs.curselection()
                 if not idxs:
                     _set_text(self.prev_pairs, "")
                     return
-                q, grp, _ = self._pairs_sorted[idxs[0]]
+                _bi, _ei, b, e = self._pairs_sorted[idxs[0]]
                 excel_row = {
-                    "TxnID": grp.gid,
-                    "Date": grp.date.isoformat(),
-                    "Total Amount": grp.total_amount,
-                    "Split Count": len(grp.rows),
-                    "First Item": grp.rows[0].item if grp.rows else "",
-                    "First Category": grp.rows[0].category if grp.rows else "",
-                    "First Rationale": grp.rows[0].rationale if grp.rows else "",
+                    "TxnID": getattr(e, "id", ""),
+                    "Date": e.date.isoformat(),
+                    "Total Amount": getattr(e, "amount", ""),
+                    "Split Count": len(e.splits or []),
+                    "First Item": getattr((e.splits or [None])[0], "memo", "")
+                    if e.splits
+                    else "",
+                    "First Category": getattr((e.splits or [None])[0], "category", "")
+                    if e.splits
+                    else "",
+                    "First Rationale": getattr(e, "memo", ""),
                 }
                 qif_tx = {
-                    "date": getattr(q, "date", None) and q.date.isoformat(),
-                    "amount": getattr(q, "amount", ""),
-                    "payee": getattr(q, "payee", ""),
-                    "category": getattr(q, "category", ""),
-                    "memo": getattr(q, "memo", ""),
-                    "transfer_account": getattr(
-                        getattr(q, "key", None), "transfer_account", ""
-                    ),
+                    "date": b.date.isoformat(),
+                    "amount": str(getattr(b, "amount", "")),
+                    "payee": getattr(b, "payee", ""),
+                    "category": getattr(b, "category", ""),
+                    "memo": getattr(b, "memo", ""),
                 }
-                text = (
-                    "[Excel]\n"
-                    + _fmt_excel_row(excel_row)
-                    + "\n\n[QIF]\n"
-                    + _fmt_txn(qif_tx)
-                )
-                _set_text(self.prev_pairs, text)
-
+                _set_text(self.prev_pairs, "[Excel]\n" + _fmt_excel_row(excel_row) + "\n\n[QIF]\n" + _fmt_txn(qif_tx))
         except Exception as e:
             try:
                 self._m_info(f"Preview error: {e}")

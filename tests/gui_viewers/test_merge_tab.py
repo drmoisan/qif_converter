@@ -359,13 +359,14 @@ class _Row:
     item: str
     category: str
     rationale: str
+    amount: Decimal  # NEW: every split row must include an amount
 
 
 @dataclass
 class _Group:
     gid: int
     date: date
-    total_amount: str
+    total_amount: Decimal  # keep as Decimal to match protocol usage
     rows: list[_Row]
 
 
@@ -386,76 +387,43 @@ class _QTxn:
 
 
 class _MatchSessionStub:
-    """
-    Stub of quicken_helper.match_session.MatchSession for list plumbing & actions.
-    Implements the API MergeTab uses: auto_match, matched_pairs, unmatched_qif,
-    unmatched_excel, manual_match, manual_unmatch, nonmatch_reason, apply_updates.
-    """
+    def __init__(self, bank_txns, excel_txns):
+        self.bank_txns = list(bank_txns)
+        self.excel_txns = list(excel_txns)
+        self.pairs = []
 
-    def __init__(self, txns, excel_groups):
-        self.txns = txns
-        self.excel_groups = excel_groups
-        self._matched = []
-        self._unqif = list(txns)
-        self._unx = list(excel_groups)
-        self._applied = False
+    @property
+    def unmatched_bank(self):
+        matched_ids = {id(b) for b, _ in self.pairs}
+        return [b for b in self.bank_txns if id(b) not in matched_ids]
 
-    def auto_match(self):
-        if self.txns and self.excel_groups:
-            q = self.txns[0]
-            g = self.excel_groups[0]
-            if q in self._unqif:
-                self._unqif.remove(q)
-            if g in self._unx:
-                self._unx.remove(g)
-            self._matched = [(q, g, "0.00")]
-
-    def matched_pairs(self):
-        return list(self._matched)
-
-    def unmatched_qif(self):
-        return list(self._unqif)
-
+    @property
     def unmatched_excel(self):
-        return list(self._unx)
+        matched_ids = {id(e) for _, e in self.pairs}
+        return [e for e in self.excel_txns if id(e) not in matched_ids]
 
-    def manual_match(self, qkey=None, excel_idx=None):
-        if qkey is None or excel_idx is None:
+    def manual_match(self, bank_index=None, excel_index=None):
+        if bank_index is None or excel_index is None:
             return False, "missing selection"
-        q = next((t for t in self.txns if getattr(t, "key", None) == qkey), None)
-        if q is None or excel_idx < 0 or excel_idx >= len(self.excel_groups):
+        if not (0 <= bank_index < len(self.bank_txns) and 0 <= excel_index < len(self.excel_txns)):
             return False, "invalid selection"
-        g = self.excel_groups[excel_idx]
-        if q in self._unqif:
-            self._unqif.remove(q)
-        if g in self._unx:
-            self._unx.remove(g)
-        self._matched.append((q, g, "0.00"))
+        b, e = self.bank_txns[bank_index], self.excel_txns[excel_index]
+        self.pairs = [(bb, ee) for (bb, ee) in self.pairs if bb is not b and ee is not e]
+        self.pairs.append((b, e))
         return True, "ok"
 
-    def manual_unmatch(self, qkey=None, excel_idx=None):
-        if qkey is not None:
-            for i, (q, g, _) in enumerate(list(self._matched)):
-                if q.key == qkey:
-                    self._matched.pop(i)
-                    self._unqif.append(q)
-                    self._unx.append(g)
-                    return True
-        if excel_idx is not None and 0 <= excel_idx < len(self.excel_groups):
-            g = self.excel_groups[excel_idx]
-            for i, (q, gg, _) in enumerate(list(self._matched)):
-                if gg is g:
-                    self._matched.pop(i)
-                    self._unqif.append(q)
-                    self._unx.append(gg)
-                    return True
+    def manual_unmatch(self, bank_index=None, excel_index=None):
+        if bank_index is not None and 0 <= bank_index < len(self.bank_txns):
+            b = self.bank_txns[bank_index]
+            before = len(self.pairs)
+            self.pairs = [(bb, ee) for (bb, ee) in self.pairs if bb is not b]
+            return len(self.pairs) != before
+        if excel_index is not None and 0 <= excel_index < len(self.excel_txns):
+            e = self.excel_txns[excel_index]
+            before = len(self.pairs)
+            self.pairs = [(bb, ee) for (bb, ee) in self.pairs if ee is not e]
+            return len(self.pairs) != before
         return False
-
-    def nonmatch_reason(self, q, grp):
-        return f"No match because payee '{q.payee}' != '{grp.rows[0].item if grp.rows else ''}'"
-
-    def apply_updates(self):
-        self._applied = True
 
 
 class _CategoryMatchSessionStub:
@@ -583,11 +551,11 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
             {"key": {"txn_index": 2}, "amount": 2.0},
         ]
 
-    def parse_qif(path):
-        return _legacy_load_transactions(path)
-
-    def open_and_parse_qif(path):
-        return _legacy_load_transactions(path)
+    # def parse_qif(path):
+    #     return _legacy_load_transactions(path)
+    #
+    # def open_and_parse_qif(path):
+    #     return _legacy_load_transactions(path)
 
     def parse_qif_unified_protocol(path):
         file = _FileStub(path)
@@ -635,35 +603,129 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
     # expose both shapes; MergeTab will use protocol path when available
     ql.load_transactions_protocol = load_transactions_protocol
     ql.load_transactions = _legacy_load_transactions
-    ql.parse_qif = parse_qif
-    ql.open_and_parse_qif = open_and_parse_qif
+    # ql.parse_qif = parse_qif
+    # ql.open_and_parse_qif = open_and_parse_qif
     ql.parse_qif_unified_protocol = parse_qif_unified_protocol
-
 
     monkeypatch.setitem(sys.modules, names["qif_loader"], ql)
 
-    # ---- match_excel (stub) ----
+    # ---- data_model.excel.excel_transaction (stub) ----
+    excel_txn_mod_name = "quicken_helper.data_model.excel.excel_transaction"
+    excel_txn_mod = types.ModuleType(excel_txn_mod_name)
+
+    from dataclasses import dataclass as _dc_dataclass, field as _dc_field
+    from datetime import date as _date
+    from decimal import Decimal as _Decimal
+
+    @_dc_dataclass(frozen=True)
+    class _ExcelTxnProto:
+        """Protocol-shaped Excel-side ITransaction for tests."""
+
+        id: str
+        date: _date
+        amount: _Decimal
+        payee: str = ""
+        memo: str = ""
+        category: str = ""
+        splits: list = _dc_field(default_factory=list)
+
+    excel_txn_mod._ExcelTxnProto = _ExcelTxnProto
+
+    def map_group_to_excel_txn(group):
+        """Adapt a group with validated rows (each having .amount, .category) to a protocol txn."""
+        rows = tuple(getattr(group, "rows", ()) or ())
+        first = rows[0] if rows else None
+        payee = getattr(first, "item", "") if first else ""
+        memo = getattr(first, "rationale", "") if first else ""
+
+        # Build split views; rows are guaranteed to have amount/category by ingestion validation
+        splits = [
+            type(
+                "S",
+                (),
+                {
+                    "category": getattr(r, "category", "") or "",
+                    "memo": getattr(r, "item", "") or "",
+                    "amount": (
+                        r.amount
+                        if isinstance(r.amount, _Decimal)
+                        else _Decimal(str(r.amount))
+                    ),
+                },
+            )
+            for r in rows
+        ]
+
+        total = (
+            group.total_amount
+            if isinstance(group.total_amount, _Decimal)
+            else _Decimal(str(group.total_amount))
+        )
+        return excel_txn_mod._ExcelTxnProto(
+            id=str(group.gid),
+            date=group.date,
+            amount=total,
+            payee=payee,
+            memo=memo,
+            splits=splits,
+        )
+
+    excel_txn_mod.map_group_to_excel_txn = map_group_to_excel_txn
+
+    # Ensure parent packages exist and register the stub
+    pkg_dm = sys.modules.setdefault(
+        "quicken_helper.data_model", types.ModuleType("quicken_helper.data_model")
+    )
+    pkg_dm.__path__ = getattr(pkg_dm, "__path__", [])
+    pkg_dm_excel = sys.modules.setdefault(
+        "quicken_helper.data_model.excel",
+        types.ModuleType("quicken_helper.data_model.excel"),
+    )
+    pkg_dm_excel.__path__ = getattr(pkg_dm_excel, "__path__", [])
+    monkeypatch.setitem(sys.modules, excel_txn_mod_name, excel_txn_mod)
+
+    # ---- controllers.match_excel (validated ingestion) ----
     mex = types.ModuleType(names["match_excel"])
 
-    class _Row2:
-        def __init__(self, item, category="Cat", rationale=""):
-            self.item = item
-            self.category = category
-            self.rationale = rationale
+    from dataclasses import dataclass as _dc, field as _dc_field
+    from decimal import Decimal
+    from datetime import date as _date
 
+    @_dc(frozen=True)
+    class _Row2:
+        item: str
+        category: str
+        rationale: str
+        amount: Decimal  # NEW: rows always carry an amount
+
+    @_dc(frozen=True)
     class _Group2:
-        def __init__(self, gid, rows):
-            self.gid = gid
-            self.rows = rows
-            self.date = datetime.date(2024, 1, 15)
-            self.total_amount = float(len(rows))
+        gid: str
+        date: _date
+        total_amount: Decimal
+        rows: tuple[_Row2, ...]
+
+    def _validate_rows(rows):
+        """Raise early if any row is missing required fields."""
+        for i, r in enumerate(rows or []):
+            if not hasattr(r, "amount") or getattr(r, "amount", None) is None:
+                raise ValueError(f"Excel row #{i} missing required 'amount'")
+            if not hasattr(r, "category") or not getattr(r, "category", ""):
+                raise ValueError(f"Excel row #{i} missing required 'category'")
 
     def load_excel_rows(path):
-        # One group of two rows; good for previews and a match
-        return [_Row2("Item1"), _Row2("Item2")]
+        # Two valid rows with amounts for happy-path UI tests
+        rows = [
+            _Row2("Item1", "Cat", "r1", Decimal("5.00")),
+            _Row2("Item2", "Cat", "r2", Decimal("7.34")),
+        ]
+        _validate_rows(rows)
+        return rows
 
     def group_excel_rows(rows):
-        return [_Group2("G1", rows)]
+        _validate_rows(rows)
+        total = sum((r.amount for r in rows or []), Decimal("0"))
+        return [_Group2(gid="G1", date=_date(2024, 1, 15), total_amount=total, rows=tuple(rows or []))]
 
     def build_matched_only_txns(sess):
         return list(getattr(sess, "txns", []))
@@ -679,76 +741,94 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
     mex.build_matched_only_txns = build_matched_only_txns
     mex.extract_qif_categories = extract_qif_categories
     mex.extract_excel_categories = extract_excel_categories
-
     monkeypatch.setitem(sys.modules, names["match_excel"], mex)
 
     # ---- match_session (stub) ----
     ms = types.ModuleType(names["match_session"])
 
+    from dataclasses import dataclass, field
+    from datetime import date as _date
+    from decimal import Decimal as _Decimal
+    from typing import Iterable, List, Tuple
+
+    @dataclass(frozen=True)
+    class _ExcelTxnStub:
+        """Minimal ITransaction-shaped stub for Excel side."""
+
+        id: str
+        date: _date
+        amount: _Decimal
+        payee: str = ""
+        memo: str = ""
+        category: str = ""
+        splits: List[object] = field(default_factory=list)
+
     class MatchSession:
-        def __init__(self, txns, excel_groups):
-            self.txns = list(txns)
-            self.excel_groups = list(excel_groups)
-            self._pairs = []  # list[(txn, group, cost)]
+        """
+        Protocol-only API used by MergeTab:
+          • __init__(bank_txns, excel_txns)
+          • pairs: List[(bank_txn, excel_txn)]
+          • unmatched_bank / unmatched_excel: Lists
+          • manual_match(bank_index, excel_index)
+          • manual_unmatch(bank_index=None, excel_index=None)
+          • auto_match()
+        """
 
-        def auto_match(self, *a, **k):
-            if self.txns and self.excel_groups:
-                self._pairs = [(self.txns[0], self.excel_groups[0], 0.0)]
+        def __init__(self, bank_txns: Iterable[object], excel_txns: Iterable[object]):
+            self.bank_txns = list(bank_txns)
+            self.excel_txns = list(excel_txns)
+            self.pairs: List[Tuple[object, object]] = []
 
-        def matched_pairs(self):
-            return list(self._pairs)
+        def auto_match(self, *_a, **_k):
+            if self.bank_txns and self.excel_txns:
+                self.pairs = [(self.bank_txns[0], self.excel_txns[0])]
 
-        def unmatched_qif(self):
-            matched = {q for q, _, _ in self._pairs}
-            return [t for t in self.txns if t not in matched]
+        @property
+        def unmatched_bank(self) -> List[object]:
+            # Identity-based (no hashing of txn objects)
+            matched_ids = {id(b) for b, _ in self.pairs}
+            return [b for b in self.bank_txns if id(b) not in matched_ids]
 
-        def unmatched_excel(self):
-            matched = {g for _, g, _ in self._pairs}
-            return [g for g in self.excel_groups if g not in matched]
+        @property
+        def unmatched_excel(self) -> List[object]:
+            # Identity-based (no hashing of txn objects)
+            matched_ids = {id(e) for _, e in self.pairs}
+            return [e for e in self.excel_txns if id(e) not in matched_ids]
 
-        def manual_match(self, qkey, gi):
-            q = next(
-                (
-                    t
-                    for t in self.txns
-                    if getattr(getattr(t, "key", None), "txn_index", None)
-                    == getattr(qkey, "txn_index", None)
-                ),
-                None,
-            )
-            if q is None or gi is None or gi < 0 or gi >= len(self.excel_groups):
-                return False, "Invalid selection."
-            g = self.excel_groups[gi]
-            if any(q is pq or g is pg for pq, pg, _ in self._pairs):
-                return False, "Already matched."
-            self._pairs.append((q, g, 0.0))
-            return True, "Matched."
+        def manual_match(
+            self, bank_index: int | None = None, excel_index: int | None = None
+        ):
+            if bank_index is None or excel_index is None:
+                return False, "missing selection"
+            if not (
+                0 <= bank_index < len(self.bank_txns)
+                and 0 <= excel_index < len(self.excel_txns)
+            ):
+                return False, "invalid selection"
+            b, e = self.bank_txns[bank_index], self.excel_txns[excel_index]
+            # keep 1↔1
+            self.pairs = [
+                (bb, ee) for (bb, ee) in self.pairs if bb is not b and ee is not e
+            ]
+            self.pairs.append((b, e))
+            return True, "ok"
 
-        def manual_unmatch(self, qkey=None, excel_idx=None):
-            if qkey is not None:
-                before = len(self._pairs)
-                self._pairs = [
-                    (q, g, c)
-                    for (q, g, c) in self._pairs
-                    if getattr(getattr(q, "key", None), "txn_index", None)
-                    != getattr(qkey, "txn_index", None)
-                ]
-                return len(self._pairs) != before
-            if excel_idx is not None:
-                g = self.excel_groups[excel_idx]
-                before = len(self._pairs)
-                self._pairs = [(q, gg, c) for (q, gg, c) in self._pairs if gg is not g]
-                return len(self._pairs) != before
+        def manual_unmatch(self, bank_index: int | None = None, excel_index: int | None = None):
+            if bank_index is not None and 0 <= bank_index < len(self.bank_txns):
+                b = self.bank_txns[bank_index]
+                before = len(self.pairs)
+                self.pairs = [(bb, ee) for (bb, ee) in self.pairs if bb is not b]
+                return len(self.pairs) != before
+            if excel_index is not None and 0 <= excel_index < len(self.excel_txns):
+                e = self.excel_txns[excel_index]
+                before = len(self.pairs)
+                self.pairs = [(bb, ee) for (bb, ee) in self.pairs if ee is not e]
+                return len(self.pairs) != before
             return False
-
-        def apply_updates(self):  # no-op for tests
-            return None
-
-        def nonmatch_reason(self, q, grp):
-            return "Stub: costs differ."
 
     ms.MatchSession = MatchSession
     monkeypatch.setitem(sys.modules, names["match_session"], ms)
+
 
     # ---- category_match_session (stub) ----
     cms = types.ModuleType(names["category_match_session"])
@@ -961,20 +1041,39 @@ def test_manual_match_requires_selection_and_calls_session(merge_mod):
     """_m_manual_match shows error with no selection; with selections it calls session.manual_match."""
     # Arrange
     mt = merge_mod.MergeTab(master=None, mb=_FakeMB())
-    g = _Group(101, date(2024, 1, 2), "10.00", [_Row("Alpha", "Cat", "r")])
+
+    # bank txn (QIF) and excel txn (protocol-shaped)
     q = _QTxn(_QKey(1), date(2024, 1, 1), "10.00", "Alpha")
-    mt._merge_session = _MatchSessionStub([q], [g])
-    mt._unqif_sorted = [q]
-    mt._unx_sorted = [g]
+
+    @dataclass(frozen=True)
+    class _ExcelTxn:
+        id: str
+        date: date
+        amount: Decimal
+        payee: str = ""
+        memo: str = ""
+        category: str = ""
+        splits: list = field(default_factory=list)
+
+    e = _ExcelTxn("G101", date(2024, 1, 2), Decimal("10.00"), payee="Alpha")
+
+    # protocol-shaped session stub
+    mt._merge_session = _MatchSessionStub([q], [e])
+
+    # UI caches now carry (index, txn) tuples
+    mt._unqif_sorted = [(0, q)]
+    mt._unx_sorted = [(0, e)]
+
+    # seed listboxes
     mt.lbx_unqif.insert("end", "data_model")
     mt.lbx_unx.insert("end", "grp")
 
     # Act (no selection)
     mt._m_manual_match()
     # Assert
-    assert any(
-        c[0] == "showerror" for c in mt.mb.calls
-    ), "Expected error when nothing selected"
+    assert any(c[0] == "showerror" for c in mt.mb.calls), (
+        "Expected error when nothing selected"
+    )
 
     # Act (with selections)
     mt.mb.calls.clear()
@@ -991,20 +1090,38 @@ def test_manual_unmatch_from_pairs_calls_session(merge_mod):
     """_m_manual_unmatch unmatches the selected pair via session.manual_unmatch."""
     # Arrange
     mt = merge_mod.MergeTab(master=None, mb=_FakeMB())
-    g = _Group(101, date(2024, 1, 2), "10.00", [_Row("Alpha", "Cat", "r")])
+
     q = _QTxn(_QKey(1), date(2024, 1, 1), "10.00", "Alpha")
-    sess = _MatchSessionStub([q], [g])
-    sess._matched = [(q, g, "0.00")]
+
+    @dataclass(frozen=True)
+    class _ExcelTxn:
+        id: str
+        date: date
+        amount: Decimal
+        payee: str = ""
+        memo: str = ""
+        category: str = ""
+        splits: list = field(default_factory=list)
+
+    e = _ExcelTxn("G101", date(2024, 1, 2), Decimal("10.00"), payee="Alpha")
+
+    sess = _MatchSessionStub([q], [e])
+    # one matched pair, protocol shape
+    sess.pairs = [(q, e)]
     mt._merge_session = sess
-    mt._pairs_sorted = list(sess._matched)
+
+    # UI pairs cache uses (bank_index, excel_index, bank_txn, excel_txn)
+    mt._pairs_sorted = [(0, 0, q, e)]
+
     mt.lbx_pairs.insert("end", "PAIR")
     mt.lbx_pairs.selection_set(0)
+
 
     # Act
     mt._m_manual_unmatch()
 
     # Assert
-    assert sess._matched == [], "Pair should be removed after unmatch"
+    assert sess.pairs == [], "Pair should be removed after unmatch"
     assert "Unmatched" in mt.txt_info.get("1.0", "end")
 
 
