@@ -1,452 +1,287 @@
-# quicken_helper/controllers/match_session.py
+# quicken_helper/match_session.py
+"""
+MatchSession — protocol-only matching between two transaction streams.
+
+Key points:
+• No excel_rows anywhere. The Excel side must be represented as transactions.
+• Both sides are coerced to the ITransaction protocol at construction via core_util.convert_value.
+• Matching uses quicken_helper.matching.txn_compare.compare_txn (amount gate, date proximity, payee sim).
+• Provides greedy one-to-one auto-match, manual match/unmatch, and "why not matched?" explanations.
+• Keeps state in a simple, deterministic form to support GUI/exports.
+
+Public surface (stable):
+    class MatchSession:
+        def __init__(self, txns, excel_txns, *, min_score_default: int = 50) -> None
+        def auto_match(self, min_score: int | None = None) -> list[tuple[ITransaction, ITransaction]]
+        def manual_match(self, bank_index: int, excel_index: int) -> None
+        def manual_unmatch(self, bank_index: int | None = None, excel_index: int | None = None) -> None
+        def nonmatch_reason(self, bank_index: int, top_n: int = 3) -> str
+
+        # Accessors to support GUI layers:
+        @property def bank_txns(self) -> list[ITransaction]
+        @property def excel_txns(self) -> list[ITransaction]
+        @property def pairs(self) -> list[tuple[ITransaction, ITransaction]]
+        @property def unmatched_bank(self) -> list[ITransaction]
+        @property def unmatched_excel(self) -> list[ITransaction]
+
+Migration notes:
+• If upstream code previously passed excel_groups, adapt them to ITransaction before constructing
+  this class (e.g., using an ExcelTransaction adapter). Alternatively, pass the raw objects and rely
+  on core_util.convert_value(ITransaction, x) (requires _PROTOCOL_IMPLEMENTATION mapping).
+"""
 from __future__ import annotations
+from math import inf
+from typing import List, Tuple, Dict, Optional, Iterable, cast
 
-from _decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
+# Protocols / utilities
+from quicken_helper.data_model.interfaces import ITransaction
+# convert_value MUST be wired to use _PROTOCOL_IMPLEMENTATION so it can adapt arbitrary objects to ITransaction
+from quicken_helper.utilities.core_util import convert_value
 
-from quicken_helper.controllers.match_helpers import (  # ,_flatten_qif_txns
-    TxnLegacyView,
-    _candidate_cost,
-    _to_decimal,
-    make_txn_views,
-)
+# Scoring (amount-gated, date proximity, payee similarity)
+from .transaction_compare import compare_txn, MatchScore
 
-# from .qif_txn_view import QIFTxnView
-from quicken_helper.data_model import QSplit, QTransaction
-from quicken_helper.data_model.excel.excel_row import ExcelRow
-from quicken_helper.data_model.excel.excel_txn_group import ExcelTxnGroup
-from quicken_helper.legacy.qif_item_key import QIFItemKey
 
+# ---------- helpers ----------
+
+def _coerce_txns(src: Iterable[object]) -> List[ITransaction]:
+    """Coerce an iterable of arbitrary objects into ITransaction using convert_value."""
+    out: List[ITransaction] = []
+    for x in src:
+        out.append(convert_value(ITransaction, x))
+    return out
+
+
+def _sort_key_for_match(ms: MatchScore) -> tuple:
+    """
+    Deterministic tie-breaker:
+      • Highest score first
+      • Then smallest date delta (None → lowest priority)
+      • Then highest payee similarity
+    """
+    dd = cast(Optional[int], ms.features.get("date_days"))
+    date_component = inf if dd is None else dd
+    payee_sim = cast(float, ms.features.get("payee_sim", 0.0))
+    return (-ms.score, date_component, -payee_sim)
+
+
+# ---------- core class ----------
 
 class MatchSession:
     """
-    Holds QIF txns + Excel groups (by TxnID), does auto-matching with one-to-one
-    constraint at the TRANSACTION level, supports manual match/unmatch, and
-    applies updates to QIF (overwriting splits from Excel).
+    Manages matching between two transaction sequences (bank vs excel), both as ITransaction.
+
+    All state is kept in terms of protocol objects and index-based selections suitable for GUI use.
     """
+
+    # --- construction ---
 
     def __init__(
         self,
-        txns: List[Dict[str, Any]],
-        excel_rows: List[ExcelRow] | None = None,
-        excel_groups: List[ExcelTxnGroup] | None = None,
-    ):
+        txns: Iterable[object],
+        excel_txns: Iterable[object],
+        *,
+        min_score_default: int = 50,
+    ) -> None:
         """
-        Session can operate in two modes:
-          - legacy row-mode (excel_rows) — kept for compatibility if needed
-          - group-mode  (excel_groups), where each group represents a single TxnID
-            with rows (splits) and a total_amount used for matching.
-        Matching is performed at the TRANSACTION level (not split).
+        Initialize the session with two sources of transactions (any runtime type).
+        Both sequences will be coerced to the ITransaction protocol using convert_value.
+
+        Args:
+            txns: Bank/QIF side transactions or objects convertible to ITransaction.
+            excel_txns: Excel side transactions or objects convertible to ITransaction.
+            min_score_default: default threshold used by auto_match if not overridden.
         """
-        self.txns = txns
-        # self.txn_views = _flatten_qif_txns(txns)
-        self.txn_views = make_txn_views(txns)
+        self._bank_txns: List[ITransaction] = _coerce_txns(txns)
+        self._excel_txns: List[ITransaction] = _coerce_txns(excel_txns)
 
-        # Prefer group-mode if provided; fall back to rows (legacy)
-        self.excel_rows = excel_rows or []
-        self.excel_groups = excel_groups or []
+        # Greedy assignment state (index pairs). Keep simple for GUI wiring.
+        self._pairs_ix: Dict[int, int] = {}  # bank_index -> excel_index
 
-        # Group-mode (TxnID-aggregated) mappings:
-        #   key   = QIFItemKey (txn identity)
-        #   value = int (index into self.excel_groups)
-        self.qif_to_excel_group: Dict[QIFItemKey, int] = {}
-        self.excel_group_to_qif: Dict[int, QIFItemKey] = {}
+        # Cache of last auto-match call (convenience, non-authoritative)
+        self._auto_pairs_cache: List[Tuple[ITransaction, ITransaction]] = []
 
-        # Legacy row-mode mappings (kept for back-compat):
-        #   key   = QIFItemKey
-        #   value = int (row index into self.excel_rows)
-        self.qif_to_excel: Dict[QIFItemKey, int] = {}
-        self.excel_to_qif: Dict[int, QIFItemKey] = {}
+        # Default threshold for acceptance
+        self._min_score_default: int = int(min_score_default)
 
-    # --- Auto match
+    # --- public properties ---
 
-    def auto_match(self) -> None:
-        """
-        Transaction-level matching (strongly preferred):
-          - Compare QIF txn.amount to Excel group.total_amount
-          - Date within ±3 days (compare QIF txn.date to group.date)
-          - Lowest date delta wins (0 beats 1,2,3)
-          - One-to-one on both sides
-        Falls back to legacy row-mode if no groups were provided.
-        """
-        # ---- Group-mode (preferred) ----
-        if self.excel_groups:
-            candidates: List[Tuple[int, int, int]] = []
-            # Index groups by total for quick lookup
-            by_total: Dict[Decimal, List[int]] = {}
-            for gi, g in enumerate(self.excel_groups):
-                by_total.setdefault(g.total_amount, []).append(gi)
+    @property
+    def bank_txns(self) -> List[ITransaction]:
+        return self._bank_txns
 
-            for ti, tv in enumerate(self.txn_views):
-                # Normalize tv.amount to Decimal
-                try:
-                    txn_amt = _to_decimal(tv.amount)
-                except Exception:
-                    txn_amt = _to_decimal(str(tv.amount))
+    @property
+    def excel_txns(self) -> List[ITransaction]:
+        return self._excel_txns
 
-                for gi in by_total.get(txn_amt, []):
-                    g = self.excel_groups[gi]
-                    cost = _candidate_cost(tv.date, g.date)
-                    if cost is None:
-                        continue
-                    candidates.append((cost, ti, gi))
-
-            candidates.sort(
-                key=lambda t: (t[0], t[1], t[2])
-            )  # cost, then deterministic
-
-            used_txn: set[int] = set()
-            used_grp: set[int] = set()
-            for cost, ti, gi in candidates:
-                if ti in used_txn or gi in used_grp:
-                    continue
-                qkey = self.txn_views[ti].key  # <-- QIFItemKey
-                self.qif_to_excel_group[qkey] = gi
-                self.excel_group_to_qif[gi] = qkey
-                used_txn.add(ti)
-                used_grp.add(gi)
-
-            print(
-                "DEBUG keys types:",
-                {type(k) for k in self.qif_to_excel_group.keys()},
-                {type(v) for v in self.qif_to_excel_group.values()},
-            )
-
-            print("DEBUG sample mapping:", list(self.qif_to_excel_group.items())[:3])
-
-            return
-
-        # ---- Legacy row-mode fallback ----
-        candidates: List[Tuple[int, int, int]] = []
-        by_amount: Dict[Decimal, List[int]] = {}
-        for ei, er in enumerate(self.excel_rows):
-            by_amount.setdefault(er.amount, []).append(ei)
-
-        for ti, tv in enumerate(self.txn_views):
-            try:
-                txn_amt = _to_decimal(tv.amount)
-            except Exception:
-                txn_amt = _to_decimal(str(tv.amount))
-            for ei in by_amount.get(txn_amt, []):
-                er = self.excel_rows[ei]
-                cost = _candidate_cost(tv.date, er.date)
-                if cost is None:
-                    continue
-                candidates.append((cost, ti, ei))
-
-        candidates.sort(key=lambda t: (t[0], t[1], t[2]))
-
-        used_txn: set[int] = set()
-        used_row: set[int] = set()
-        for cost, ti, ei in candidates:
-            if ti in used_txn or ei in used_row:
-                continue
-            key = self.txn_views[ti].key  # <-- QIFItemKey
-            self.qif_to_excel[key] = ei
-            self.excel_to_qif[ei] = key
-            used_txn.add(ti)
-            used_row.add(ei)
-
-    # --- Introspection
-
-    def matched_pairs(
-        self,
-    ) -> List[Tuple[TxnLegacyView, ExcelTxnGroup | ExcelRow, int]]:
-        """
-        Return list of matched (QIFTxnView, ExcelTxnGroup|ExcelRow, date_cost).
-        Group-mode first, legacy row-mode as fallback.
-        """
-        out: List[Tuple[TxnLegacyView, ExcelTxnGroup | ExcelRow, int]] = []
-
-        # --- Group mode (ExcelTxnGroup) ---
-        if self.excel_groups:
-            for q in self.txn_views:
-                gi = self.qif_to_excel_group.get(q.key)
-                if gi is None:
-                    continue
-                grp = self.excel_groups[gi]
-                cost = _candidate_cost(q.date, grp.date)
-                out.append((q, grp, 0 if cost is None else cost))
-            return out
-
-        # --- Legacy row mode (ExcelRow) ---
-        for q in self.txn_views:
-            ei = self.qif_to_excel.get(q.key)
-            if ei is None:
-                continue
-            er = self.excel_rows[ei]
-            cost = _candidate_cost(q.date, er.date)
-            out.append((q, er, 0 if cost is None else cost))
+    @property
+    def pairs(self) -> List[Tuple[ITransaction, ITransaction]]:
+        """Return current pairs in bank index order."""
+        out: List[Tuple[ITransaction, ITransaction]] = []
+        for bi, ei in sorted(self._pairs_ix.items()):
+            out.append((self._bank_txns[bi], self._excel_txns[ei]))
         return out
 
-    def unmatched_qif(self) -> List[TxnLegacyView]:
-        if self.excel_groups:
-            matched_keys = set(self.qif_to_excel_group.keys())
-            return [tv for tv in self.txn_views if tv.key not in matched_keys]
-        # Legacy row-mode
-        matched_ti = {k.txn_index for k in self.qif_to_excel.keys()}
-        return [tv for ti, tv in enumerate(self.txn_views) if ti not in matched_ti]
+    @property
+    def unmatched_bank(self) -> List[ITransaction]:
+        matched_bank = set(self._pairs_ix.keys())
+        return [t for i, t in enumerate(self._bank_txns) if i not in matched_bank]
 
-    def unmatched_excel(self) -> List[ExcelTxnGroup | ExcelRow]:
-        if self.excel_groups:
-            return [
-                g
-                for gi, g in enumerate(self.excel_groups)
-                if gi not in self.excel_group_to_qif
-            ]
-        # Legacy row-mode
-        return [
-            er for ei, er in enumerate(self.excel_rows) if ei not in self.excel_to_qif
-        ]
+    @property
+    def unmatched_excel(self) -> List[ITransaction]:
+        matched_excel = set(self._pairs_ix.values())
+        return [t for j, t in enumerate(self._excel_txns) if j not in matched_excel]
 
-    # --- Reasons / manual matching
+    # --- matching ---
 
-    def nonmatch_reason(self, q: TxnLegacyView, target) -> str:
+    def auto_match(self, min_score: Optional[int] = None) -> List[Tuple[ITransaction, ITransaction]]:
         """
-        Explain why q (QIF txn) didn't match 'target', which is either:
-          - ExcelTxnGroup (group mode), or
-          - ExcelRow (legacy row mode)
+        Greedy one-to-one matching between bank and excel transactions using compare_txn.
+
+        Amount equality is enforced inside compare_txn (legacy gate). Among equal-amount candidates,
+        we pick the highest score, breaking ties by (closest date, highest payee similarity).
+
+        Side effects:
+            • Updates self._pairs_ix to reflect the greedy assignment (resets prior pairs).
+            • Updates self._auto_pairs_cache to the materialized (txn, txn) pairs.
+
+        Args:
+            min_score: Optional threshold to accept a pair. Defaults to self._min_score_default.
+
+        Returns:
+            List of accepted (bank_txn, excel_txn) pairs in bank index order.
         """
-        # Group mode
-        if self.excel_groups is not None and isinstance(target, ExcelTxnGroup):
-            grp: ExcelTxnGroup = target
-            if q.amount != grp.total_amount:
-                return f"Total amount differs (QIF {q.amount} vs Excel group {grp.total_amount})."
-            c = _candidate_cost(q.date, grp.date)
-            if c is None:
-                return f"Date outside ±3 days (QIF {q.date.isoformat()} vs Excel group {grp.date.isoformat()})."
+        threshold: int = self._min_score_default if min_score is None else int(min_score)
 
-            gi = self._group_index(grp)
-            if gi >= 0:
-                # Is this QIF txn already matched to a different group?
-                gi_for_q = self.qif_to_excel_group.get(q.key)
-                if gi_for_q is not None and gi_for_q != gi:
-                    return "QIF txn is already matched."
-                # Is this Excel group already matched to a different QIF txn?
-                q_for_g = self.excel_group_to_qif.get(gi)
-                if q_for_g is not None and q_for_g != q.key:
-                    return "Excel group is already matched."
+        self._pairs_ix.clear()
+        self._auto_pairs_cache.clear()
 
-            if c > 0:
-                return f"Auto-match preferred a closer date (day diff = {c})."
-            return "Auto-match selected another candidate."
+        # Pre-index excel candidates by amount for quick filtering
+        by_amount: Dict[str, List[int]] = {}  # str(amount) -> list of excel indices
+        for j, et in enumerate(self._excel_txns):
+            by_amount.setdefault(str(et.amount), []).append(j)
 
-        # Legacy row mode
-        if isinstance(target, ExcelRow):
-            er: ExcelRow = target
-            if q.amount != er.amount:
-                return f"Amount differs (QIF {q.amount} vs Excel {er.amount})."
-            c = _candidate_cost(q.date, er.date)
-            if c is None:
-                return f"Date outside ±3 days (QIF {q.date.isoformat()} vs Excel {er.date.isoformat()})."
-            if q.key in self.qif_to_excel and self.qif_to_excel[q.key] != er.idx:
-                return "QIF item is already matched."
-            if er.idx in self.excel_to_qif and self.excel_to_qif[er.idx] != q.key:
-                return "Excel row is already matched."
-            if c > 0:
-                return f"Auto-match preferred a closer date (day diff = {c})."
-            return "Auto-match selected another candidate."
+        used_excel: set[int] = set()
 
-        return "Unsupported target type."
+        for bi, bt in enumerate(self._bank_txns):
+            candidates_ix = [j for j in by_amount.get(str(bt.amount), []) if j not in used_excel]
+            if not candidates_ix:
+                continue
 
-    def manual_match(self, qkey: QIFItemKey, excel_idx: int) -> Tuple[bool, str]:
+            scored: List[Tuple[MatchScore, int]] = []
+            for j in candidates_ix:
+                ms = compare_txn(bt, self._excel_txns[j])
+                scored.append((ms, j))
+
+            # Choose best via deterministic tie-breaking
+            scored.sort(key=lambda t: _sort_key_for_match(t[0]))
+            best_ms, best_j = scored[0]
+
+            if best_ms.score < threshold:
+                continue
+
+            self._pairs_ix[bi] = best_j
+            used_excel.add(best_j)
+
+        # Materialize cache
+        for bi in sorted(self._pairs_ix.keys()):
+            ei = self._pairs_ix[bi]
+            self._auto_pairs_cache.append((self._bank_txns[bi], self._excel_txns[ei]))
+
+        return list(self._auto_pairs_cache)
+
+    # --- manual operations ---
+
+    def manual_match(self, bank_index: int, excel_index: int) -> None:
         """
-        Force a match between a QIF txn and an Excel item:
-          - In group mode, excel_idx is an index into self.excel_groups
-          - In legacy mode, excel_idx is a row index into self.excel_rows
+        Manually pair a single bank transaction with a single excel transaction.
+        Overrides any existing pairing involving either index to keep one-to-one constraint.
         """
-        # Find the QIF view
-        try:
-            q = next(x for x in self.txn_views if x.key == qkey)
-        except StopIteration:
-            return False, "QIF item key not found."
+        self._assert_index(bank_index, side="bank")
+        self._assert_index(excel_index, side="excel")
 
-        # --- Group mode ---
-        if self.excel_groups:
-            if excel_idx < 0 or excel_idx >= len(self.excel_groups):
-                return False, "Excel group index out of range."
-            grp = self.excel_groups[excel_idx]
+        # Unhook any bank -> * pair using this excel index
+        for bi, ei in list(self._pairs_ix.items()):
+            if ei == excel_index and bi != bank_index:
+                del self._pairs_ix[bi]
 
-            # Normalize q.amount to Decimal for comparison
-            try:
-                q_amt = _to_decimal(q.amount)
-            except Exception:
-                q_amt = _to_decimal(str(q.amount))
+        # Overwrite any existing pair for this bank index
+        self._pairs_ix[bank_index] = excel_index
 
-            if q_amt != grp.total_amount:
-                return (
-                    False,
-                    f"Total amount differs (QIF {q_amt} vs Excel group {grp.total_amount}).",
-                )
-            if _candidate_cost(q.date, grp.date) is None:
-                return (
-                    False,
-                    f"Date outside ±3 days (QIF {q.date.isoformat()} vs Excel group {grp.date.isoformat()}).",
-                )
-
-            # Unhook existing links
-            self._unmatch_qkey_group(qkey)
-            self._unmatch_group_index(excel_idx)
-
-            # Link by (QIFItemKey -> group_index)
-            self.qif_to_excel_group[qkey] = excel_idx
-            self.excel_group_to_qif[excel_idx] = qkey
-            return True, "Matched."
-
-        # --- Legacy row mode ---
-        if excel_idx < 0 or excel_idx >= len(self.excel_rows):
-            return False, "Excel index out of range."
-        er = self.excel_rows[excel_idx]
-
-        try:
-            q_amt = _to_decimal(q.amount)
-        except Exception:
-            q_amt = _to_decimal(str(q.amount))
-
-        if q_amt != er.amount:
-            return False, f"Amount differs (QIF {q_amt} vs Excel {er.amount})."
-        if _candidate_cost(q.date, er.date) is None:
-            return (
-                False,
-                f"Date outside ±3 days (QIF {q.date.isoformat()} vs Excel {er.date.isoformat()}).",
-            )
-
-        # Unhook and relink in legacy maps
-        self._unmatch_qkey(qkey)
-        self._unmatch_excel(excel_idx)
-
-        self.qif_to_excel[qkey] = excel_idx
-        self.excel_to_qif[excel_idx] = qkey
-        return True, "Matched."
-
-    def manual_unmatch(
-        self, qkey: Optional[QIFItemKey] = None, excel_idx: Optional[int] = None
-    ) -> bool:
+    def manual_unmatch(self, bank_index: int | None = None, excel_index: int | None = None) -> None:
         """
-        Remove an existing match (by either key).
+        Remove an existing pairing by bank index OR excel index.
+
+        Args:
+            bank_index: bank side index to unpair (if provided)
+            excel_index: excel side index to unpair (if provided)
+
+        If both are None, this is a no-op. If both are provided, both are honored.
         """
-        if qkey is not None:
-            return self._unmatch_qkey(qkey)
-        if excel_idx is not None:
-            return self._unmatch_excel(excel_idx)
-        return False
+        if bank_index is not None:
+            self._assert_index(bank_index, side="bank")
+            self._pairs_ix.pop(bank_index, None)
 
-    def _unmatch_qkey_group(self, qkey: QIFItemKey) -> bool:
-        gi = self.qif_to_excel_group.pop(qkey, None)
-        if gi is None:
-            return False
-        self.excel_group_to_qif.pop(gi, None)
-        return True
+        if excel_index is not None:
+            self._assert_index(excel_index, side="excel")
+            for bi, ei in list(self._pairs_ix.items()):
+                if ei == excel_index:
+                    del self._pairs_ix[bi]
 
-    def _unmatch_group_index(self, gi: int) -> bool:
-        qkey = self.excel_group_to_qif.pop(gi, None)
-        if qkey is None:
-            return False
-        self.qif_to_excel_group.pop(qkey, None)
-        return True
+    # --- explanations ---
 
-    # ----- THIS IS ONLY FOR ROW MODE. WILL DELETE SOON -----
-    def _unmatch_qkey(self, qkey: QIFItemKey) -> bool:
-        # Group mode first
-        if self.excel_groups is not None:
-            grp = self.qif_to_excel_group.pop(qkey, None)
-            if grp is None:
-                return False
-            self.excel_group_to_qif.pop(grp, None)
-            return True
-
-        # Legacy
-        ei = self.qif_to_excel.pop(qkey, None)
-        if ei is None:
-            return False
-        self.excel_to_qif.pop(ei, None)
-        return True
-
-    # ----- THIS IS ONLY FOR ROW MODE. WILL DELETE SOON -----
-    def _unmatch_excel(self, excel_idx: int) -> bool:
-        # Group mode: excel_idx refers to group index (dict is keyed by int)
-        if self.excel_groups is not None:
-            qkey = self.excel_group_to_qif.pop(excel_idx, None)
-            if qkey is None:
-                return False
-            self.qif_to_excel_group.pop(qkey, None)
-            return True
-
-        # Legacy row mode
-        qkey = self.excel_to_qif.pop(excel_idx, None)
-        if qkey is None:
-            return False
-        self.qif_to_excel.pop(qkey, None)
-        return True
-
-    def _group_index(self, g: ExcelTxnGroup) -> int:
-        # helper to find group index (identity by object; fallback by gid/date/total)
-        try:
-            return self.excel_groups.index(g)
-        except ValueError:
-            for i, gg in enumerate(self.excel_groups):
-                if (
-                    gg.gid == g.gid
-                    and gg.date == g.date
-                    and gg.total_amount == g.total_amount
-                ):
-                    return i
-            return -1
-
-    # --- Applying updates ----------------------------------------------------
-
-    def apply_updates(self) -> None:
+    def nonmatch_reason(self, bank_index: int, top_n: int = 3) -> str:
         """
-        For each matched pair (QIF txn ↔ Excel group), overwrite the txn's splits
-        with the group's row details. Transactions are matched at the transaction
-        level; split details come exclusively from Excel rows.
+        Provide an explanation for why the specified bank transaction is not matched
+        (or why a different excel candidate might be preferred).
 
-        - category  ← Excel row category
-        - memo      ← Excel row item
-        - amount    ← Excel row amount (Decimal)
+        Strategy:
+            • Score all currently-unmatched excel candidates with compare_txn.
+            • If no equal-amount candidates, report that immediately.
+            • Otherwise, present the best candidate's reasons and summarize key deltas.
+
+        Returns:
+            Human-readable explanation string.
         """
-        for q_view, grp_or_row, _cost in self.matched_pairs():
-            # In group-mode we get an ExcelTxnGroup; in legacy mode it's an ExcelRow.
-            # The split-aware behavior only applies to groups. Legacy mode leaves splits untouched.
-            if hasattr(grp_or_row, "rows"):  # ExcelTxnGroup
-                grp = grp_or_row
-                txn = self.txns[q_view.key.txn_index]
+        self._assert_index(bank_index, side="bank")
+        bt = self._bank_txns[bank_index]
 
-                # Build new splits from the group's rows, replacing any existing splits.
-                new_splits = []
-                for r in grp.rows:
-                    new_splits.append(
-                        {
-                            "category": r.category,
-                            "memo": r.item,
-                            "amount": r.amount,  # already a Decimal
-                        }
-                    )
+        matched_excel = set(self._pairs_ix.values())
+        candidates: List[Tuple[MatchScore, int]] = []
+        for j, et in enumerate(self._excel_txns):
+            if j in matched_excel:
+                continue
+            ms = compare_txn(bt, et)
+            candidates.append((ms, j))
 
-                self._set_splits_from_group(q_view.key.txn_index, grp)
-                # txn["splits"] = new_splits
+        # Filter to equal-amount only (compare_txn returns -1000 for amount mismatch)
+        equal_amount = [t for t in candidates if t[0].score > -1000]
 
-    def _set_splits_from_group(self, txn_idx: int, group) -> None:
-        base = self.txns[txn_idx]
+        if not equal_amount:
+            return f"No equal-amount candidates for ${bt.amount}."
 
-        # Excel rows → new split objects/dicts
-        new_splits_model = [
-            QSplit(
-                category=r.category or "", memo=r.item or "", amount=r.amount, tag=""
-            )
-            for r in group.rows
-        ]
-        new_splits_dicts = [
-            {"category": r.category or "", "memo": r.item or "", "amount": r.amount}
-            for r in group.rows
-        ]
+        equal_amount.sort(key=lambda t: _sort_key_for_match(t[0]))
+        best_ms, best_j = equal_amount[0]
 
-        if isinstance(base, QTransaction):
-            # replace model splits
-            base.splits = new_splits_model
-            # optional: clear top-level category when splits exist
-            base.category = ""
+        feat = best_ms.features
+        parts: List[str] = []
+        parts.append(f"Best candidate index {best_j} (score {best_ms.score}).")
+        if feat.get("date_days") is not None:
+            parts.append(f"Date Δ = {feat['date_days']} day(s)")
+        payee_sim_val = cast(float, feat.get("payee_sim", 0.0))
+        parts.append(f"Payee sim = {payee_sim_val:.2f}")
+        parts.extend(best_ms.reasons)
+
+        return "; ".join(parts)
+
+    # --- safety ---
+
+    def _assert_index(self, idx: int, *, side: str) -> None:
+        if side == "bank":
+            if not (0 <= idx < len(self._bank_txns)):
+                raise IndexError(f"bank_index out of range: {idx}")
+        elif side == "excel":
+            if not (0 <= idx < len(self._excel_txns)):
+                raise IndexError(f"excel_index out of range: {idx}")
         else:
-            # legacy dict path
-            base["splits"] = new_splits_dicts
-            base["category"] = ""
+            raise ValueError(f"Unknown side: {side}")

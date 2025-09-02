@@ -1,103 +1,91 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
+from typing import List, Optional
 
+import pytest
+
+# System under test (new, protocol-only API)
 from quicken_helper.controllers.match_session import MatchSession
-from quicken_helper.data_model.excel.excel_row import ExcelRow
-from quicken_helper.data_model.excel.excel_txn_group import ExcelTxnGroup
 
 
-# --- Helpers (Arrange) --------------------------------------------------------
-def _mk_tx(datestr, amt, splits=None):
-    return {"date": datestr, "amount": amt, "splits": (splits or [])}
+# ---------- Minimal protocol-shaped stub --------------------------------------
+
+@dataclass(frozen=True)
+class StubTxn:
+    """Minimal ITransaction-shaped stub for protocol-only tests."""
+    date: date
+    amount: Decimal
+    payee: str = ""
+    memo: str = ""
+    category: str = ""
+    splits: Optional[List[dict]] = None
 
 
-def _mk_group(rows, gid="G"):
-    # Derive group date and total from the rows
-    group_date = rows[0].date if rows else None
-    total = sum((r.amount for r in rows), Decimal("0"))
-    # Instantiate ExcelTxnGroup directly (no from_rows needed)
-    return ExcelTxnGroup(
-        gid=gid,
-        date=group_date,
-        total_amount=total,
-        rows=tuple(rows),
-    )
+# ---------- Fixtures ----------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _identity_convert_value(monkeypatch):
+    """Isolation: stub convert_value to identity so tests don't depend on adapters."""
+    import quicken_helper.controllers.match_session as ms
+    monkeypatch.setattr(ms, "convert_value", lambda _t, v: v)
 
 
-class _TestableMatchSession(MatchSession):
-    """
-    Minimal test-only subclass that exposes a way to directly set the group match
-    (bypassing auto_match/manual_match). This keeps the test isolated on
-    apply_updates().
-    """
+# ---------- Tests -------------------------------------------------------------
 
-    def force_group_link(self, txn_index: int, group_index: int) -> None:
-        qkey = self.txn_views[txn_index].key
-        self.qif_to_excel_group[qkey] = group_index
-        self.excel_group_to_qif[group_index] = qkey
-
-    # def force_group_link(self, txn_index: int, group_index: int) -> None:
-    #     qkey = self.txn_views[txn_index].key
-    #     # Store the *group object* in qif_to_excel_group so matched_pairs()
-    #     # can use grp.date etc. (some versions store an index; this ensures
-    #     # compatibility with the object-consuming code path).
-    #     self.qif_to_excel_group[qkey] = self.excel_groups[group_index]
-    #     # Keep the reverse map by index → qkey, which other flows expect.
-    #     self.excel_group_to_qif[group_index] = qkey
-
-
-# --- The independent test (Arrange-Act-Assert) -------------------------------
-
-
-def test_apply_updates_overwrites_splits_from_matched_groups_independent():
-    # Arrange
-    txns = [
-        _mk_tx(
-            "2025-07-02",
-            "-20.00",
+def test_matching_does_not_modify_bank_splits():
+    """Positive: matching is read-only; existing bank splits remain unchanged after auto_match."""
+    bank = [
+        StubTxn(
+            date=date(2025, 7, 2),
+            amount=Decimal("-20.00"),
             splits=[
                 {"category": "Old:Cat", "memo": "old1", "amount": Decimal("-10.00")},
                 {"category": "Old:Cat", "memo": "old2", "amount": Decimal("-10.00")},
             ],
-        ),
+        )
     ]
-    rows = [
-        ExcelRow(
-            idx=0,
-            txn_id="B",
+    excel = [
+        StubTxn(
             date=date(2025, 7, 2),
-            amount=Decimal("-10.00"),
-            item="i2a",
-            category="New:C2",
-            rationale="R2a",
-        ),
-        ExcelRow(
-            idx=1,
-            txn_id="B",
-            date=date(2025, 7, 2),
-            amount=Decimal("-10.00"),
-            item="i2b",
-            category="New:C3",
-            rationale="R2b",
-        ),
+            amount=Decimal("-20.00"),
+            splits=[
+                {"category": "New:C2", "memo": "i2a", "amount": Decimal("-10.00")},
+                {"category": "New:C3", "memo": "i2b", "amount": Decimal("-10.00")},
+            ],
+        )
     ]
-    grp = _mk_group(rows, gid="B")
-    session = _TestableMatchSession(txns, excel_groups=[grp])
+
+    s = MatchSession(bank, excel)
 
     # Act
-    # Force the mapping so we don’t depend on auto/ manual matching.
-    session.force_group_link(txn_index=0, group_index=0)
-    session.apply_updates()
+    pairs = s.auto_match()
+
+    # Assert (paired, but bank object is unchanged)
+    assert pairs == [(bank[0], excel[0])]
+    assert bank[0].splits and len(bank[0].splits) == 2
+    cats = [sp["category"] for sp in bank[0].splits]
+    memos = [sp["memo"] for sp in bank[0].splits]
+    amts = [sp["amount"] for sp in bank[0].splits]
+    assert cats == ["Old:Cat", "Old:Cat"]
+    assert memos == ["old1", "old2"]
+    assert amts == [Decimal("-10.00"), Decimal("-10.00")]
+
+
+def test_manual_match_and_accessors_consistency():
+    """Positive: manual_match creates a single pair; accessors reflect unmatched sets deterministically."""
+    bank = [StubTxn(date=date(2025, 8, 1), amount=Decimal("10.00")),
+            StubTxn(date=date(2025, 8, 2), amount=Decimal("20.00"))]
+    excel = [StubTxn(date=date(2025, 8, 1), amount=Decimal("10.00"))]
+
+    s = MatchSession(bank, excel)
+
+    # Act
+    s.manual_match(bank_index=0, excel_index=0)
 
     # Assert
-    updated = txns[0]
-    assert (
-        "splits" in updated and len(updated["splits"]) == 2
-    ), "Existing splits must be replaced by Excel group splits."
-    cats = [s["category"] for s in updated["splits"]]
-    memos = [s["memo"] for s in updated["splits"]]
-    amts = [s["amount"] for s in updated["splits"]]
-
-    assert cats == ["New:C2", "New:C3"]
-    assert memos == ["i2a", "i2b"]
-    assert amts == [Decimal("-10.00"), Decimal("-10.00")]
+    assert s.pairs == [(bank[0], excel[0])]
+    assert s.unmatched_bank == [bank[1]]
+    assert s.unmatched_excel == []
