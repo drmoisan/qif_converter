@@ -12,7 +12,7 @@ PS 5.1 compatible; hardened against null outputs; safe extension parsing for ren
 param(
     [string]$Base,
     [string]$Head,
-    [string]$Out = "commit_context.txt",
+    [string]$Out = "logs\pr_context.txt",
     [string]$RepoRoot = ".",
     [switch]$Append,
     [switch]$NoUntracked
