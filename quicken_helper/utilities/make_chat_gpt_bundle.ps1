@@ -152,7 +152,7 @@ try {
 
   # ----- zip via git archive -----
   Write-Info "Creating $OutZip from tracked files at HEAD..."
-  Run-Git @('archive','--format=zip','-o', $OutZip, 'HEAD') | Out-Null
+  Run-Git @('archive','--format=zip','-o', $OutZip, 'HEAD','--','.', ':(exclude).idea') | Out-Null
 
   Write-Info 'Done.'
   Write-Host ''
