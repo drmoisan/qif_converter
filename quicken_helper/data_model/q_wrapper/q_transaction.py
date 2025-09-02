@@ -35,7 +35,7 @@ class QTransaction(ITransaction):
     date: date = date(1985, 11, 5)
     action_chk: str = field(default_factory=str)
     amount: Decimal = Decimal(0)
-    cleared: EnumClearedStatus = field(default_factory=EnumClearedStatus)
+    cleared: EnumClearedStatus = field(default_factory=lambda: EnumClearedStatus.UNKNOWN)
     payee: str = field(default_factory=str)
     memo: str = field(default_factory=str)
     category: str = field(default_factory=str)

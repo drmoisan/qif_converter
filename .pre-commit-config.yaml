@@ -1,0 +1,14 @@
+repos:
+  - repo: local
+    hooks:
+      - id: forbid-delete-markers
+        name: Forbid DELETE_ME markers
+        language: pygrep
+        entry: \b(DELETE_ME|REMOVE_BEFORE_MERGE)\b
+        types: [python]               # only scan .py files
+        exclude: ^(logs/|docs/)       # ignore these paths (optional)
+      - id: forbid-delete-blocks
+        name: Forbid pending DELETE blocks
+        language: pygrep
+        entry: '^\s*#\s*region\s*DELETE_BLOCK:\s*start\b'
+        types: [python]

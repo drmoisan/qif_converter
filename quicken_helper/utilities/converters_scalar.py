@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, date, time, timedelta
-from decimal import Decimal
-from typing import Any, Dict
+from decimal import Decimal, InvalidOperation
+from typing import Any, Dict, Optional
 
 
 def _bad(value: Any, target: str) -> ValueError:
@@ -37,14 +37,135 @@ def _to_datetime(value):
     raise ValueError(f"Cannot convert {type(value).__name__} to datetime")
 
 
-def _to_decimal(v: Any) -> Decimal:
-    if isinstance(v, Decimal):
-        return v
-    if isinstance(v, (int, float)):
-        return Decimal(str(v))  # avoid float->Decimal binary quirks
-    if isinstance(v, str):
-        return Decimal(v.strip())
-    raise _bad(v, "Decimal")
+def _to_decimal(value: Any) -> Decimal:
+    """
+    Convert various inputs to Decimal with lenient, locale-aware-ish parsing.
+
+    Supported string formats:
+      - "1234", "-1234", "1234-", "(1,234.56)", "-3,188.32"
+      - "1,234.56" (US) and "1.234,56" (EU) — auto-detects decimal vs thousands
+      - Currency symbols/words ignored: "$1,234.56", "EUR 1.234,56", etc.
+
+    Rules for decimal/thousands detection:
+      * If both ',' and '.' appear: the *last* separator is treated as decimal;
+        the other is treated as thousands and removed.
+      * If only one of ',' or '.' appears:
+          - If exactly 3 digits follow it and there are no other separators,
+            treat it as thousands (remove it).
+          - If 1–2 digits follow it, treat it as decimal.
+          - Otherwise (e.g., 0 or >3 digits), treat as thousands (remove).
+
+    Raises:
+        ValueError: if no digits are present or the cleaned value is invalid.
+
+    Examples:
+        _to_decimal("-3,188.32")        -> Decimal('-3188.32')
+        _to_decimal("1.234,56")         -> Decimal('1234.56')
+        _to_decimal("(1,234.56)")       -> Decimal('-1234.56')
+        _to_decimal("1,234")            -> Decimal('1234')
+        _to_decimal("EUR 1.234,00")     -> Decimal('1234.00')
+    """
+    # Fast-path for numeric types
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, (int,)):
+        return Decimal(value)
+    if isinstance(value, float):
+        # Avoid binary float artifacts
+        return Decimal(str(value))
+
+    if not isinstance(value, str):
+        raise ValueError(f"Unsupported type for Decimal conversion: {type(value).__name__}")
+
+    cleaned = clean_number_like_string(value,'.')
+
+    try:
+        return Decimal(cleaned)
+    except InvalidOperation as e:
+        raise ValueError(f"Could not parse Decimal from {value!r} (normalized to {cleaned!r})") from e
+
+
+def clean_number_like_string(value: str, decimal_char: str = '') -> str:
+    s = value.strip()
+    if not s:
+        raise ValueError("Empty string cannot be converted to Decimal")
+
+    # Normalize common oddities
+    s = s.replace("\xa0", " ").replace(_UNICODE_MINUS, "-")  # NBSP, unicode minus
+    s = s.strip()
+
+    # Detect negative via parentheses or trailing minus
+    neg = False
+    if s.startswith("(") and s.endswith(")"):
+        neg = True
+        s = s[1:-1].strip()
+    if s.endswith("-"):
+        neg = not neg  # trailing minus toggles sign (if both, end up negative)
+        s = s[:-1].strip()
+
+    # Remove currency symbols/letters and anything not in [digits , . - ( )]
+    s = _NON_DIGIT_KEEP_SEP.sub("", s)
+
+    # Remove any stray leading '+' and handle leading '-'
+    if s.startswith("+"):
+        s = s[1:]
+    if s.startswith("-"):
+        neg = not neg
+        s = s[1:]
+
+    # After cleaning we should have digits and possibly , .
+    digits = re.sub(r"[^\d]", "", s)
+    if not digits:
+        raise ValueError(f"No digits found in input: {value!r}")
+
+    has_comma = "," in s
+    has_dot = "." in s
+
+    def _apply_decimal_sep(txt: str, decimal_sep: Optional[str]) -> str:
+        if decimal_sep is None:
+            # Remove all separators (integers with thousand marks only)
+            return txt.replace(",", "").replace(".", "")
+        if decimal_sep == ".":
+            # '.' is decimal → remove all commas
+            return txt.replace(",", "")
+        else:
+            # ',' is decimal → remove all dots, then swap ',' -> '.'
+            return txt.replace(".", "").replace(",", ".")
+
+    if decimal_char != '':
+        # User-specified decimal char: remove the other if present
+        if decimal_char == '.':
+            cleaned = _apply_decimal_sep(s, '.')
+        elif decimal_char == ',':
+            cleaned = _apply_decimal_sep(s, ',')
+        else:
+            raise ValueError(f"Invalid decimal_char: {decimal_char!r}")
+    elif has_comma and has_dot:
+        # Use the last separator as the decimal mark
+        dec_sep = "," if s.rfind(",") > s.rfind(".") else "."
+        cleaned = _apply_decimal_sep(s, dec_sep)
+    elif has_comma or has_dot:
+        ch = "," if has_comma else "."
+        idx = s.rfind(ch)
+        after = len(s) - idx - 1
+        # Decide if it's a decimal or thousands separator
+        if after in (1, 2):
+            dec_sep = ch
+        elif after == 3:
+            # likely "1,234" thousands
+            dec_sep = None
+        else:
+            # ambiguous: default to thousands (safer than misplacing decimal)
+            dec_sep = None
+        cleaned = _apply_decimal_sep(s, dec_sep)
+    else:
+        cleaned = s  # pure digits (and maybe dashes already handled)
+
+    cleaned = cleaned.strip()
+    # restored sign
+    if neg and cleaned and cleaned[0] != "-":
+        cleaned = "-" + cleaned
+    return cleaned
 
 
 def _to_int(v: Any) -> int:
@@ -61,9 +182,13 @@ def _to_int(v: Any) -> int:
         if not v.is_integer():
             raise ValueError(f"Non-integer float {v} for int field")
         return int(v)
-    if isinstance(v, str):
-        return int(v.strip())
-    raise _bad(v, "int")
+    if not isinstance(v, str):
+        raise ValueError(f"Unsupported type for integer conversion: {type(v).__name__}")
+    cleaned = clean_number_like_string(v,'.')
+    try:
+        return int(cleaned)
+    except ValueError as e:
+        raise ValueError(f"Could not parse int from {v!r} (normalized to {cleaned!r})") from e
 
 
 def _to_float(v: Any) -> float:
@@ -101,6 +226,8 @@ _SCALAR_CONVERTERS: Dict[type, Any] = {
     date: _to_date,
     datetime: _to_datetime,
 }
+_NON_DIGIT_KEEP_SEP = re.compile(r"[^\d,.\-\(\)]+")
+_UNICODE_MINUS = "\u2212"  # '−'
 
 
 def parse_date_string(s: object, should_raise: bool = False) -> date | None:

@@ -29,7 +29,13 @@ from quicken_helper.legacy import qfx_to_txns as qfx
 from quicken_helper.legacy import qif_writer as mod
 
 from .scaling import apply_global_font_scaling
+import logging
+import logging.config
+from quicken_helper.utilities import LOGGING
 
+
+logging.config.dictConfig(LOGGING)
+log = logging.getLogger(__name__)
 
 class App(tk.Tk):
     """
