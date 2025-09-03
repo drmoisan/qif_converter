@@ -986,7 +986,7 @@ def test_load_and_auto_validates_missing_inputs(merge_mod, monkeypatch):
     monkeypatch.setattr(merge_mod.Path, "is_file", lambda self: False, raising=False)
 
     # Act
-    mt._m_load_and_auto()
+    mt._m_load()
 
     # Assert
     assert any(
@@ -1006,7 +1006,7 @@ def test_load_and_auto_validates_missing_inputs(merge_mod, monkeypatch):
     )
 
     # Act
-    mt._m_load_and_auto()
+    mt._m_load()
 
     # Assert
     assert any(
@@ -1028,7 +1028,8 @@ def test_load_and_auto_populates_lists_on_success(merge_mod, monkeypatch):
     monkeypatch.setattr(merge_mod.Path, "is_file", lambda self: True, raising=False)
 
     # Act
-    mt._m_load_and_auto()
+    mt._m_load()
+    mt._m_auto_match()
 
     # Assert
     assert mt._merge_session is not None, "Session should be created"

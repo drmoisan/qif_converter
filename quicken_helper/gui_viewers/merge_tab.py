@@ -150,8 +150,11 @@ class MergeTab(ttk.Frame):
         actions = ttk.Frame(self)
         actions.pack(fill="x", **pad)
         ttk.Button(
-            actions, text="Load + Auto-Match", command=self._m_load_and_auto
+            actions, text="Load", command=self._m_load
         ).pack(side="left")
+        ttk.Button(
+            actions, text="Auto-Match", command=self._m_auto_match
+        ).pack(side="left", padx=6)
         ttk.Button(
             actions, text="Normalize Categories", command=self.open_normalize_modal #normalize_cats_modal
         ).pack(side="left", padx=6)
@@ -306,7 +309,8 @@ class MergeTab(ttk.Frame):
             self.m_qif_out.set(p)
 
     # ---------- actions ----------
-    def _m_load_and_auto(self) -> None:
+    def _m_load(self) -> None:
+        """Load inputs and build a session without auto-matching."""
         try:
             qif_in = Path(self.m_qif_in.get().strip())
             xlsx = Path(self.m_xlsx.get().strip())
@@ -331,10 +335,8 @@ class MergeTab(ttk.Frame):
                 groups = mex.group_excel_rows(rows)
                 excel_txns = [map_group_to_excel_txn(g) for g in groups]
 
-
-            # ✅ Protocol-only session: (bank_txns, excel_txns)
+            # Build session but DO NOT auto-match yet
             sess = MatchSession(bank_txns, excel_txns)
-            sess.auto_match()
 
             # Publish session and refresh UI
             self._merge_session = sess
@@ -344,13 +346,28 @@ class MergeTab(ttk.Frame):
                 f"{len(bank_txns)} QIF transactions and "
                 f"{len(excel_txns)} Excel groups (as transactions) "
                 f"({len(rows)} split rows).\n"
-                f"Matched pairs: {len(sess.pairs)} | "
-                f"Unmatched QIF: {len(sess.unmatched_bank)} | "
-                f"Unmatched Excel: {len(sess.unmatched_excel)}"
+                "Ready to auto-match: click the Auto-Match button."
             )
         except Exception as e:
             # Keep the test-visible failure simple
             self._merge_session = None
+            self.mb.showerror("Error", f"{e}")
+
+    def _m_auto_match(self) -> None:
+        """Run auto-matching on the currently loaded session."""
+        try:
+            s = self._merge_session
+            if not s:
+                self.mb.showerror("Error", "No session loaded. Click 'Load' first.")
+                return
+            s.auto_match()
+            self._m_refresh_lists()
+            self._m_info(
+                f"Matched pairs: {len(s.pairs)} | "
+                f"Unmatched QIF: {len(s.unmatched_bank)} | "
+                f"Unmatched Excel: {len(s.unmatched_excel)}"
+            )
+        except Exception as e:
             self.mb.showerror("Error", f"{e}")
 
     def _m_manual_match(self):
@@ -409,7 +426,7 @@ class MergeTab(ttk.Frame):
             s = self._merge_session
             if not s:
                 self.mb.showerror(
-                    "Error", "No session loaded. Click 'Load + Auto-Match' first."
+                    "Error", "No session loaded. Click 'Load' first."
                 )
                 return
             qif_out = Path(self.m_qif_out.get().strip())
