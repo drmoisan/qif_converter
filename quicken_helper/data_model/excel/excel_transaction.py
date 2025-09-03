@@ -17,9 +17,11 @@ from quicken_helper.utilities.converters_scalar import _to_decimal
 @dataclass(frozen=True)
 class ExcelSplit(ISplit):
     """Adapter for a single Excel row as a split line."""
-    category: str = ""
+    category: str
+    amount: Decimal
     memo: str = ""
-    amount: Decimal = Decimal("0")
+    tag: str = ""
+    rationale: str = ""
 
 
 @dataclass(frozen=True)

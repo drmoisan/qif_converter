@@ -15,7 +15,7 @@ def test_excel_row_basic_fields_and_equality():
         txn_id="T123",
         date=date(2025, 1, 2),
         amount=Decimal("-12.34"),
-        item="Latte",
+        memo="Latte",
         category="Food:Coffee",
         rationale="receipt 42",
     )
@@ -24,7 +24,7 @@ def test_excel_row_basic_fields_and_equality():
         txn_id="T123",
         date=date(2025, 1, 2),
         amount=Decimal("-12.34"),
-        item="Latte",
+        memo="Latte",
         category="Food:Coffee",
         rationale="receipt 42",
     )
@@ -33,7 +33,7 @@ def test_excel_row_basic_fields_and_equality():
         txn_id="T123",
         date=date(2025, 1, 2),
         amount=Decimal("-12.34"),
-        item="Latte",
+        memo="Latte",
         category="Food:Coffee",
         rationale="receipt 42",
     )
@@ -53,7 +53,7 @@ def test_excel_row_is_immutable_and_hashable():
         txn_id="G-99",
         date=date(2024, 12, 31),
         amount=Decimal("0"),
-        item="",
+        memo="",
         category="",
         rationale="",
     )
@@ -77,7 +77,7 @@ def test_excel_row_repr_contains_useful_fields():
         txn_id="ABC",
         date=date(2025, 5, 5),
         amount=Decimal("1.23"),
-        item="Thing",
+        memo="Thing",
         category="Misc",
         rationale="why",
     )
@@ -99,7 +99,7 @@ def test_excel_row_type_hints_are_present_and_correct():
     # Note: we check the presence and core expected types; get_type_hints resolves forward refs.
     assert hints["idx"] is int
     assert hints["txn_id"] is str
-    assert hints["item"] is str
+    assert hints["memo"] is str
     assert hints["category"] is str
     assert hints["rationale"] is str
 
@@ -118,7 +118,7 @@ def test_excel_row_inequality_when_any_field_differs():
         txn_id="X",
         date=date(2025, 1, 1),
         amount=Decimal("10"),
-        item="A",
+        memo="A",
         category="C",
         rationale="R",
     )

@@ -1,16 +1,28 @@
 from __future__ import annotations
 
 from _decimal import Decimal
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
+from typing import Optional
 
 
 @dataclass(frozen=True)
 class ExcelRow:
-    idx: int  # 0-based row index from Excel (after header)
     txn_id: str  # groups rows into a single transaction
     date: date
     amount: Decimal
-    item: str
     category: str
-    rationale: str
+    idx: int = -1
+    account: str = ""
+    action_chk: str = ""
+    cleared: str = ""
+    payee: str = ""
+    memo: str = ""
+    rationale: str = ""
+    tag: str = ""
+    # Security transaction fields
+    price: Decimal = Decimal("0")
+    quantity: Decimal = Decimal("0")
+    commission: Decimal = Decimal("0")
+    transfer_amount: Decimal = Decimal("0")
+

@@ -23,7 +23,7 @@ def _mk_row(
         txn_id=gid,
         date=d,
         amount=Decimal(amt),
-        item=item,
+        memo=item,
         category=cat,
         rationale=rationale,
     )

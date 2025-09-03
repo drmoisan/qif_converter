@@ -1,3 +1,18 @@
+"""
+Excel↔QIF matching helpers.
+
+This module provides utilities to ingest/normalize an Excel categorization sheet,
+flatten QIF transactions into matchable views, perform fuzzy category pairing,
+and drive an end-to-end merge/update of QIF transactions using Excel as the
+source of truth.
+
+Primary responsibilities:
+• Load Excel rows into `ExcelRow` records and group them into `ExcelTxnGroup`s.
+• Flatten QIF transactions (and splits) into `QIFTxnView`s for matching.
+• Extract and fuzzy-match category names across data sources.
+• Build a “matched-only” QIF view without mutating the source list.
+• Orchestrate a full merge (parse → match → apply updates → write).
+"""
 # quicken_helper/controllers/match_excel.py
 from __future__ import annotations
 
@@ -13,8 +28,8 @@ import pandas as pd
 # from . import qif_to_csv as base
 import quicken_helper as base
 from quicken_helper.controllers.match_helpers import (
-    _parse_date,
-    _qif_date_to_date,
+    _to_date,
+    _to_date,
     _to_decimal,
 )
 from quicken_helper.controllers.match_session import MatchSession
@@ -29,10 +44,29 @@ from quicken_helper.legacy.qif_txn_view import QIFTxnView
 
 
 def load_excel_rows(path: Path) -> List[ExcelRow]:
-    """
-    Load Excel with columns:
-      [TxnID, Date, Amount, Item, Canonical MECE Category, Categorization Rationale]
-    Dependencies: pandas + openpyxl
+    """Load and validate an Excel categorization sheet.
+
+    Parameters
+    ----------
+    path : Path
+        File path to the Excel workbook. Expected columns:
+        ['TxnID', 'Date', 'Amount', 'Item', 'Canonical MECE Category', 'Categorization Rationale'].
+
+    Returns
+    -------
+    List[ExcelRow]
+        One `ExcelRow` per non-header row with strict types:
+        date → datetime.date (via `_parse_date`), amount → Decimal (via `_to_decimal`).
+
+    Raises
+    ------
+    ValueError
+        If any required column is missing.
+
+    Notes
+    -----
+    - Trims string fields; preserves the original row index for deterministic ordering.
+    - Requires pandas (and an Excel engine such as openpyxl).
     """
     df = pd.read_excel(path)
     needed = [
@@ -55,7 +89,7 @@ def load_excel_rows(path: Path) -> List[ExcelRow]:
         elif isinstance(d, date):
             dval = d
         else:
-            dval = _parse_date(str(d))
+            dval = _to_date(str(d))
 
         rows.append(
             ExcelRow(
@@ -63,7 +97,7 @@ def load_excel_rows(path: Path) -> List[ExcelRow]:
                 txn_id=str(r["TxnID"]).strip(),
                 date=dval,
                 amount=_to_decimal(r["Amount"]),
-                item=str(r["Item"] or "").strip(),
+                memo=str(r["Item"] or "").strip(),
                 category=str(r["Canonical MECE Category"] or "").strip(),
                 rationale=str(r["Categorization Rationale"] or "").strip(),
             )
@@ -72,9 +106,20 @@ def load_excel_rows(path: Path) -> List[ExcelRow]:
 
 
 def group_excel_rows(rows: List[ExcelRow]) -> List[ExcelTxnGroup]:
-    """
-    Group rows by TxnID into ExcelTxnGroup(s). Total amount is the sum of row amounts.
-    Date is the earliest row date for determinism. Order rows by original idx.
+    """Group `ExcelRow`s by `TxnID` into `ExcelTxnGroup`s.
+
+    The grouping is deterministic: rows within a group keep their original order (by `idx`),
+    the group `date` is the earliest row date, and `total_amount` is an exact Decimal sum.
+
+    Parameters
+    ----------
+    rows : List[ExcelRow]
+        Parsed rows from `load_excel_rows`.
+
+    Returns
+    -------
+    List[ExcelTxnGroup]
+        One group per unique `TxnID`, each containing an immutable tuple of member rows.
     """
     by_id: Dict[str, List[ExcelRow]] = {}
     for r in rows:
@@ -101,6 +146,26 @@ def group_excel_rows(rows: List[ExcelRow]) -> List[ExcelTxnGroup]:
 
 
 def _txn_amount(t: Dict[str, Any]) -> Decimal:
+    """Return the Decimal amount for a QIF transaction dict.
+
+    If the transaction has `splits`, returns the sum of split amounts; otherwise returns
+    the transaction's top-level `amount`.
+
+    Parameters
+    ----------
+    t : Dict[str, Any]
+        Raw QIF transaction mapping.
+
+    Returns
+    -------
+    Decimal
+        The computed amount.
+
+    Raises
+    ------
+    Exception
+        If amount strings cannot be coerced to `Decimal` by `_to_decimal`.
+    """
     splits = t.get("splits") or []
     if splits:
         total = sum((_to_decimal(s.get("amount", "0")) for s in splits), Decimal("0"))
@@ -110,12 +175,30 @@ def _txn_amount(t: Dict[str, Any]) -> Decimal:
 
 # changed from _flatten_qif_txns
 def _flatten_qif_txns(txns: List[Dict[str, Any]]) -> List[QIFTxnView]:
+    """Flatten raw QIF transactions into matchable `QIFTxnView`s.
+
+    Split-aware behavior:
+    - If a transaction has splits, emit one view per split with a `QIFItemKey(txn_index, split_index)`.
+    - If there are no splits, emit a single view with `split_index=None`.
+
+    Transactions with an unparseable date or amount are skipped.
+
+    Parameters
+    ----------
+    txns : List[Dict[str, Any]]
+        Raw QIF transaction dicts (shape as produced by the parser).
+
+    Returns
+    -------
+    List[QIFTxnView]
+        Per-split/per-transaction normalized views (date, amount, payee, memo, category).
+    """
     out: List[QIFTxnView] = []
     for ti, t in enumerate(txns):
         # Defensive: skip any record that doesn't look like a transaction
         # (must have a parseable date; amount may be on txn or splits)
         try:
-            t_date = _qif_date_to_date(t.get("date", ""))
+            t_date = _to_date(t.get("date", ""))
         except Exception:
             # Not a transaction (e.g., category list line sneaked in) → skip
             continue
@@ -165,9 +248,17 @@ def _flatten_qif_txns(txns: List[Dict[str, Any]]) -> List[QIFTxnView]:
 
 
 def extract_qif_categories(txns: List[Dict[str, Any]]) -> List[str]:
-    """
-    Collect categories from txns and splits, dedupe case-insensitively,
-    preserve first-seen casing, drop blanks, and sort alphabetically (case-insensitive).
+    """Collect unique category names from QIF transactions and their splits.
+
+    Parameters
+    ----------
+    txns : List[Dict[str, Any]]
+        Raw QIF transaction dicts.
+
+    Returns
+    -------
+    List[str]
+        Case-insensitively de-duplicated and sorted category names (first-seen casing retained).
     """
     first_by_lower: Dict[str, str] = {}
 
@@ -192,7 +283,25 @@ def extract_qif_categories(txns: List[Dict[str, Any]]) -> List[str]:
 def extract_excel_categories(
     xlsx_path: Path, col_name: str = "Canonical MECE Category"
 ) -> List[str]:
-    """Load Excel and return unique, sorted category names from the given column (case-insensitive dedupe)."""
+    """Load Excel and return unique category names from a target column.
+
+    Parameters
+    ----------
+    xlsx_path : Path
+        Path to the Excel workbook.
+    col_name : str, optional
+        Column to extract from; defaults to "Canonical MECE Category".
+
+    Returns
+    -------
+    List[str]
+        Case-insensitively de-duplicated and sorted category names.
+
+    Raises
+    ------
+    ValueError
+        If the requested column does not exist.
+    """
     df = pd.read_excel(xlsx_path)
     if col_name not in df.columns:
         raise ValueError(f"Excel missing '{col_name}' column.")
@@ -210,6 +319,13 @@ def extract_excel_categories(
 
 
 def _ratio(a: str, b: str) -> float:
+    """Case-insensitive similarity ratio between two strings.
+
+    Returns
+    -------
+    float
+        A value in [0.0, 1.0] from `difflib.SequenceMatcher`.
+    """
     return SequenceMatcher(a=a.lower().strip(), b=b.lower().strip()).ratio()
 
 
@@ -250,9 +366,23 @@ def fuzzy_autopairs(
 
 
 def build_matched_only_txns(session: "MatchSession") -> List[Dict[str, Any]]:
-    """
-    Return a new list of QIF transactions containing ONLY matched transactions
-    (group-mode) or matched items (legacy). Does not mutate session.txns.
+    """Build a QIF transaction list containing only matched items.
+
+    This does not mutate `session.txns`. Two behaviors are supported:
+    1) **Group mode** (preferred): include a transaction if its *whole-transaction* key
+       is matched (via `session.qif_to_excel_group`).
+    2) **Legacy split mode**: include only matched splits for split transactions; include
+       the whole transaction if its top-level key was matched.
+
+    Parameters
+    ----------
+    session : MatchSession
+        An initialized session after matching.
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        A new list of QIF transaction dicts limited to matched content.
     """
     from copy import deepcopy
 
@@ -305,15 +435,29 @@ def run_excel_qif_merge(
 ) -> Tuple[
     List[Tuple[QIFTxnView, ExcelTxnGroup, int]], List[QIFTxnView], List[ExcelTxnGroup]
 ]:
-    """
-    High-level helper:
-      - parse QIF
-      - load Excel rows and group by TxnID
-      - auto-match
-      - (caller may then inspect unmatched lists, optionally call manual_match/unmatch)
-      - apply updates
-      - write new QIF at qif_out (never overwrite qif_in unless you pass same path explicitly)
-    Returns (matched_pairs, unmatched_qif_items, unmatched_excel_rows)
+    """End-to-end helper: parse → load/group Excel → auto-match → apply → write QIF.
+
+    Parameters
+    ----------
+    qif_in : Path
+        Input QIF file path.
+    xlsx : Path
+        Excel categorization workbook path.
+    qif_out : Path
+        Output QIF path to write merged transactions.
+    encoding : str, optional
+        Input encoding used for parsing the QIF; default "utf-8".
+
+    Returns
+    -------
+    Tuple[List[Tuple[QIFTxnView, ExcelTxnGroup, int]], List[QIFTxnView], List[ExcelTxnGroup]]
+        (matched_pairs, unmatched_qif_views, unmatched_excel_groups).
+
+    Notes
+    -----
+    - Callers may insert manual match/unmatch operations between `auto_match()` and
+      `apply_updates()` if needed.
+    - The original `txns` list is updated in place prior to writing.
     """
     txns = base.parse_qif(qif_in, encoding=encoding)
     excel_rows = load_excel_rows(xlsx)

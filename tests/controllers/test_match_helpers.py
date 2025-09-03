@@ -6,12 +6,8 @@ from decimal import Decimal, InvalidOperation
 
 import pytest
 
-from quicken_helper.controllers.match_helpers import (
-    _candidate_cost,
-    _flatten_qif_txns,
-    _parse_date,
-    _to_decimal,
-)
+from quicken_helper.controllers.match_helpers import (_candidate_cost, _flatten_qif_txns)
+from quicken_helper.utilities.converters_scalar import _to_decimal, _to_date
 from quicken_helper.legacy.qif_item_key import QIFItemKey
 from quicken_helper.legacy.qif_txn_view import QIFTxnView
 
@@ -37,11 +33,11 @@ def test_to_decimal_strips_currency_and_commas_and_space():
 
 
 def test_to_decimal_raises_on_empty_plus_minus():
-    with pytest.raises(InvalidOperation):
+    with pytest.raises(ValueError):
         _to_decimal("")
-    with pytest.raises(InvalidOperation):
+    with pytest.raises(ValueError):
         _to_decimal("+")
-    with pytest.raises(InvalidOperation):
+    with pytest.raises(ValueError):
         _to_decimal("-")
 
 
@@ -59,12 +55,12 @@ def test_to_decimal_raises_on_empty_plus_minus():
     ],
 )
 def test_parse_date_supported_formats(raw, expected):
-    assert _parse_date(raw) == expected
+    assert _to_date(raw) == expected
 
 
 def test_parse_date_raises_on_unrecognized():
     with pytest.raises(ValueError):
-        _parse_date("not a date")
+        _to_date("not a date")
 
 
 # ----------------------- _candidate_cost -----------------------

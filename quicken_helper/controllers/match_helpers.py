@@ -3,38 +3,11 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional
 
+from quicken_helper.legacy.qif_item_key import QIFItemKey
 from quicken_helper.legacy.qif_txn_view import QIFTxnView
+from quicken_helper.utilities.converters_scalar import _to_decimal, _to_date
 
 _DATE_FORMATS = ["%m/%d'%y", "%m/%d/%Y", "%Y-%m-%d"]
-
-
-def _parse_date(s: str) -> date:
-    s = (s or "").strip().replace("’", "'").replace("`", "'")
-    for fmt in _DATE_FORMATS:
-        try:
-            return datetime.strptime(s, fmt).date()
-        except ValueError:
-            pass
-    # Fallback: allow ISO-like "YYYY/MM/DD"
-    try:
-        return datetime.strptime(s, "%Y/%m/%d").date()
-    except ValueError:
-        raise ValueError(f"Unrecognized date: {s!r}")
-
-
-def _qif_date_to_date(s: str) -> date:
-    return _parse_date(s)
-
-
-def _to_decimal(s: str | float | int | Decimal) -> Decimal:
-    if isinstance(s, Decimal):
-        return s
-    if isinstance(s, (int, float)):
-        return Decimal(str(s))
-    txt = str(s or "").replace(",", "").replace("$", "").strip()
-    if txt in {"", "+", "-"}:
-        raise InvalidOperation(f"Empty amount: {s!r}")
-    return Decimal(txt)
 
 
 def _flatten_qif_txns(txns: List[Dict[str, Any]]) -> List[QIFTxnView]:
@@ -107,7 +80,7 @@ def _flatten_qif_txns(txns: List[Dict[str, Any]]) -> List[QIFTxnView]:
         # Defensive: skip any record that doesn't look like a transaction
         # (must have a parseable date; amount may be on txn or splits)
         try:
-            t_date = _qif_date_to_date(t.get("date", ""))
+            t_date = _to_date(t.get("date", ""))
         except Exception:
             # Not a transaction (e.g., category list line sneaked in) → skip
             continue
@@ -161,82 +134,3 @@ def _candidate_cost(qif_date: date, excel_date: date) -> Optional[int]:
     return delta  # 0 preferred, then 1,2,3
 
 
-from dataclasses import dataclass
-from datetime import date
-from decimal import Decimal
-from typing import Iterable, Optional
-
-from quicken_helper.data_model.interfaces import IAccount, ISplit, ITransaction
-from quicken_helper.legacy.qif_item_key import QIFItemKey
-
-
-@dataclass(frozen=True)
-class TxnLegacyView:
-    """
-    Transitional view so matching code can consume either model objects
-    or legacy dict-shaped transactions with a consistent interface.
-    """
-
-    key: QIFItemKey
-    date: date
-    amount: Decimal
-    payee: str
-    memo: str
-    category: str  # top-level category (may be "")
-    account_name: Optional[str] = None
-    splits: tuple[ISplit, ...] = ()
-
-
-def _view_from_model(txn: ITransaction, idx: int) -> TxnLegacyView:
-    return TxnLegacyView(
-        key=QIFItemKey(txn_index=idx, split_index=None),
-        date=txn.date,
-        amount=txn.amount,
-        payee=txn.payee or "",
-        memo=txn.memo or "",
-        category=txn.category or "",
-        account_name=(txn.account.name if isinstance(txn.account, IAccount) else None),
-        splits=tuple(txn.splits or ()),
-    )
-
-
-def _view_from_legacy_dict(txn: dict, idx: int) -> TxnLegacyView:
-    # best-effort normalization of legacy fields
-    from datetime import date as _date
-    from decimal import Decimal
-
-    from quicken_helper.utilities import parse_date_string as _parse
-
-    amt = txn.get("amount", "0")
-    try:
-        amt = _to_decimal(amt)
-    except Exception:
-        amt = Decimal("0")
-    return TxnLegacyView(
-        key=QIFItemKey(txn_index=idx, split_index=None),
-        date=(
-            txn["date"]
-            if isinstance(txn.get("date"), _date)
-            else _parse(str(txn.get("date", ""))) or _parse("1970-01-01")
-        ),
-        amount=amt if isinstance(amt, Decimal) else Decimal(str(amt)),
-        payee=str(txn.get("payee", "")),
-        memo=str(txn.get("memo", "")),
-        category=str(txn.get("category", "")),
-        account_name=str(txn.get("account", "")) or None,
-        # leave splits as empty here; for matching we don’t need split-level
-        splits=tuple(),
-    )
-
-
-def make_txn_views(txns: Iterable[object]) -> list[TxnLegacyView]:
-    """
-    Accepts list of QifTransaction *or* legacy dicts, returns uniform views.
-    """
-    views: list[TxnLegacyView] = []
-    for i, t in enumerate(txns):
-        if isinstance(t, ITransaction):
-            views.append(_view_from_model(t, i))
-        else:
-            views.append(_view_from_legacy_dict(t, i))
-    return views
