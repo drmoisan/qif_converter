@@ -47,6 +47,7 @@ Set-Location $root
 # Fresh output
 if (Test-Path $Output) { Remove-Item -Force $Output }
 
+Add-Content -Path $Output -Value "Please generate a commit message based on the following content:`n"
 Append-Section -Title "Repository remotes" -Cmd { git remote -v }
 Append-Section -Title "Current branch" -Cmd { git branch --show-current }
 Append-Section -Title "Upstream" -Cmd { git rev-parse --abbrev-ref --symbolic-full-name '@{u}' } -AllowFail

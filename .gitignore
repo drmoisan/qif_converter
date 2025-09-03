@@ -1,2 +1,4 @@
 /samples/
 /logs/
+.idea/
+.ruff_cache/

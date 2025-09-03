@@ -17,6 +17,8 @@ from quicken_helper.controllers.qif_loader import load_transactions_protocol
 from quicken_helper.data_model import EnumClearedStatus, ITransaction
 from quicken_helper.data_model.excel import ExcelTransaction, ExcelTxnGroup, map_group_to_excel_txn
 from quicken_helper.gui_viewers.helpers import _fmt_excel_row, _fmt_txn, _set_text
+from quicken_helper.gui_viewers.category_popout import open_normalize_modal as open_category_popout
+from quicken_helper.controllers.data_session import DataSession
 
 # import qif_item_key
 from quicken_helper.legacy import qif_writer as mod
@@ -41,7 +43,7 @@ class _ListColumn:
 class MergeTab(ttk.Frame):
     """Primary function: Excel ↔ QIF merge + manual matching + previews."""
 
-    def __init__(self, master, mb):
+    def __init__(self, master, mb, session: DataSession | None = None):
         """Initialize UI state, bind actions, and prepare empty `MatchSession`.
 
         Does not perform any I/O. File selection or drag-drop handlers call
@@ -49,6 +51,7 @@ class MergeTab(ttk.Frame):
         """
         super().__init__(master)
         self.mb = mb
+        self.session = session
         self._merge_session: Optional[MatchSession] = None
 
         # Ensure test-visible lists always exist (even if load/refresh bails early)
@@ -147,10 +150,13 @@ class MergeTab(ttk.Frame):
         actions = ttk.Frame(self)
         actions.pack(fill="x", **pad)
         ttk.Button(
-            actions, text="Load + Auto-Match", command=self._m_load_and_auto
+            actions, text="Load", command=self._m_load
         ).pack(side="left")
         ttk.Button(
-            actions, text="Normalize Categories", command=self._m_normalize_categories
+            actions, text="Auto-Match", command=self._m_auto_match
+        ).pack(side="left", padx=6)
+        ttk.Button(
+            actions, text="Normalize Categories", command=self.open_normalize_modal #normalize_cats_modal
         ).pack(side="left", padx=6)
         ttk.Button(
             actions, text="Apply Updates & Save", command=self._m_apply_and_save
@@ -303,7 +309,8 @@ class MergeTab(ttk.Frame):
             self.m_qif_out.set(p)
 
     # ---------- actions ----------
-    def _m_load_and_auto(self) -> None:
+    def _m_load(self) -> None:
+        """Load inputs and build a session without auto-matching."""
         try:
             qif_in = Path(self.m_qif_in.get().strip())
             xlsx = Path(self.m_xlsx.get().strip())
@@ -315,17 +322,21 @@ class MergeTab(ttk.Frame):
                 self.mb.showerror("Error", "Please choose a valid Excel (.xlsx).")
                 return
 
-            # Bank side: already ITransaction via loader
-            bank_txns = load_transactions_protocol(qif_in)
+            # Bank/Excel side: prefer cached DataSession if available
+            if self.session:
+                bank_txns = self.session.load_qif(qif_in)
+                excel_txns = self.session.load_excel(xlsx)
+                rows = self.session.excel_rows or []
+            else:
+                # Bank side: already ITransaction via loader
+                bank_txns = load_transactions_protocol(qif_in)
+                # Excel side: rows -> groups -> ITransaction (via adapter)
+                rows = mex.load_excel_rows(xlsx)
+                groups = mex.group_excel_rows(rows)
+                excel_txns = [map_group_to_excel_txn(g) for g in groups]
 
-            # Excel side: rows -> groups -> ITransaction (via adapter)
-            rows = mex.load_excel_rows(xlsx)
-            groups = mex.group_excel_rows(rows)
-            excel_txns = [map_group_to_excel_txn(g) for g in groups]
-
-            # ✅ Protocol-only session: (bank_txns, excel_txns)
+            # Build session but DO NOT auto-match yet
             sess = MatchSession(bank_txns, excel_txns)
-            sess.auto_match()
 
             # Publish session and refresh UI
             self._merge_session = sess
@@ -335,13 +346,28 @@ class MergeTab(ttk.Frame):
                 f"{len(bank_txns)} QIF transactions and "
                 f"{len(excel_txns)} Excel groups (as transactions) "
                 f"({len(rows)} split rows).\n"
-                f"Matched pairs: {len(sess.pairs)} | "
-                f"Unmatched QIF: {len(sess.unmatched_bank)} | "
-                f"Unmatched Excel: {len(sess.unmatched_excel)}"
+                "Ready to auto-match: click the Auto-Match button."
             )
         except Exception as e:
             # Keep the test-visible failure simple
             self._merge_session = None
+            self.mb.showerror("Error", f"{e}")
+
+    def _m_auto_match(self) -> None:
+        """Run auto-matching on the currently loaded session."""
+        try:
+            s = self._merge_session
+            if not s:
+                self.mb.showerror("Error", "No session loaded. Click 'Load' first.")
+                return
+            s.auto_match()
+            self._m_refresh_lists()
+            self._m_info(
+                f"Matched pairs: {len(s.pairs)} | "
+                f"Unmatched QIF: {len(s.unmatched_bank)} | "
+                f"Unmatched Excel: {len(s.unmatched_excel)}"
+            )
+        except Exception as e:
             self.mb.showerror("Error", f"{e}")
 
     def _m_manual_match(self):
@@ -400,7 +426,7 @@ class MergeTab(ttk.Frame):
             s = self._merge_session
             if not s:
                 self.mb.showerror(
-                    "Error", "No session loaded. Click 'Load + Auto-Match' first."
+                    "Error", "No session loaded. Click 'Load' first."
                 )
                 return
             qif_out = Path(self.m_qif_out.get().strip())
@@ -463,243 +489,271 @@ class MergeTab(ttk.Frame):
             self.mb.showerror("Export Error", str(e))
 
     # ------------------ Normalize Categories modal  --------------------
-    def open_normalize_modal(self):
-        """
-        Open the Normalize Categories UI if Tk is available; otherwise, provide a
-        headless object exposing the same actions so tests don't need Tk/TTK at all.
-        """
-        try:
-            qif_in = Path(self.m_qif_in.get().strip())
-            xlsx = Path(self.m_xlsx.get().strip())
-            if not qif_in.exists():
-                self.mb.showerror("Error", "Please choose a valid input QIF.")
-                return None
-            if not xlsx.exists():
-                self.mb.showerror("Error", "Please choose a valid Excel (.xlsx).")
-                return None
-
-            # Build session
-            from quicken_helper.controllers.qif_loader import parse_qif_unified_protocol
-            quicken_file = parse_qif_unified_protocol(qif_in)
-
-            transactions = quicken_file.transactions
-            txns = [t.to_dict() for t in transactions]
-            # txns = open_and_parse_qif(qif_in)
-            qif_cats = mex.extract_qif_categories(txns)
-            excel_cats = mex.extract_excel_categories(xlsx)
-            sess = CategoryMatchSession(qif_cats, excel_cats)
-
-            # Try GUI path first; if it fails (e.g., Tk not installed), fall back to headless.
-            try:
-                parent = self.winfo_toplevel()
-                win = tk.Toplevel(parent)
-                win.title("Normalize Categories")
-                win.geometry("900x520")
-                win.transient(parent)
-                win.grab_set()
-
-                pad = {"padx": 8, "pady": 6}
-
-                # Top actions
-                top = ttk.Frame(win)
-                top.pack(fill="x", **pad)
-                ttk.Button(
-                    top,
-                    text="Auto-Match",
-                    command=lambda: (sess.auto_match(), refresh()),
-                ).pack(side="left")
-                ttk.Button(
-                    top, text="Match Selected →", command=lambda: do_match()
-                ).pack(side="left", padx=6)
-                ttk.Button(
-                    top, text="Unmatch Selected", command=lambda: do_unmatch()
-                ).pack(side="left", padx=6)
-
-                # Lists
-                lists = ttk.Frame(win)
-                lists.pack(fill="both", expand=True, **pad)
-
-                left = ttk.LabelFrame(lists, text="QIF Categories (canonical)")
-                left.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-                lbx_qif = tk.Listbox(left, exportselection=False)
-                lbx_qif.pack(fill="both", expand=True, padx=4, pady=4)
-
-                mid = ttk.LabelFrame(lists, text="Matched pairs (Excel → QIF)")
-                mid.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-                lbx_pairs = tk.Listbox(mid, exportselection=False)
-                lbx_pairs.pack(fill="both", expand=True, padx=4, pady=4)
-
-                right = ttk.LabelFrame(lists, text="Excel Categories (to normalize)")
-                right.pack(side="left", fill="both", expand=True, padx=4, pady=4)
-                lbx_excel = tk.Listbox(right, exportselection=False)
-                lbx_excel.pack(fill="both", expand=True, padx=4, pady=4)
-
-                # Bottom actions
-                bot = ttk.Frame(win)
-                bot.pack(fill="x", **pad)
-                out_path_var = tk.StringVar(
-                    value=str(xlsx.with_name(xlsx.stem + "_normalized.xlsx"))
-                )
-                ttk.Label(bot, text="Output Excel:").pack(side="left")
-                ttk.Entry(bot, textvariable=out_path_var, width=60).pack(
-                    side="left", padx=6
-                )
-                ttk.Button(bot, text="Browse…", command=lambda: browse_out()).pack(
-                    side="left", padx=2
-                )
-                ttk.Button(
-                    bot, text="Apply & Save", command=lambda: apply_and_save()
-                ).pack(side="right")
-
-                info = tk.Text(win, height=4, wrap="word")
-                info.pack(fill="x", padx=8, pady=(0, 8))
-
-                # --- helpers (closures) ---
-                def refresh():
-                    lbx_qif.delete(0, "end")
-                    lbx_excel.delete(0, "end")
-                    lbx_pairs.delete(0, "end")
-                    uq, ue = sess.unmatched()
-                    for c in uq:
-                        lbx_qif.insert("end", c)
-                    for c in ue:
-                        lbx_excel.insert("end", c)
-                    for excel_name, qif_name in sorted(
-                        sess.mapping.items(), key=lambda kv: kv[0].lower()
-                    ):
-                        lbx_pairs.insert("end", f"{excel_name}  →  {qif_name}")
-                    info.delete("1.0", "end")
-                    info.insert(
-                        "end",
-                        f"QIF categories: {len(sess.qif_cats)} | "
-                        f"Excel categories: {len(sess.excel_cats)} | "
-                        f"Matched: {len(sess.mapping)} | "
-                        f"Unmatched QIF: {len(uq)} | Unmatched Excel: {len(ue)}",
-                    )
-
-                def selected(lbx: tk.Listbox):
-                    sel = lbx.curselection()
-                    return lbx.get(sel[0]) if sel else None
-
-                def do_match():
-                    e = selected(lbx_excel)
-                    q = selected(lbx_qif)
-                    if not e or not q:
-                        self.mb.showinfo(
-                            "Info",
-                            "Select one Excel category and one QIF category to match.",
-                        )
-                        return
-                    ok, msg = sess.manual_match(e, q)
-                    if not ok:
-                        self.mb.showerror("Error", msg)
-                    refresh()
-
-                def do_unmatch():
-                    sel = lbx_pairs.curselection()
-                    if sel:
-                        label = lbx_pairs.get(sel[0])
-                        if "  →  " in label:
-                            excel_name = label.split("  →  ", 1)[0]
-                            sess.manual_unmatch(excel_name)
-                            refresh()
-                            return
-                    # Or unmatch by selecting Excel side
-                    e = selected(lbx_excel)
-                    if e and sess.manual_unmatch(e):
-                        refresh()
-                        return
-                    self.mb.showinfo(
-                        "Info",
-                        "Select a matched pair (middle list) or an Excel category to unmatch.",
-                    )
-
-                def browse_out():
-                    p = filedialog.asksaveasfilename(
-                        title="Select normalized Excel output",
-                        defaultextension=".xlsx",
-                        filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
-                    )
-                    if p:
-                        out_path_var.set(p)
-
-                def apply_and_save():
-                    outp = Path(out_path_var.get().strip())
-                    if outp.exists():
-                        if not self.mb.askyesno(
-                            "Confirm Overwrite", f"{outp}\n\nOverwrite?"
-                        ):
-                            return
-                    try:
-                        out_file = sess.apply_to_excel(xlsx, xlsx_out=outp)
-                        self.mb.showinfo(
-                            "Done", f"Normalized Excel written:\n{out_file}"
-                        )
-                        win.destroy()
-                    except Exception as e:
-                        self.mb.showerror("Error", str(e))
-
-                # initial population
-                refresh()
-                return win  # return the real modal window
-
-            except Exception:
-                # ===== Headless fallback (no Tk required) =====
-                class HeadlessNormalize:
-                    """
-                    Minimal, dependency-injected stand-in for the modal:
-                      - exposes same operations for tests
-                      - never touches Tk/TTK
-                    """
-
-                    def __init__(self, sess: CategoryMatchSession, xlsx_path: Path, mb):
-                        self.sess = sess
-                        self.xlsx = xlsx_path
-                        self.mb = mb
-                        self.out_path = xlsx_path.with_name(
-                            xlsx_path.stem + "_normalized.xlsx"
-                        )
-
-                    def auto_match(self, threshold: float = 0.84):
-                        self.sess.auto_match(threshold)
-
-                    def do_match(self, excel_name: str, qif_name: str):
-                        ok, msg = self.sess.manual_match(excel_name, qif_name)
-                        return ok, msg
-
-                    def do_unmatch(self, excel_name: str):
-                        return self.sess.manual_unmatch(excel_name)
-
-                    def unmatched(self):
-                        return self.sess.unmatched()
-
-                    def pairs(self):
-                        # Return sorted mapping as label strings similar to UI
-                        return [
-                            f"{e}  →  {q}"
-                            for e, q in sorted(
-                                self.sess.mapping.items(), key=lambda kv: kv[0].lower()
-                            )
-                        ]
-
-                    def apply_and_save(self, out_path: Optional[Path] = None):
-                        outp = Path(out_path) if out_path else self.out_path
-                        return self.sess.apply_to_excel(self.xlsx, xlsx_out=outp)
-
-                return HeadlessNormalize(sess, xlsx, self.mb)
-
-        except Exception as e:
-            self.mb.showerror("Error", str(e))
-
-            # Return a no-op object so tests don't explode if they still try to call methods
-            class _Noop:
-                pass
-
-            return _Noop()
+    # def open_normalize_modal(self):
+    #     """
+    #     Open the Normalize Categories UI if Tk is available; otherwise, provide a
+    #     headless object exposing the same actions so tests don't need Tk/TTK at all.
+    #     """
+    #     try:
+    #         qif_in = Path(self.m_qif_in.get().strip())
+    #         xlsx = Path(self.m_xlsx.get().strip())
+    #         if not qif_in.exists():
+    #             self.mb.showerror("Error", "Please choose a valid input QIF.")
+    #             return None
+    #         if not xlsx.exists():
+    #             self.mb.showerror("Error", "Please choose a valid Excel (.xlsx).")
+    #             return None
+    #
+    #         # Build session
+    #         from quicken_helper.controllers.qif_loader import parse_qif_unified_protocol
+    #         quicken_file = parse_qif_unified_protocol(qif_in)
+    #
+    #         transactions = quicken_file.transactions
+    #         txns = [t.to_dict() for t in transactions]
+    #         # txns = open_and_parse_qif(qif_in)
+    #         qif_cats = mex.extract_qif_categories(txns)
+    #         excel_cats = mex.extract_excel_categories(xlsx)
+    #         sess = CategoryMatchSession(qif_cats, excel_cats)
+    #
+    #         # Try GUI path first; if it fails (e.g., Tk not installed), fall back to headless.
+    #         try:
+    #             parent = self.winfo_toplevel()
+    #             win = tk.Toplevel(parent)
+    #             win.title("Normalize Categories")
+    #             win.geometry("900x520")
+    #             win.transient(parent)
+    #             win.grab_set()
+    #
+    #             pad = {"padx": 8, "pady": 6}
+    #
+    #             # Top actions
+    #             top = ttk.Frame(win)
+    #             top.pack(fill="x", **pad)
+    #             ttk.Button(
+    #                 top,
+    #                 text="Auto-Match",
+    #                 command=lambda: (sess.auto_match(), refresh()),
+    #             ).pack(side="left")
+    #             ttk.Button(
+    #                 top, text="Match Selected →", command=lambda: do_match()
+    #             ).pack(side="left", padx=6)
+    #             ttk.Button(
+    #                 top, text="Unmatch Selected", command=lambda: do_unmatch()
+    #             ).pack(side="left", padx=6)
+    #
+    #             # Lists
+    #             lists = ttk.Frame(win)
+    #             lists.pack(fill="both", expand=True, **pad)
+    #
+    #             left = ttk.LabelFrame(lists, text="QIF Categories (canonical)")
+    #             left.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+    #             lbx_qif = tk.Listbox(left, exportselection=False)
+    #             lbx_qif.pack(fill="both", expand=True, padx=4, pady=4)
+    #
+    #             mid = ttk.LabelFrame(lists, text="Matched pairs (Excel → QIF)")
+    #             mid.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+    #             lbx_pairs = tk.Listbox(mid, exportselection=False)
+    #             lbx_pairs.pack(fill="both", expand=True, padx=4, pady=4)
+    #
+    #             right = ttk.LabelFrame(lists, text="Excel Categories (to normalize)")
+    #             right.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+    #             lbx_excel = tk.Listbox(right, exportselection=False)
+    #             lbx_excel.pack(fill="both", expand=True, padx=4, pady=4)
+    #
+    #             # Bottom actions
+    #             bot = ttk.Frame(win)
+    #             bot.pack(fill="x", **pad)
+    #             out_path_var = tk.StringVar(
+    #                 value=str(xlsx.with_name(xlsx.stem + "_normalized.xlsx"))
+    #             )
+    #             ttk.Label(bot, text="Output Excel:").pack(side="left")
+    #             ttk.Entry(bot, textvariable=out_path_var, width=60).pack(
+    #                 side="left", padx=6
+    #             )
+    #             ttk.Button(bot, text="Browse…", command=lambda: browse_out()).pack(
+    #                 side="left", padx=2
+    #             )
+    #             ttk.Button(
+    #                 bot, text="Apply & Save", command=lambda: apply_and_save()
+    #             ).pack(side="right")
+    #
+    #             info = tk.Text(win, height=4, wrap="word")
+    #             info.pack(fill="x", padx=8, pady=(0, 8))
+    #
+    #             # --- helpers (closures) ---
+    #             def refresh():
+    #                 lbx_qif.delete(0, "end")
+    #                 lbx_excel.delete(0, "end")
+    #                 lbx_pairs.delete(0, "end")
+    #                 uq, ue = sess.unmatched()
+    #                 for c in uq:
+    #                     lbx_qif.insert("end", c)
+    #                 for c in ue:
+    #                     lbx_excel.insert("end", c)
+    #                 for excel_name, qif_name in sorted(
+    #                     sess.mapping.items(), key=lambda kv: kv[0].lower()
+    #                 ):
+    #                     lbx_pairs.insert("end", f"{excel_name}  →  {qif_name}")
+    #                 info.delete("1.0", "end")
+    #                 info.insert(
+    #                     "end",
+    #                     f"QIF categories: {len(sess.qif_cats)} | "
+    #                     f"Excel categories: {len(sess.excel_cats)} | "
+    #                     f"Matched: {len(sess.mapping)} | "
+    #                     f"Unmatched QIF: {len(uq)} | Unmatched Excel: {len(ue)}",
+    #                 )
+    #
+    #             def selected(lbx: tk.Listbox):
+    #                 sel = lbx.curselection()
+    #                 return lbx.get(sel[0]) if sel else None
+    #
+    #             def do_match():
+    #                 e = selected(lbx_excel)
+    #                 q = selected(lbx_qif)
+    #                 if not e or not q:
+    #                     self.mb.showinfo(
+    #                         "Info",
+    #                         "Select one Excel category and one QIF category to match.",
+    #                     )
+    #                     return
+    #                 ok, msg = sess.manual_match(e, q)
+    #                 if not ok:
+    #                     self.mb.showerror("Error", msg)
+    #                 refresh()
+    #
+    #             def do_unmatch():
+    #                 sel = lbx_pairs.curselection()
+    #                 if sel:
+    #                     label = lbx_pairs.get(sel[0])
+    #                     if "  →  " in label:
+    #                         excel_name = label.split("  →  ", 1)[0]
+    #                         sess.manual_unmatch(excel_name)
+    #                         refresh()
+    #                         return
+    #                 # Or unmatch by selecting Excel side
+    #                 e = selected(lbx_excel)
+    #                 if e and sess.manual_unmatch(e):
+    #                     refresh()
+    #                     return
+    #                 self.mb.showinfo(
+    #                     "Info",
+    #                     "Select a matched pair (middle list) or an Excel category to unmatch.",
+    #                 )
+    #
+    #             def browse_out():
+    #                 p = filedialog.asksaveasfilename(
+    #                     title="Select normalized Excel output",
+    #                     defaultextension=".xlsx",
+    #                     filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
+    #                 )
+    #                 if p:
+    #                     out_path_var.set(p)
+    #
+    #             def apply_and_save():
+    #                 outp = Path(out_path_var.get().strip())
+    #                 if outp.exists():
+    #                     if not self.mb.askyesno(
+    #                         "Confirm Overwrite", f"{outp}\n\nOverwrite?"
+    #                     ):
+    #                         return
+    #                 try:
+    #                     out_file = sess.apply_to_excel(xlsx, xlsx_out=outp)
+    #                     self.mb.showinfo(
+    #                         "Done", f"Normalized Excel written:\n{out_file}"
+    #                     )
+    #                     win.destroy()
+    #                 except Exception as e:
+    #                     self.mb.showerror("Error", str(e))
+    #
+    #             # initial population
+    #             refresh()
+    #             return win  # return the real modal window
+    #
+    #         except Exception:
+    #             # ===== Headless fallback (no Tk required) =====
+    #             class HeadlessNormalize:
+    #                 """
+    #                 Minimal, dependency-injected stand-in for the modal:
+    #                   - exposes same operations for tests
+    #                   - never touches Tk/TTK
+    #                 """
+    #
+    #                 def __init__(self, sess: CategoryMatchSession, xlsx_path: Path, mb):
+    #                     self.sess = sess
+    #                     self.xlsx = xlsx_path
+    #                     self.mb = mb
+    #                     self.out_path = xlsx_path.with_name(
+    #                         xlsx_path.stem + "_normalized.xlsx"
+    #                     )
+    #
+    #                 def auto_match(self, threshold: float = 0.84):
+    #                     self.sess.auto_match(threshold)
+    #
+    #                 def do_match(self, excel_name: str, qif_name: str):
+    #                     ok, msg = self.sess.manual_match(excel_name, qif_name)
+    #                     return ok, msg
+    #
+    #                 def do_unmatch(self, excel_name: str):
+    #                     return self.sess.manual_unmatch(excel_name)
+    #
+    #                 def unmatched(self):
+    #                     return self.sess.unmatched()
+    #
+    #                 def pairs(self):
+    #                     # Return sorted mapping as label strings similar to UI
+    #                     return [
+    #                         f"{e}  →  {q}"
+    #                         for e, q in sorted(
+    #                             self.sess.mapping.items(), key=lambda kv: kv[0].lower()
+    #                         )
+    #                     ]
+    #
+    #                 def apply_and_save(self, out_path: Optional[Path] = None):
+    #                     outp = Path(out_path) if out_path else self.out_path
+    #                     return self.sess.apply_to_excel(self.xlsx, xlsx_out=outp)
+    #
+    #             return HeadlessNormalize(sess, xlsx, self.mb)
+    #
+    #     except Exception as e:
+    #         self.mb.showerror("Error", str(e))
+    #
+    #         # Return a no-op object so tests don't explode if they still try to call methods
+    #         class _Noop:
+    #             pass
+    #
+    #         return _Noop()
 
     # Backward-compatible private name (kept; just forwards)
+
+    def open_normalize_modal(self):
+        """Open the Normalize Categories popout (delegated to category_popout)."""
+        try:
+            if not getattr(self, "_merge_session", None):
+                self.mb.showerror("Error", "Load data first.")
+                return
+            xlsx_path = Path(self.m_xlsx.get().strip())
+            open_category_popout(self, self._merge_session, xlsx_path, mb=self.mb, show_ui=False)
+        except Exception as e:
+            # Keep UI resilient
+            self.mb.showerror("Error", f"{e}")
+
+
+
     def _m_normalize_categories(self):
-        return self.open_normalize_modal()
+        """Toolbar/Actions handler: Normalize Categories."""
+        try:
+            if not getattr(self, "_merge_session", None):
+                self.mb.showerror("Error", "Load data first.")
+                return
+            xlsx_path = Path(self.m_xlsx.get().strip())
+            open_category_popout(self, self._merge_session, xlsx_path, mb=self.mb, show_ui=False)
+        except Exception as e:
+            self.mb.showerror("Error", f"{e}")
+
+
+
+    # def _m_normalize_categories(self):
+    #     return self.open_normalize_modal()
 
     # ---------- list/preview plumbing ----------
     def _m_refresh_lists(self) -> None:

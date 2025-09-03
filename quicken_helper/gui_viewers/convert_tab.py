@@ -18,14 +18,22 @@ from quicken_helper.gui_viewers.helpers import (
 )
 from quicken_helper.legacy import qfx_to_txns as qfx
 from quicken_helper.legacy import qif_writer as mod
+import logging
+import logging.config
+from quicken_helper.utilities import LOGGING
+
+logging.config.dictConfig(LOGGING)
+log = logging.getLogger(__name__)
+
 
 
 class ConvertTab(ttk.Frame):
     """Primary function: Convert QIF → CSV/QIF with filters and profiles."""
 
-    def __init__(self, master, mb):
+    def __init__(self, master, mb, session=None):
         super().__init__(master)
         self.mb = mb
+        self.session = session
         self._build()
 
     # ---------- UI ----------
@@ -211,6 +219,7 @@ class ConvertTab(ttk.Frame):
         try:
             in_path = Path(self.in_path.get().strip())
             out_path = Path(self.out_path.get().strip())
+            log.info("ConvertTab.run_conversion start | in=%s out=%s", in_path, out_path)
             if not in_path or not in_path.exists():
                 self.mb.showerror("Error", "Please select a valid input QIF file.")
                 return
@@ -227,38 +236,35 @@ class ConvertTab(ttk.Frame):
             emit = self.emit_var.get()
             csv_profile = self.csv_profile.get()
             explode = self.explode_var.get()
+            df = self.date_from.get().strip()
+            dt = self.date_to.get().strip()
+            payees = self._parse_payee_filters()
             match_mode = self.match_var.get()
             case_sensitive = self.case_var.get()
             combine = self.combine_var.get()
-            payees = self._parse_payee_filters()
-            df = self.date_from.get().strip()
-            dt = self.date_to.get().strip()
 
-            self.log.delete("1.0", "end")
-            ext = in_path.suffix.lower()
-            if ext in (".qfx", ".ofx"):
-                self.logln("Parsing QFX…")
-                from quicken_helper.legacy.qfx_to_txns import parse_qfx
-
-                txns = parse_qfx(in_path)
+            txns: List[dict]
+            # Prefer cached session when available and matches the chosen path
+            if getattr(self, "session", None) and getattr(self.session, "qif_path", None) == in_path:
+                log.info("Using cached transactions from DataSession (%d txns)", len(self.session.qif_txns))
+                txns = [t.to_dict() if hasattr(t, "to_dict") else dict(t) for t in self.session.qif_txns]
             else:
+                # Fall back to direct parsing (QIF/QFX), then memoize if a session exists
                 ext = in_path.suffix.lower()
                 if ext in (".qfx", ".ofx"):
-                    self.logln("Parsing QFX…")
+                    self.logln("Parsing QFX/OFX…")
                     from quicken_helper.legacy.qfx_to_txns import parse_qfx
-
                     txns = parse_qfx(in_path)
                 else:
-                    in_ext = in_path.suffix.lower()
-                    if in_ext in (".qfx", ".ofx"):
-                        self.logln("Parsing QFX/OFX…")
-                        txns = qfx.parse_qfx(in_path)
-                    else:
-                        self.logln("Parsing QIF…")
-                        quicken_file = quicken_helper.controllers.qif_loader.parse_qif_unified_protocol(in_path)
-                        transactions = quicken_file.transactions
-                        txns = [t.to_dict() for t in transactions]
-                        # txns = quicken_helper.controllers.qif_loader.open_and_parse_qif(in_path)
+                    self.logln("Parsing QIF…")
+                    qf = quicken_helper.controllers.qif_loader.parse_qif_unified_protocol(in_path)
+                    txns = [t.to_dict() for t in qf.transactions]
+                if getattr(self, "session", None):
+                    try:
+                        self.session.load_qif(in_path)
+                    except Exception:
+                        # do not fail conversion if memoize fails; diagnostics go to log
+                        log.exception("DataSession.load_qif failed; continuing without cache")
 
             if df or dt:
                 self.logln(
@@ -302,5 +308,7 @@ class ConvertTab(ttk.Frame):
 
             self.mb.showinfo("Done", f"CSV written:\n{out_path}")
         except Exception as e:
+            log.exception("ConvertTab.run_conversion failed")
             self.mb.showerror("Error", str(e))
             self.logln(f"ERROR: {e}")
+

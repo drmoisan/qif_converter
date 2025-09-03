@@ -10,6 +10,8 @@ from types import SimpleNamespace
 from typing import Any, Dict, List
 
 from quicken_helper.controllers.qif_loader import load_transactions_protocol
+from quicken_helper.controllers.data_session import DataSession
+
 
 # from quicken_helper.qif_loader import (
 #     load_transactions,                  # legacy (dicts) — kept for back-compat
@@ -21,6 +23,7 @@ from quicken_helper.gui_viewers.convert_tab import ConvertTab
 # project modules
 from quicken_helper.gui_viewers.merge_tab import MergeTab
 from quicken_helper.gui_viewers.probe_tab import ProbeTab
+from quicken_helper.controllers.data_session import DataSession
 from quicken_helper.gui_viewers.utils import (
     apply_multi_payee_filters,
     filter_date_range,
@@ -137,8 +140,9 @@ class App(tk.Tk):
 
         # after: self.nb = ttk.Notebook(self); self.nb.pack(...)
         # Build tabs (inject messagebox wrapper)
-        self.convert_tab = ConvertTab(self, self.mb)
-        self.merge_tab = MergeTab(self, self.mb)
+        self.session = DataSession()
+        self.convert_tab = ConvertTab(self, self.mb, session=self.session)
+        self.merge_tab = MergeTab(self, self.mb, session=self.session)
         self.probe_tab = ProbeTab(self, self.mb)
 
         # NOTEBOOK ORDER (Merge first, per your preference)
@@ -146,38 +150,38 @@ class App(tk.Tk):
         self.nb.add(self.convert_tab, text="Convert (QIF → CSV/QIF)")
         self.nb.add(self.probe_tab, text="QDX Probe")
 
-        # ----- Convert tab shims (tests expect these on App) -----
-        self.in_path = self.convert_tab.in_path
-        self.out_path = self.convert_tab.out_path
-        self.emit_var = self.convert_tab.emit_var
-        self.csv_profile = self.convert_tab.csv_profile
-        self.explode_var = self.convert_tab.explode_var
-        self.match_var = self.convert_tab.match_var
-        self.case_var = self.convert_tab.case_var
-        self.combine_var = self.convert_tab.combine_var
-        self.date_from = self.convert_tab.date_from
-        self.date_to = self.convert_tab.date_to
-        self.payees_text = self.convert_tab.payees_text
-        self.log = self.convert_tab.log
-
-        def _update_output_extension(self):
-            return self.convert_tab._update_output_extension()
-
-        def _parse_payee_filters(self):
-            return self.convert_tab._parse_payee_filters()
-
-        def logln(self, msg: str):
-            return self.convert_tab.logln(msg)
-
-        # ----- Merge tab shims (tests poke these on App) -----
-        self.m_qif_in = self.merge_tab.m_qif_in
-        self.m_xlsx = self.merge_tab.m_xlsx
-        self.m_qif_out = self.merge_tab.m_qif_out
-        self.m_only_matched = self.merge_tab.m_only_matched
-        self.m_preview_var = self.merge_tab.m_preview_var
-
-        def _m_normalize_categories(self):  # backward-compat name used by tests
-            return self.merge_tab.open_normalize_modal()
+        # # ----- Convert tab shims (tests expect these on App) -----
+        # self.in_path = self.convert_tab.in_path
+        # self.out_path = self.convert_tab.out_path
+        # self.emit_var = self.convert_tab.emit_var
+        # self.csv_profile = self.convert_tab.csv_profile
+        # self.explode_var = self.convert_tab.explode_var
+        # self.match_var = self.convert_tab.match_var
+        # self.case_var = self.convert_tab.case_var
+        # self.combine_var = self.convert_tab.combine_var
+        # self.date_from = self.convert_tab.date_from
+        # self.date_to = self.convert_tab.date_to
+        # self.payees_text = self.convert_tab.payees_text
+        # self.log = self.convert_tab.log
+        #
+        # def _update_output_extension(self):
+        #     return self.convert_tab._update_output_extension()
+        #
+        # def _parse_payee_filters(self):
+        #     return self.convert_tab._parse_payee_filters()
+        #
+        # def logln(self, msg: str):
+        #     return self.convert_tab.logln(msg)
+        #
+        # # ----- Merge tab shims (tests poke these on App) -----
+        # self.m_qif_in = self.merge_tab.m_qif_in
+        # self.m_xlsx = self.merge_tab.m_xlsx
+        # self.m_qif_out = self.merge_tab.m_qif_out
+        # self.m_only_matched = self.merge_tab.m_only_matched
+        # self.m_preview_var = self.merge_tab.m_preview_var
+        #
+        # def _m_normalize_categories(self):  # backward-compat name used by tests
+        #     return self.merge_tab.open_normalize_modal()
 
     # ---------- Legacy methods (kept for tests) ----------
     def _update_output_extension(self):
