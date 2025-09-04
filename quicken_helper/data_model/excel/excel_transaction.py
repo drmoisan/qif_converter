@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, TYPE_CHECKING
 
 from quicken_helper.data_model.interfaces import ITransaction, ISplit, EnumClearedStatus
 from quicken_helper.data_model.excel.excel_txn_group import ExcelTxnGroup
@@ -15,7 +15,7 @@ from quicken_helper.utilities.converters_scalar import _to_decimal
 # --------------------------- Concrete adapters ---------------------------
 
 @dataclass(frozen=True)
-class ExcelSplit(ISplit):
+class ExcelSplit:
     """Adapter for a single Excel row as a split line."""
     category: str
     amount: Decimal
@@ -23,9 +23,12 @@ class ExcelSplit(ISplit):
     tag: str = ""
     rationale: str = ""
 
+if TYPE_CHECKING:
+    _is_i_split: type[ISplit] = ExcelSplit
+
 
 @dataclass(frozen=True)
-class ExcelTransaction(ITransaction):
+class ExcelTransaction:
     """Adapter exposing an Excel group as a single ITransaction."""
     id: str
     date: date
@@ -38,6 +41,9 @@ class ExcelTransaction(ITransaction):
     cleared: EnumClearedStatus = field(default_factory=lambda: EnumClearedStatus.UNKNOWN)
     splits: Optional[List[ISplit]] = None
     action: Optional[str] = None  # Usually None for Excel-originated txns
+
+if TYPE_CHECKING:
+    _is_i_transaction: type[ITransaction] = ExcelTransaction
 
 
 # ------------------------------ Mapper ----------------------------------

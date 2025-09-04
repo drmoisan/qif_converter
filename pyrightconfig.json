@@ -1,0 +1,14 @@
+{
+  "typeCheckingMode": "strict",
+  "pythonVersion": "3.13",
+  "venvPath": ".",
+  "venv": ".venv",
+  "exclude": [
+    "**/__pycache__",
+    ".idea",
+    ".ruff_cache",
+    ".venv",
+    "build",
+    "dist"
+  ]
+}
