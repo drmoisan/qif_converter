@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import Optional
-
-import pytest
 
 from quicken_helper.controllers.transaction_compare import compare_txn
 
@@ -13,6 +11,7 @@ from quicken_helper.controllers.transaction_compare import compare_txn
 @dataclass(frozen=True)
 class StubTxn:
     """Minimal ITransaction-shaped stub (only attributes used by compare_txn)."""
+
     date: Optional[date]
     amount: Decimal
     payee: str = ""
@@ -42,7 +41,7 @@ def test_date_proximity_scoring_is_monotonic_with_equal_amounts():
     """Positive: with equal amounts and same payee, closer dates must score higher (0d > 5d > 10d)."""
     base = _t("2025-08-01", "25.00", "Acme")
     same_day = _t("2025-08-01", "25.00", "Acme")
-    plus_5 = _t("2025-08-06", "25.00", "Acme")   # 5 days
+    plus_5 = _t("2025-08-06", "25.00", "Acme")  # 5 days
     plus_10 = _t("2025-08-11", "25.00", "Acme")  # 10 days
 
     s0 = compare_txn(base, same_day)
@@ -50,7 +49,9 @@ def test_date_proximity_scoring_is_monotonic_with_equal_amounts():
     s10 = compare_txn(base, plus_10)
 
     assert s0.score > s5.score > s10.score >= 0
-    assert any("Same date" in r for r in s0.reasons), "Same-date case should explain the bonus"
+    assert any(
+        "Same date" in r for r in s0.reasons
+    ), "Same-date case should explain the bonus"
     assert s5.features["date_days"] == 5
     assert s10.features["date_days"] == 10
 
@@ -58,8 +59,8 @@ def test_date_proximity_scoring_is_monotonic_with_equal_amounts():
 def test_payee_similarity_breaks_ties_when_dates_equal():
     """Positive: with equal amounts and same date, higher payee similarity should yield higher score."""
     a = _t("2025-08-01", "50.00", "Acme")
-    b_close = _t("2025-08-01", "50.00", "Acme LLC")   # similar
-    b_far = _t("2025-08-01", "50.00", "Different Co") # dissimilar
+    b_close = _t("2025-08-01", "50.00", "Acme LLC")  # similar
+    b_far = _t("2025-08-01", "50.00", "Different Co")  # dissimilar
 
     ms_close = compare_txn(a, b_close)
     ms_far = compare_txn(a, b_far)
@@ -81,7 +82,9 @@ def test_missing_dates_are_neutral_on_date_component():
 
     assert ms.features["date_days"] is None
     assert any("No date on one side (+0)" in r for r in ms.reasons)
-    assert ms.score >= 0, "With equal amounts and identical payee, score should be non-negative"
+    assert (
+        ms.score >= 0
+    ), "With equal amounts and identical payee, score should be non-negative"
 
 
 def test_features_dictionary_contains_expected_keys_and_types():
@@ -93,7 +96,17 @@ def test_features_dictionary_contains_expected_keys_and_types():
     f = ms.features
 
     # Presence checks
-    for key in ("amount_a", "amount_b", "amount_diff", "date_a", "date_b", "date_days", "payee_a", "payee_b", "payee_sim"):
+    for key in (
+        "amount_a",
+        "amount_b",
+        "amount_diff",
+        "date_a",
+        "date_b",
+        "date_days",
+        "payee_a",
+        "payee_b",
+        "payee_sim",
+    ):
         assert key in f, f"features should contain '{key}'"
 
     # Type/format sanity

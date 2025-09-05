@@ -1,0 +1,38 @@
+{
+  "name": "Quicken Helper",
+  "image": "mcr.microsoft.com/devcontainers/python:3.13",
+
+  // Add features to install extra tools
+  "features": {
+    // Poetry (latest stable release)
+    "ghcr.io/devcontainers/features/poetry:1": {}
+  },
+
+  // Run after container is created
+  "postCreateCommand": "poetry install --with dev,lint",
+
+  // VS Code settings specific to this container
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.analysis.typeCheckingMode": "strict",
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "ruff.lintOnSave": true,
+        "ruff.organizeImports": true
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.black-formatter",
+        "charliermarsh.ruff",
+        "tamasfe.even-better-toml",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+
+  // Mount repo into the container
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}"
+}

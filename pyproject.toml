@@ -1,0 +1,51 @@
+[project]
+name = "quicken-helper"
+version = "0.1.0"
+requires-python = ">=3.13"
+# … your runtime dependencies …
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+coverage = "^7.0"
+# … all your test + dev-only dependencies …
+pre-commit = "^4.3.0"
+
+[tool.poetry.group.lint.dependencies]
+black = "25.1.0"
+ruff = "0.12.11"
+
+[tool.black]
+line-length = 88
+target-version = ["py313"]
+skip-string-normalization = false
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+fix = true
+show-fixes = true
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-first-party = ["quicken_helper"]
+force-single-line = false
+
+[tool.pyright]
+typeCheckingMode = "strict"
+diagnosticMode = "workspace"
+reportMissingTypeArgument = "none"
+pythonVersion = "3.13"
+venvPath = "."
+venv = ".venv"
+exclude = [
+  "**/__pycache__",
+  ".idea",
+  ".ruff_cache",
+  ".venv",
+  "build",
+  "dist"
+]

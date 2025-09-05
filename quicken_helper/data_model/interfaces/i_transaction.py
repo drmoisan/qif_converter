@@ -7,13 +7,16 @@ from typing import Protocol, runtime_checkable
 
 from .enum_cleared_status import EnumClearedStatus
 from .i_account import IAccount
+from .i_comparable import IComparable
+from .i_equatable import IEquatable
 from .i_header import IHeader
 from .i_security import ISecurity
 from .i_split import ISplit
+from .i_to_dict import IToDict
 
 
 @runtime_checkable
-class ITransaction(Protocol):
+class ITransaction(Protocol, IComparable, IEquatable, IToDict):
     """Structural shape of a QIF transaction sufficient for file emission."""
 
     account: IAccount
@@ -27,15 +30,24 @@ class ITransaction(Protocol):
     category: str
     tag: str
 
-    splits: list[ISplit]
+    # region Optional Fields With Sentinel Pattern
 
+    # These fields may not be set, so we use a sentinel
+    # value to indicate if it exists
+    splits: list[ISplit]
+    security: ISecurity
+
+    def is_valid(self) -> bool: ...
     def security_exists(self) -> bool: ...
-    @property
-    def security(self) -> ISecurity: ...
+    def splits_exist(self) -> bool: ...
+
+    # endregion Optional Fields With Sentinel Pattern
+
+    # region Parser/Emitter
 
     def emit_category(self) -> str: ...
     def emit_qif(
         self, *, with_account: bool = False, with_type: bool = False
     ) -> str: ...
 
-    def to_dict(self) -> dict: ...
+    # endregion Parser/Emitter

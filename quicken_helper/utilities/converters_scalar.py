@@ -2,20 +2,42 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, date, time, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Final, Optional, overload
 
 
 def _bad(value: Any, target: str) -> ValueError:
     return ValueError(f"Cannot convert {type(value).__name__} to {target}")
 
 
-def _to_date(value):
-    return parse_date_string(value, should_raise=True)
+@overload
+def to_datetime(value: datetime, /) -> datetime: ...
+@overload
+def to_datetime(value: date, /) -> datetime: ...
+@overload
+def to_datetime(value: int, /) -> datetime: ...
+@overload
+def to_datetime(value: float, /) -> datetime: ...
+@overload
+def to_datetime(value: str, /) -> datetime: ...
 
 
-def _to_datetime(value):
+def to_datetime(value: object, /) -> datetime:
+    """
+    Convert a datetime-like input into a naive `datetime` (local time for timestamps).
+
+    Accepts:
+      • datetime → returned as-is
+      • date     → combined with midnight (00:00:00)
+      • int/float (POSIX timestamp, seconds) → local-time datetime
+      • str (ISO 8601; allows trailing 'Z' as UTC) → parsed via fromisoformat
+
+    Raises
+    ------
+    ValueError
+        If the value cannot be converted.
+    """
     if isinstance(value, datetime):
         return value
     # date → datetime (midnight, naive)
@@ -37,7 +59,7 @@ def _to_datetime(value):
     raise ValueError(f"Cannot convert {type(value).__name__} to datetime")
 
 
-def _to_decimal(value: Any) -> Decimal:
+def to_decimal(value: Any) -> Decimal:
     """
     Convert various inputs to Decimal with lenient, locale-aware-ish parsing.
 
@@ -75,17 +97,21 @@ def _to_decimal(value: Any) -> Decimal:
         return Decimal(str(value))
 
     if not isinstance(value, str):
-        raise ValueError(f"Unsupported type for Decimal conversion: {type(value).__name__}")
+        raise ValueError(
+            f"Unsupported type for Decimal conversion: {type(value).__name__}"
+        )
 
-    cleaned = clean_number_like_string(value,'.')
+    cleaned = clean_number_like_string(value, ".")
 
     try:
         return Decimal(cleaned)
     except InvalidOperation as e:
-        raise ValueError(f"Could not parse Decimal from {value!r} (normalized to {cleaned!r})") from e
+        raise ValueError(
+            f"Could not parse Decimal from {value!r} (normalized to {cleaned!r})"
+        ) from e
 
 
-def clean_number_like_string(value: str, decimal_char: str = '') -> str:
+def clean_number_like_string(value: str, decimal_char: str = "") -> str:
     s = value.strip()
     if not s:
         raise ValueError("Empty string cannot be converted to Decimal")
@@ -132,12 +158,12 @@ def clean_number_like_string(value: str, decimal_char: str = '') -> str:
             # ',' is decimal → remove all dots, then swap ',' -> '.'
             return txt.replace(".", "").replace(",", ".")
 
-    if decimal_char != '':
+    if decimal_char != "":
         # User-specified decimal char: remove the other if present
-        if decimal_char == '.':
-            cleaned = _apply_decimal_sep(s, '.')
-        elif decimal_char == ',':
-            cleaned = _apply_decimal_sep(s, ',')
+        if decimal_char == ".":
+            cleaned = _apply_decimal_sep(s, ".")
+        elif decimal_char == ",":
+            cleaned = _apply_decimal_sep(s, ",")
         else:
             raise ValueError(f"Invalid decimal_char: {decimal_char!r}")
     elif has_comma and has_dot:
@@ -184,11 +210,13 @@ def _to_int(v: Any) -> int:
         return int(v)
     if not isinstance(v, str):
         raise ValueError(f"Unsupported type for integer conversion: {type(v).__name__}")
-    cleaned = clean_number_like_string(v,'.')
+    cleaned = clean_number_like_string(v, ".")
     try:
         return int(cleaned)
     except ValueError as e:
-        raise ValueError(f"Could not parse int from {v!r} (normalized to {cleaned!r})") from e
+        raise ValueError(
+            f"Could not parse int from {v!r} (normalized to {cleaned!r})"
+        ) from e
 
 
 def _to_float(v: Any) -> float:
@@ -215,22 +243,22 @@ def _to_str(v: Any) -> str:
     return "" if v is None else str(v)
 
 
-_ALLOW_BOOL_TO_INT = True
-_TRUE_STRINGS = {"1", "true", "t", "yes", "y", "on"}
-_SCALAR_CONVERTERS: Dict[type, Any] = {
-    Decimal: _to_decimal,
-    int: _to_int,
-    float: _to_float,
-    bool: _to_bool,
-    str: _to_str,
-    date: _to_date,
-    datetime: _to_datetime,
-}
-_NON_DIGIT_KEEP_SEP = re.compile(r"[^\d,.\-\(\)]+")
-_UNICODE_MINUS = "\u2212"  # '−'
+def default_date() -> date:
+    return _DEFAULT_DATE
 
 
-def parse_date_string(s: object, should_raise: bool = False) -> date | None:
+_DEFAULT_DATE = date(1900, 1, 1)
+
+
+@overload
+def to_date(s: datetime, should_raise: bool = True, /) -> date: ...
+@overload
+def to_date(s: date, should_raise: bool = True, /) -> date: ...
+@overload
+def to_date(s: str, should_raise: bool = True, /) -> date: ...
+
+
+def to_date(s: object, should_raise: bool = True, /) -> date:
     """
     Parse common QIF and adjacent date encodings into a date.
 
@@ -249,7 +277,7 @@ def parse_date_string(s: object, should_raise: bool = False) -> date | None:
         datetime.date if recognized; otherwise None.
     """
     if s is None:
-        return None
+        return _DEFAULT_DATE
 
     # Already a date/datetime?
     if isinstance(s, date) and not isinstance(s, datetime):
@@ -259,7 +287,7 @@ def parse_date_string(s: object, should_raise: bool = False) -> date | None:
 
     txt = str(s).strip()
     if not txt:
-        return None
+        return _DEFAULT_DATE
 
     # Normalize curly/back quotes used in some exports
     txt = txt.replace("’", "'").replace("`", "'")
@@ -290,10 +318,20 @@ def parse_date_string(s: object, should_raise: bool = False) -> date | None:
             continue
 
     # Heuristic for D/M/Y vs M/D/Y ambiguity:
-    m = re.match(r"^\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\s*$", txt)
+    m = _DATE_RE_01.match(txt)
     if m:
         a, b, c = m.groups()
-        sep = re.search(r"[/\-.]", txt).group(0)
+
+        # Find the separator used (/, -, .)
+        sep_search = _DATE_RE_02.search(txt)
+        if not sep_search:
+            if should_raise:
+                raise ValueError(
+                    f"Unrecognized date format (no date separator found): {s!r}"
+                )
+            return _DEFAULT_DATE
+        sep = sep_search.group(0)
+
         first = int(a)
         second = int(b)
         year_fmt = "%Y" if len(c) == 4 else "%y"
@@ -305,13 +343,14 @@ def parse_date_string(s: object, should_raise: bool = False) -> date | None:
         except ValueError:
             pass
 
-    # --- Excel serial “General” date support ---
-    # Accept plain numeric strings (optionally with a fractional part).
-    # We convert using the 1900 date system, honoring Excel’s leap-year bug:
-    #   - Excel serial 1 => 1900-01-01
-    #   - Excel serial 60 => 1900-02-29 (nonexistent); we map to 1900-02-28
-    # Fractional part (time) is ignored.
     def _from_excel_serial(n: float) -> date | None:
+        """Convert an Excel serial date (1900 system) to a date, or None if out of range.
+
+        - We convert using the 1900 date system, honoring Excel’s leap-year bug:
+          - Excel serial 1 => 1900-01-01
+          - Excel serial 60 => 1900-02-29 (nonexistent); we map to 1900-02-28
+        - Fractional part (time) is ignored.
+        """
         try:
             days = int(n)  # ignore fractional time
         except Exception:
@@ -339,4 +378,23 @@ def parse_date_string(s: object, should_raise: bool = False) -> date | None:
     # Nothing matched
     if should_raise:
         raise ValueError(f"Unrecognized date format: {s!r}")
-    return None
+    return _DEFAULT_DATE
+
+
+_DATE_RE_01: Final[re.Pattern[str]] = re.compile(
+    r"^\s*(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\s*$"
+)
+_DATE_RE_02: Final[re.Pattern[str]] = re.compile(r"[/\-.]")
+_ALLOW_BOOL_TO_INT = True
+_TRUE_STRINGS = {"1", "true", "t", "yes", "y", "on"}
+SCALAR_CONVERTERS: Dict[type, Any] = {
+    Decimal: to_decimal,
+    int: _to_int,
+    float: _to_float,
+    bool: _to_bool,
+    str: _to_str,
+    date: to_date,
+    datetime: to_datetime,
+}
+_NON_DIGIT_KEEP_SEP: Final[re.Pattern[str]] = re.compile(r"[^\d,.\-\(\)]+")
+_UNICODE_MINUS = "\u2212"  # '−'

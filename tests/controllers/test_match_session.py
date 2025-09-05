@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from typing import List
 
@@ -10,18 +10,20 @@ import pytest
 # System under test
 import quicken_helper.controllers.match_session as ms
 
-
 # ---- Lightweight protocol-shaped stub ---------------------------------------
+
 
 @dataclass(frozen=True)
 class StubTxn:
     """Minimal ITransaction-shaped stub for tests (date, amount, payee only)."""
+
     date: date
     amount: Decimal
     payee: str = ""
 
 
 # ---- Helpers -----------------------------------------------------------------
+
 
 def _mk_bank(*rows: tuple[str, str, str]) -> List[StubTxn]:
     """
@@ -43,6 +45,7 @@ def _mk_excel(*rows: tuple[str, str, str]) -> List[StubTxn]:
 
 # ---- Fixtures ----------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def _isolate_convert_value(monkeypatch):
     """
@@ -53,6 +56,7 @@ def _isolate_convert_value(monkeypatch):
 
 
 # ---- Tests -------------------------------------------------------------------
+
 
 def test_constructor_coerces_to_protocol_and_preserves_order():
     """Positive: constructor coerces inputs and preserves element identity/order."""
@@ -77,9 +81,9 @@ def test_auto_match_basic_equal_amount_and_date_tie_break():
         ("2025-08-10", "20.00", "Globex"),
     )
     excel = _mk_excel(
-        ("2025-08-02", "10.00", "Acme LLC"),   # 1 day apart, good payee sim
-        ("2025-08-04", "10.00", "Random"),     # 3 days apart, poor sim
-        ("2025-08-12", "20.00", "Globex Inc"), # 2 days apart
+        ("2025-08-02", "10.00", "Acme LLC"),  # 1 day apart, good payee sim
+        ("2025-08-04", "10.00", "Random"),  # 3 days apart, poor sim
+        ("2025-08-12", "20.00", "Globex Inc"),  # 2 days apart
     )
     s = ms.MatchSession(bank, excel)
 
@@ -175,8 +179,8 @@ def test_nonmatch_reason_includes_best_candidate_features():
     bank = _mk_bank(("2025-08-10", "25.00", "Globex"))
     # Same amount candidates: one is closer in date, another with worse payee
     excel = _mk_excel(
-        ("2025-08-12", "25.00", "Globex Inc"),   # 2 days apart, similar payee
-        ("2025-08-20", "25.00", "Different"),    # 10 days apart, poor payee
+        ("2025-08-12", "25.00", "Globex Inc"),  # 2 days apart, similar payee
+        ("2025-08-20", "25.00", "Different"),  # 10 days apart, poor payee
     )
     s = ms.MatchSession(bank, excel)
 

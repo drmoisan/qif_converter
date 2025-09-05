@@ -11,18 +11,17 @@ Policy adherence:
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, List, Tuple, Dict
-
-import pytest
+from typing import Dict, List, Optional, Tuple
 
 from quicken_helper.utilities.core_util import from_dict
 
-
 # ---------- Test-only dataclasses (isolated from production code) ----------
+
 
 @dataclass
 class Child:
     """Simple nested dataclass used for recursion checks."""
+
     x: int
     y: str = "default-y"
 
@@ -30,6 +29,7 @@ class Child:
 @dataclass
 class Parent:
     """Parent dataclass that exercises multiple field shapes."""
+
     name: str
     child: Child
     tags: List[str]
@@ -41,11 +41,13 @@ class Parent:
 @dataclass
 class WithListOfChildren:
     """Dataclass with a list of nested dataclasses."""
+
     title: str
     children: List[Child] = field(default_factory=list)
 
 
 # --------------------------------- Tests -----------------------------------
+
 
 def test_from_dict_simple_nested_and_containers():
     """Positive: builds a Parent with nested Child, list/tuple/dict fields mapped correctly."""
@@ -89,7 +91,9 @@ def test_from_dict_uses_child_default_when_field_omitted():
 
     # Assert
     assert obj.child.x == 5
-    assert obj.child.y == "default-y", "Omitted field should default via dataclass default"
+    assert (
+        obj.child.y == "default-y"
+    ), "Omitted field should default via dataclass default"
 
 
 def test_from_dict_missing_optional_on_parent_is_set_none():

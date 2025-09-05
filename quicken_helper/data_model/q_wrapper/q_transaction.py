@@ -4,12 +4,19 @@ from _decimal import Decimal
 from dataclasses import dataclass, field
 from datetime import date
 from functools import total_ordering
+from typing import TYPE_CHECKING, Any, overload
 
 from quicken_helper.data_model.interfaces import (
     EnumClearedStatus,
+    IAccount,
+    IComparable,
+    IEquatable,
+    IHeader,
     ISecurity,
     ISplit,
+    IToDict,
     ITransaction,
+    RecursiveDictStr,
 )
 
 from . import qif_codes as emit_q
@@ -18,48 +25,124 @@ from .q_security import QSecurity
 from .q_split import QSplit
 from .qif_header import QifHeader
 
-_MISSING = QSecurity(
-    "", Decimal(0), Decimal(0), Decimal(0), Decimal(0)
-)  # sentinel for "not set"
+# sentinels for "not set"
+_MISSING_SECURITY = QSecurity("", Decimal(0), Decimal(0), Decimal(0), Decimal(0))
+_MISSING_DATE = date(1900, 1, 1)
+_MISSING_SPLITS: list[ISplit] = [QSplit(category="", amount=Decimal(0))]
+_MISSING_CLEARED = EnumClearedStatus.UNKNOWN
 
 
 @total_ordering
 @dataclass
-class QTransaction(ITransaction):
+class QTransaction:
     """
     Represents a single QIF transaction.
     """
 
-    account: QAccount = field(default_factory=QAccount)
-    type: QifHeader = field(default_factory=QifHeader)
-    date: date = date(1985, 11, 5)
-    action_chk: str = field(default_factory=str)
+    # region Core Fields
+
+    account: IAccount = field(default_factory=QAccount)
+    type: IHeader = field(default_factory=lambda: QifHeader(code=""))
+    date: date = _MISSING_DATE
+    action_chk: str = ""
     amount: Decimal = Decimal(0)
-    cleared: EnumClearedStatus = field(default_factory=lambda: EnumClearedStatus.UNKNOWN)
+    cleared: EnumClearedStatus = _MISSING_CLEARED
     payee: str = field(default_factory=str)
     memo: str = field(default_factory=str)
     category: str = field(default_factory=str)
     tag: str = field(default_factory=str)
 
-    splits: list[ISplit] = field(default_factory=list[QSplit])
-    _security: ISecurity = field(
-        default=_MISSING, init=False, repr=False, compare=False
-    )
+    # endregion Core Fields
 
-    @property
-    def security(self) -> ISecurity:
-        if self._security is _MISSING:
-            self._security = QSecurity(
-                name="",
-                price=Decimal(0),
-                quantity=Decimal(0),
-                commission=Decimal(0),
-                transfer_amount=Decimal(0),
-            )
-        return self._security
+    # region Optional Fields With Sentinel Pattern
+
+    splits: list[ISplit] = _MISSING_SPLITS
+    security: ISecurity = _MISSING_SECURITY
+
+    def is_valid(self) -> bool:
+        return (
+            self.date != _MISSING_DATE
+            and self.amount != Decimal(0)
+            and self.category != ""
+        )
 
     def security_exists(self) -> bool:
-        return self._security is not _MISSING
+        return self.security is not _MISSING_SECURITY
+
+    def splits_exist(self) -> bool:
+        return self.splits is not _MISSING_SPLITS and bool(self.splits)
+
+    # endregion Optional Fields With Sentinel Pattern
+
+    # region IEquatable
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ITransaction):
+            return NotImplemented
+        return (
+            self.account == other.account
+            and self.type == other.type
+            and self.date == other.date
+            and self.payee == other.payee
+            and self.amount == other.amount
+            and self.memo == other.memo
+            and self.category == other.category
+            and self.tag == other.tag
+            and tuple(sorted(self.splits)) == tuple(sorted(other.splits))
+        )
+
+    def __hash__(self) -> int:
+        # Required if you want to use instances in sets/dicts and keep it consistent with __eq__
+        return hash(
+            (
+                self.account,
+                self.type,
+                self.date,
+                self.payee,
+                self.amount,
+                self.memo,
+                self.category,
+                self.tag,
+                tuple(sorted(self.splits)),
+            )
+        )
+
+    # endregion IEquatable
+
+    # region IComparable
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, ITransaction):
+            return NotImplemented
+        if self.date < other.date:
+            return True
+        elif self.date > other.date:
+            return False
+        elif self.payee < other.payee:
+            return True
+        elif self.payee > other.payee:
+            return False
+        elif self.amount < other.amount:
+            return True
+        elif self.amount > other.amount:
+            return False
+        elif self.category < other.category:
+            return True
+        elif self.category > other.category:
+            return False
+        elif self.tag < other.tag:
+            return True
+        elif self.tag > other.tag:
+            return False
+        elif self.memo < other.memo:
+            return True
+        elif self.memo > other.memo:
+            return False
+        return tuple(sorted(self.splits)) < tuple(sorted(other.splits))
+
+    # endregion IComparable
+
+    # region Parser/Emitter
 
     def emit_category(self) -> str:
         """Return the QIF Category line for this transaction."""
@@ -135,110 +218,50 @@ class QTransaction(ITransaction):
         lines.append("^")
         return "\n".join(lines)
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, ITransaction):
-            return NotImplemented
-        return (
-            self.account == other.account
-            and self.type == other.type
-            and self.date == other.date
-            and self.payee == other.payee
-            and self.amount == other.amount
-            and self.memo == other.memo
-            and self.category == other.category
-            and self.tag == other.tag
-            and tuple(sorted(self.splits)) == tuple(sorted(other.splits))
-        )
+    # endregion Parser/Emitter
 
-    def __hash__(self) -> int:
-        # Required if you want to use instances in sets/dicts and keep it consistent with __eq__
-        return hash(
-            (
-                self.account,
-                self.type,
-                self.date,
-                self.payee,
-                self.amount,
-                self.memo,
-                self.category,
-                self.tag,
-                tuple(sorted(self.splits)),
-            )
-        )
-
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, ITransaction):
-            return NotImplemented
-        if self.date < other.date:
-            return True
-        elif self.date > other.date:
-            return False
-        elif self.payee < other.payee:
-            return True
-        elif self.payee > other.payee:
-            return False
-        elif self.amount < other.amount:
-            return True
-        elif self.amount > other.amount:
-            return False
-        elif self.category < other.category:
-            return True
-        elif self.category > other.category:
-            return False
-        elif self.tag < other.tag:
-            return True
-        elif self.tag > other.tag:
-            return False
-        elif self.memo < other.memo:
-            return True
-        elif self.memo > other.memo:
-            return False
-        return tuple(sorted(self.splits)) < tuple(sorted(other.splits))
-
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, RecursiveDictStr]:
         """
         Convert the QifTxn instance to a dictionary representation.
         """
-        return {
-            "account": self.account.name if self.account else "",
-            "type": self.type.description if self.type else "",
-            "date": self.date.isoformat() if self.date else "",
-            "action_chk": self.action_chk,
-            "amount": str(self.amount) if self.amount is not None else "0",
-            "cleared": self.cleared.name if self.cleared else "NOT_CLEARED",
-            "payee": self.payee,
-            "memo": self.memo,
+        if not self.is_valid():
+            raise ValueError(
+                "Invalid Transaction. Must have values for at least date, category, and amount to return a dictionary"
+            )
+        d: dict[str, RecursiveDictStr] = {
+            "date": self.date.isoformat(),
+            "amount": str(self.amount),
             "category": self.category,
-            "tag": self.tag,
-            "splits": [split.to_dict() for split in self.splits] if self.splits else [],
-            "security": self.security.to_dict() if self.security_exists() else None,
         }
 
-    @classmethod
-    def from_legacy(cls, d: dict) -> "QTransaction":
-        from decimal import Decimal
+        @overload
+        def _addif(key: str, value: IToDict, default_value: IToDict) -> None: ...
+        @overload
+        def _addif(key: str, value: Any, default_value: Any) -> None: ...
 
-        from quicken_helper.utilities import parse_date_string
+        def _addif(key: str, value: Any, default_value: Any) -> None:
+            if value != default_value:
+                if isinstance(value, IToDict):
+                    d[key] = value.to_dict()
+                else:
+                    d[key] = str(value)
 
-        return cls(
-            account=QAccount(name=d.get("account", "")),
-            type=QifHeader(d.get("type", "")),
-            date=parse_date_string(d.get("date", ""))
-            or parse_date_string("1985-11-05"),
-            amount=Decimal(str(d.get("amount", "0"))),
-            payee=d.get("payee"),
-            memo=d.get("memo"),
-            category=d.get("category") or "",
-            action_chk=d.get("checknum") or "",
-            tag=d.get("tag") or "",
-            cleared=EnumClearedStatus.from_char(d.get("cleared", "")),
-            splits=[
-                QSplit(
-                    category=s.get("category", ""),
-                    memo=s.get("memo", ""),
-                    amount=Decimal(str(s.get("amount", "0"))),
-                    tag=s.get("tag", ""),
-                )
-                for s in (d.get("splits") or [])
-            ],
-        )
+        _addif("account", self.account, field(default_factory=QAccount))
+        _addif("type", self.type, field(default_factory=lambda: QifHeader(code="")))
+        _addif("action_chk", self.action_chk, "")
+        _addif("cleared", self.cleared, _MISSING_CLEARED)
+        _addif("payee", self.payee, "")
+        _addif("memo", self.memo, "")
+        _addif("category", self.category, "")
+        _addif("tag", self.tag, "")
+        _addif("splits", self.splits, _MISSING_SPLITS)
+        _addif("security", self.security, _MISSING_SECURITY)
+
+        return d
+
+
+if TYPE_CHECKING:
+    _is_i_transaction: type[ITransaction] = QTransaction
+    _is_IToDict: type[IToDict] = QTransaction
+    _is_IEquatable: type[IEquatable] = QTransaction
+    _is_IComparable: type[IComparable] = QTransaction

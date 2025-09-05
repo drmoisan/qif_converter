@@ -1,21 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
-from typing import List, Optional
 
 import pytest
 
 # New API location
 from quicken_helper.controllers.match_session import MatchSession
 
-
 # ---------------------------- protocol stubs ----------------------------------
+
 
 @dataclass(frozen=True)
 class StubTxn:
     """Minimal ITransaction-shaped stub (date, amount, payee)."""
+
     date: date
     amount: Decimal
     payee: str = ""
@@ -30,10 +30,12 @@ def _mk_tx(d: str, a: str, p: str = "") -> StubTxn:
 def _identity_convert_value(monkeypatch):
     """Isolation: treat convert_value as identity (no adapters)."""
     import quicken_helper.controllers.match_session as ms
+
     monkeypatch.setattr(ms, "convert_value", lambda _t, v: v)
 
 
 # ------------------------------ nonmatch_reason -------------------------------
+
 
 def test_nonmatch_reason_reports_no_equal_amount_candidates():
     """Negative: when no Excel txn has equal amount, nonmatch_reason should say so and include the amount."""
@@ -50,7 +52,7 @@ def test_nonmatch_reason_prefers_closer_date_and_mentions_features():
     s = MatchSession(
         txns=[_mk_tx("2025-01-10", "-10.00", "Acme")],
         excel_txns=[
-            _mk_tx("2025-01-11", "-10.00", "Acme LLC"),   # 1 day
+            _mk_tx("2025-01-11", "-10.00", "Acme LLC"),  # 1 day
             _mk_tx("2025-01-20", "-10.00", "Different"),  # 10 days
         ],
     )
@@ -62,11 +64,15 @@ def test_nonmatch_reason_prefers_closer_date_and_mentions_features():
 
 # -------------------------------- auto_match ----------------------------------
 
+
 def test_auto_match_greedy_one_to_one_with_threshold():
     """Positive: auto_match yields one-to-one pairs, respects threshold, and leaves unmatched lists consistent."""
     s = MatchSession(
         txns=[_mk_tx("2025-08-01", "10.00", "A"), _mk_tx("2025-08-02", "20.00", "B")],
-        excel_txns=[_mk_tx("2025-08-01", "10.00", "A*"), _mk_tx("2025-08-12", "20.00", "B*")],
+        excel_txns=[
+            _mk_tx("2025-08-01", "10.00", "A*"),
+            _mk_tx("2025-08-12", "20.00", "B*"),
+        ],
     )
 
     pairs = s.auto_match(min_score=0)  # permissive threshold for the test
@@ -77,6 +83,7 @@ def test_auto_match_greedy_one_to_one_with_threshold():
 
 
 # ------------------------------- manual_match ---------------------------------
+
 
 def test_manual_match_overrides_conflicts_and_is_one_to_one():
     """Positive: manual_match overrides any conflicting existing pairings, keeping the mapping one-to-one."""
@@ -97,6 +104,7 @@ def test_manual_match_overrides_conflicts_and_is_one_to_one():
 
 
 # ------------------------------ manual_unmatch --------------------------------
+
 
 def test_manual_unmatch_by_bank_and_by_excel_index():
     """Positive: manual_unmatch removes pairs when called by either bank_index or excel_index."""

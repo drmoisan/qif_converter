@@ -7,11 +7,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
-from quicken_helper.utilities import LOGGING
-from quicken_helper.controllers.qif_loader import load_transactions_protocol
 from quicken_helper.controllers import match_excel as mex
+from quicken_helper.controllers.qif_loader import load_transactions_protocol
+from quicken_helper.data_model.excel import (
+    ExcelTransaction,
+    ExcelTxnGroup,
+    map_group_to_excel_txn,
+)
 from quicken_helper.data_model.interfaces import ITransaction
-from quicken_helper.data_model.excel import ExcelTxnGroup, ExcelTransaction, map_group_to_excel_txn
+from quicken_helper.utilities import LOGGING
 
 logging.config.dictConfig(LOGGING)
 log = logging.getLogger(__name__)
@@ -27,6 +31,7 @@ class DataSession:
     • Load and memoize Excel rows/groups and expose Excel-side transactions.
     • Provide lightweight invalidation when file paths change.
     """
+
     qif_path: Optional[Path] = None
     qif_txns: List[ITransaction] = field(default_factory=list)
 
@@ -43,7 +48,11 @@ class DataSession:
             self.qif_path = path
             log.debug("Loaded %d transactions from %s", len(self.qif_txns), path)
         else:
-            log.debug("Reusing cached QIF transactions for %s (%d txns)", path, len(self.qif_txns))
+            log.debug(
+                "Reusing cached QIF transactions for %s (%d txns)",
+                path,
+                len(self.qif_txns),
+            )
         return self.qif_txns
 
     def load_excel(self, path: Path) -> List[ExcelTransaction]:
@@ -57,7 +66,14 @@ class DataSession:
             self.excel_rows = rows
             self.excel_groups = groups
             self.excel_txns = txns
-            log.debug("Loaded %d rows → %d groups → %d txns", len(rows), len(groups), len(txns))
+            log.debug(
+                "Loaded %d rows → %d groups → %d txns",
+                len(rows),
+                len(groups),
+                len(txns),
+            )
         else:
-            log.debug("Reusing cached Excel data for %s (%d txns)", path, len(self.excel_txns))
+            log.debug(
+                "Reusing cached Excel data for %s (%d txns)", path, len(self.excel_txns)
+            )
         return self.excel_txns

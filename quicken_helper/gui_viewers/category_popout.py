@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional, Set, Tuple
+from typing import Optional, Set, Tuple
 
 try:
     # Keep import local to the module for easy monkeypatching in tests
@@ -15,6 +15,7 @@ except Exception:  # pragma: no cover
 @dataclass(frozen=True)
 class _MB:
     """Minimal interface we expect from a messagebox-like object."""
+
     showinfo: callable
     showerror: callable
 

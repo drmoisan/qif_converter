@@ -41,7 +41,7 @@ inheritance.
 
 from __future__ import annotations
 
-from typing import Iterable, Protocol, TypeVar, runtime_checkable
+from typing import Protocol, TypeVar, runtime_checkable
 
 from .enum_quicken_file_types import QuickenFileType
 

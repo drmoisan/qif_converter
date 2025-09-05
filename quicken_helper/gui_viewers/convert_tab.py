@@ -1,13 +1,14 @@
 # quicken_helper/gui_viewers/convert_tab.py
 from __future__ import annotations
 
+import logging
+import logging.config
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, ttk
 from typing import List
 
 import quicken_helper.controllers.qif_loader
-from quicken_helper.data_model.qif_parsers_emitters.qif_file_parser_emitter import QifFileParserEmitter
 from quicken_helper.gui_viewers.csv_profiles import (
     write_csv_quicken_mac,
     write_csv_quicken_windows,
@@ -16,15 +17,11 @@ from quicken_helper.gui_viewers.helpers import (
     apply_multi_payee_filters,
     filter_date_range,
 )
-from quicken_helper.legacy import qfx_to_txns as qfx
 from quicken_helper.legacy import qif_writer as mod
-import logging
-import logging.config
 from quicken_helper.utilities import LOGGING
 
 logging.config.dictConfig(LOGGING)
 log = logging.getLogger(__name__)
-
 
 
 class ConvertTab(ttk.Frame):
@@ -77,9 +74,9 @@ class ConvertTab(ttk.Frame):
         ttk.Radiobutton(opt, text="CSV", variable=self.emit_var, value="csv").grid(
             row=0, column=1, sticky="w"
         )
-        ttk.Radiobutton(opt, text="QIF", variable=self.emit_var, value="data_model").grid(
-            row=0, column=2, sticky="w"
-        )
+        ttk.Radiobutton(
+            opt, text="QIF", variable=self.emit_var, value="data_model"
+        ).grid(row=0, column=2, sticky="w")
         ttk.Label(opt, text="CSV Profile:").grid(row=0, column=3, sticky="e")
         ttk.Combobox(
             opt,
@@ -219,7 +216,9 @@ class ConvertTab(ttk.Frame):
         try:
             in_path = Path(self.in_path.get().strip())
             out_path = Path(self.out_path.get().strip())
-            log.info("ConvertTab.run_conversion start | in=%s out=%s", in_path, out_path)
+            log.info(
+                "ConvertTab.run_conversion start | in=%s out=%s", in_path, out_path
+            )
             if not in_path or not in_path.exists():
                 self.mb.showerror("Error", "Please select a valid input QIF file.")
                 return
@@ -245,26 +244,40 @@ class ConvertTab(ttk.Frame):
 
             txns: List[dict]
             # Prefer cached session when available and matches the chosen path
-            if getattr(self, "session", None) and getattr(self.session, "qif_path", None) == in_path:
-                log.info("Using cached transactions from DataSession (%d txns)", len(self.session.qif_txns))
-                txns = [t.to_dict() if hasattr(t, "to_dict") else dict(t) for t in self.session.qif_txns]
+            if (
+                getattr(self, "session", None)
+                and getattr(self.session, "qif_path", None) == in_path
+            ):
+                log.info(
+                    "Using cached transactions from DataSession (%d txns)",
+                    len(self.session.qif_txns),
+                )
+                txns = [
+                    t.to_dict() if hasattr(t, "to_dict") else dict(t)
+                    for t in self.session.qif_txns
+                ]
             else:
                 # Fall back to direct parsing (QIF/QFX), then memoize if a session exists
                 ext = in_path.suffix.lower()
                 if ext in (".qfx", ".ofx"):
                     self.logln("Parsing QFX/OFX…")
                     from quicken_helper.legacy.qfx_to_txns import parse_qfx
+
                     txns = parse_qfx(in_path)
                 else:
                     self.logln("Parsing QIF…")
-                    qf = quicken_helper.controllers.qif_loader.parse_qif_unified_protocol(in_path)
+                    qf = quicken_helper.controllers.qif_loader.parse_qif_unified_protocol(
+                        in_path
+                    )
                     txns = [t.to_dict() for t in qf.transactions]
                 if getattr(self, "session", None):
                     try:
                         self.session.load_qif(in_path)
                     except Exception:
                         # do not fail conversion if memoize fails; diagnostics go to log
-                        log.exception("DataSession.load_qif failed; continuing without cache")
+                        log.exception(
+                            "DataSession.load_qif failed; continuing without cache"
+                        )
 
             if df or dt:
                 self.logln(
@@ -311,4 +324,3 @@ class ConvertTab(ttk.Frame):
             log.exception("ConvertTab.run_conversion failed")
             self.mb.showerror("Error", str(e))
             self.logln(f"ERROR: {e}")
-

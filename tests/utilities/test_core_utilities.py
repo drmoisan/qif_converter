@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from quicken_helper.utilities import parse_date_string
+from quicken_helper.utilities import to_date
 
 
 # ---------- _parse_qif_date ----------
@@ -16,7 +16,7 @@ from quicken_helper.utilities import parse_date_string
     ],
 )
 def test__parse_qif_date_formats(raw, expect_iso):
-    d = parse_date_string(raw)
+    d = to_date(raw)
     assert d.isoformat() == expect_iso
 
 

@@ -13,10 +13,10 @@ import pytest
 # Unit under test
 from quicken_helper.utilities.core_util import convert_value
 
-
 # -------------------------
 # Scalar & simple conversions
 # -------------------------
+
 
 def test_convert_decimal_from_string():
     """Positive: Convert a numeric string to Decimal."""
@@ -84,6 +84,7 @@ def test_convert_path_from_string():
 # Enums
 # -------------------------
 
+
 class Color(Enum):
     RED = "red"
     BLUE = "blue"
@@ -108,6 +109,7 @@ def test_convert_enum_by_value():
 # -------------------------
 # Dates & datetimes
 # -------------------------
+
 
 def test_convert_date_from_iso_string():
     """Positive: Convert ISO date string to datetime.date."""
@@ -148,6 +150,7 @@ def test_convert_date_invalid_input_raises():
 # Optional/Union
 # -------------------------
 
+
 def test_convert_optional_accepts_none():
     """Edge: Optional[T] preserves None."""
     # Act
@@ -177,6 +180,7 @@ def test_convert_union_falls_back_to_second_type():
 # -------------------------
 # Collections
 # -------------------------
+
 
 def test_convert_list_of_ints_from_strings():
     """Positive: list[int] converts each item."""
@@ -229,6 +233,7 @@ def test_convert_typed_dict_str_int():
 # -------------------------
 # Dataclass delegation
 # -------------------------
+
 
 @dataclass
 class Child:

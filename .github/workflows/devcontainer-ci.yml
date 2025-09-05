@@ -1,0 +1,33 @@
+name: Dev Container CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout repo
+      - uses: actions/checkout@v4
+
+      # Set up Dev Container CLI
+      - name: Install Dev Container CLI
+        run: npm install -g @devcontainers/cli
+
+      # Build dev container
+      - name: Build Dev Container
+        run: devcontainer build --workspace-folder .
+
+      # Run install (postCreateCommand equivalent)
+      - name: Install dependencies with Poetry
+        run: |
+          devcontainer exec --workspace-folder . poetry install --with dev,lint
+
+      # Run tests inside dev container
+      - name: Run tests
+        run: |
+          devcontainer exec --workspace-folder . poetry run pytest -q

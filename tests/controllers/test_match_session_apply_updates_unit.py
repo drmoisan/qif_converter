@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import List, Optional
@@ -10,12 +10,13 @@ import pytest
 # System under test (new, protocol-only API)
 from quicken_helper.controllers.match_session import MatchSession
 
-
 # ---------- Minimal protocol-shaped stub --------------------------------------
+
 
 @dataclass(frozen=True)
 class StubTxn:
     """Minimal ITransaction-shaped stub for protocol-only tests."""
+
     date: date
     amount: Decimal
     payee: str = ""
@@ -26,14 +27,17 @@ class StubTxn:
 
 # ---------- Fixtures ----------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def _identity_convert_value(monkeypatch):
     """Isolation: stub convert_value to identity so tests don't depend on adapters."""
     import quicken_helper.controllers.match_session as ms
+
     monkeypatch.setattr(ms, "convert_value", lambda _t, v: v)
 
 
 # ---------- Tests -------------------------------------------------------------
+
 
 def test_matching_does_not_modify_bank_splits():
     """Positive: matching is read-only; existing bank splits remain unchanged after auto_match."""
@@ -76,8 +80,10 @@ def test_matching_does_not_modify_bank_splits():
 
 def test_manual_match_and_accessors_consistency():
     """Positive: manual_match creates a single pair; accessors reflect unmatched sets deterministically."""
-    bank = [StubTxn(date=date(2025, 8, 1), amount=Decimal("10.00")),
-            StubTxn(date=date(2025, 8, 2), amount=Decimal("20.00"))]
+    bank = [
+        StubTxn(date=date(2025, 8, 1), amount=Decimal("10.00")),
+        StubTxn(date=date(2025, 8, 2), amount=Decimal("20.00")),
+    ]
     excel = [StubTxn(date=date(2025, 8, 1), amount=Decimal("10.00"))]
 
     s = MatchSession(bank, excel)

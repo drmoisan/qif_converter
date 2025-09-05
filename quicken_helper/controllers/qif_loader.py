@@ -1,29 +1,24 @@
 # quicken_helper/controllers/qif_loader.py
 from __future__ import annotations
 
-import warnings
-
 # --- ADD near the top of the file (after existing imports) ---
 from dataclasses import dataclass
-from datetime import date, datetime
-from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, List, Mapping
 
-from quicken_helper.data_model import QAccount, QifHeader, QuickenFile, IQuickenFile
+from quicken_helper.data_model import IQuickenFile
 
 # Protocols (structural typing) and enums
 from quicken_helper.data_model.interfaces import (
-    EnumClearedStatus,
     IAccount,
     IHeader,
-    ISplit,
     ITransaction,
 )
-from quicken_helper.data_model.qif_parsers_emitters.qif_file_parser_emitter import QifFileParserEmitter
+from quicken_helper.data_model.qif_parsers_emitters.qif_file_parser_emitter import (
+    QifFileParserEmitter,
+)
 
 # Re-use your established transaction parser (handles splits etc.)
-from quicken_helper.legacy.qif_parsed import ParsedQIF
 from quicken_helper.utilities.core_util import open_for_read
 
 
@@ -45,7 +40,9 @@ def parse_qif_unified_protocol(path: Path, encoding: str = "utf-8") -> IQuickenF
     - Lists (Accounts, Categories, Memorized, Securities, Class/Business, Payees): parsed here,
       tolerant to format variants; unknown sections are preserved in other_sections.
     """
-    with open_for_read(path=path, binary=False, encoding=encoding, errors="replace") as f:
+    with open_for_read(
+        path=path, binary=False, encoding=encoding, errors="replace"
+    ) as f:
         text = f.read()
     parser = QifFileParserEmitter()
     quicken_file = parser.parse(text)
@@ -121,4 +118,3 @@ _FIELD_MAP = {
         "M": "memo",
     },
 }
-

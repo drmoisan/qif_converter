@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Callable, Any
+from typing import Any, Callable
 
 
 def _to_list(args, value, cv):
@@ -50,7 +50,7 @@ def _to_deque(args, value, cv):
 
 
 CollectionConverter = Callable[[tuple[type, ...], Any, Callable[[Any, Any], Any]], Any]
-_COLLECTION_CONVERTERS: dict[type[Any], CollectionConverter] = {
+COLLECTION_CONVERTERS: dict[type[Any], CollectionConverter] = {
     list: _to_list,
     set: _to_set,
     frozenset: _to_frozenset,

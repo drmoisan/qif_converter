@@ -9,21 +9,21 @@ from typing import Dict, List, Optional
 
 from quicken_helper.data_model.interfaces import ITransaction
 
-
 # Tunables: mirror your historical auto_match behavior
-_AMOUNT_MUST_MATCH: bool = True      # legacy gate: require exact amount
-_MAX_POSITIVE: int = 200             # cap for positive score
-_W_DATE_PER_DAY: int = 5             # points lost per day of delta (lower is stricter)
-_W_PAYEE_MAX: int = 80               # max points contributed by payee match if amounts equal
-_W_DATE_BASE: int = 100              # base credit when dates are identical (when amounts equal)
+_AMOUNT_MUST_MATCH: bool = True  # legacy gate: require exact amount
+_MAX_POSITIVE: int = 200  # cap for positive score
+_W_DATE_PER_DAY: int = 5  # points lost per day of delta (lower is stricter)
+_W_PAYEE_MAX: int = 80  # max points contributed by payee match if amounts equal
+_W_DATE_BASE: int = 100  # base credit when dates are identical (when amounts equal)
 
 
 @dataclass(frozen=True)
 class MatchScore:
     """Composite score & explainability for a candidate ITransaction pair."""
-    score: int                    # higher is better
-    reasons: List[str]            # human-readable components explaining the score
-    features: Dict[str, object]   # raw numbers to aid debugging/thresholding
+
+    score: int  # higher is better
+    reasons: List[str]  # human-readable components explaining the score
+    features: Dict[str, object]  # raw numbers to aid debugging/thresholding
 
 
 def _norm(s: Optional[str]) -> str:
@@ -67,7 +67,9 @@ def compare_txn(a: ITransaction, b: ITransaction) -> MatchScore:
     amount_diff: Decimal = (amount_a - amount_b).copy_abs()
 
     date_days: Optional[int] = _date_delta_days(a.date, b.date)
-    payee_sim: float = _payee_similarity(getattr(a, "payee", ""), getattr(b, "payee", ""))
+    payee_sim: float = _payee_similarity(
+        getattr(a, "payee", ""), getattr(b, "payee", "")
+    )
 
     reasons: List[str] = []
     features: Dict[str, object] = {

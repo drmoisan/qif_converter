@@ -12,12 +12,13 @@ from __future__ import annotations
 import importlib
 import sys
 import types
-import pytest
 
+import pytest
 
 # --------------------------
 # Minimal tkinter stubs
 # --------------------------
+
 
 def _install_tk_stubs(monkeypatch):
     """Install minimal tkinter/ttk/font/messagebox stubs so App can import & run headlessly."""
@@ -25,29 +26,59 @@ def _install_tk_stubs(monkeypatch):
     tk = types.ModuleType("tkinter")
 
     class Tk:
-        def __init__(self, *a, **k): pass
-        def geometry(self, *a, **k): pass
-        def minsize(self, *a, **k): pass
-        def option_add(self, *a, **k): pass
-        def title(self, *a, **k): pass
-        def mainloop(self, *a, **k): pass
+        def __init__(self, *a, **k):
+            pass
+
+        def geometry(self, *a, **k):
+            pass
+
+        def minsize(self, *a, **k):
+            pass
+
+        def option_add(self, *a, **k):
+            pass
+
+        def title(self, *a, **k):
+            pass
+
+        def mainloop(self, *a, **k):
+            pass
 
     class StringVar:
-        def __init__(self, value=""): self._v = value
-        def get(self): return self._v
-        def set(self, v): self._v = v
+        def __init__(self, value=""):
+            self._v = value
+
+        def get(self):
+            return self._v
+
+        def set(self, v):
+            self._v = v
 
     class BooleanVar:
-        def __init__(self, value=False): self._v = value
-        def get(self): return self._v
-        def set(self, v): self._v = v
+        def __init__(self, value=False):
+            self._v = value
+
+        def get(self):
+            return self._v
+
+        def set(self, v):
+            self._v = v
 
     class Text:
-        def __init__(self, *a, **k): self._buf = ""
-        def get(self, s, e): return self._buf
-        def insert(self, i, s): self._buf += s
-        def delete(self, s, e): self._buf = ""
-        def see(self, i): pass
+        def __init__(self, *a, **k):
+            self._buf = ""
+
+        def get(self, s, e):
+            return self._buf
+
+        def insert(self, i, s):
+            self._buf += s
+
+        def delete(self, s, e):
+            self._buf = ""
+
+        def see(self, i):
+            pass
 
     tk.Tk = Tk
     tk.StringVar = StringVar
@@ -57,30 +88,54 @@ def _install_tk_stubs(monkeypatch):
     ttk = types.ModuleType("tkinter.ttk")
 
     class Frame:
-        def __init__(self, *a, **k): pass
-        def pack(self, *a, **k): pass
-        def grid(self, *a, **k): pass
+        def __init__(self, *a, **k):
+            pass
 
-    class LabelFrame(Frame): pass
+        def pack(self, *a, **k):
+            pass
+
+        def grid(self, *a, **k):
+            pass
+
+    class LabelFrame(Frame):
+        pass
 
     class Button:
-        def __init__(self, *a, **k): pass
-        def grid(self, *a, **k): pass
+        def __init__(self, *a, **k):
+            pass
+
+        def grid(self, *a, **k):
+            pass
 
     class Entry:
-        def __init__(self, *a, **k): pass
-        def grid(self, *a, **k): pass
+        def __init__(self, *a, **k):
+            pass
+
+        def grid(self, *a, **k):
+            pass
 
     class Notebook(Frame):
-        def __init__(self, *a, **k): pass
-        def add(self, *a, **k): pass
-        def pack(self, *a, **k): pass
+        def __init__(self, *a, **k):
+            pass
+
+        def add(self, *a, **k):
+            pass
+
+        def pack(self, *a, **k):
+            pass
 
     class Style:
-        def __init__(self, *a, **k): pass
-        def theme_use(self, *a, **k): pass
-        def configure(self, *a, **k): pass
-        def map(self, *a, **k): pass
+        def __init__(self, *a, **k):
+            pass
+
+        def theme_use(self, *a, **k):
+            pass
+
+        def configure(self, *a, **k):
+            pass
+
+        def map(self, *a, **k):
+            pass
 
     ttk.Frame = Frame
     ttk.LabelFrame = LabelFrame
@@ -92,7 +147,9 @@ def _install_tk_stubs(monkeypatch):
     filedialog = types.ModuleType("tkinter.filedialog")
     messagebox = types.ModuleType("tkinter.messagebox")
 
-    def _noop(*a, **k): return None
+    def _noop(*a, **k):
+        return None
+
     messagebox.showinfo = _noop
     messagebox.showerror = _noop
     messagebox.askyesno = lambda *a, **k: True
@@ -102,10 +159,16 @@ def _install_tk_stubs(monkeypatch):
     class _Font:
         def __init__(self, *a, **k):
             self._cfg = {"family": "TkDefaultFont", "size": 10, "weight": "normal"}
-        def cget(self, k): return self._cfg.get(k)
-        def configure(self, **k): self._cfg.update(k)
 
-    def nametofont(name): return _Font()
+        def cget(self, k):
+            return self._cfg.get(k)
+
+        def configure(self, **k):
+            self._cfg.update(k)
+
+    def nametofont(name):
+        return _Font()
+
     font.Font = _Font
     font.nametofont = nametofont
 
@@ -121,6 +184,7 @@ def _install_tk_stubs(monkeypatch):
 # GUI submodule stubs (ConvertTab / MergeTab / ProbeTab)
 # --------------------------
 
+
 def _install_gui_submodule_stubs(monkeypatch):
     """Provide minimal stand-ins for GUI tabs so App wiring works without real UI."""
 
@@ -134,13 +198,16 @@ def _install_gui_submodule_stubs(monkeypatch):
             self.session = session
 
     convert_tab.ConvertTab = ConvertTab
-    monkeypatch.setitem(sys.modules, "quicken_helper.gui_viewers.convert_tab", convert_tab)
+    monkeypatch.setitem(
+        sys.modules, "quicken_helper.gui_viewers.convert_tab", convert_tab
+    )
 
     # MergeTab
     merge_tab = types.ModuleType("quicken_helper.gui_viewers.merge_tab")
 
     class MergeTab:
-        def __init__(self, *a, **k): pass
+        def __init__(self, *a, **k):
+            pass
 
     merge_tab.MergeTab = MergeTab
     monkeypatch.setitem(sys.modules, "quicken_helper.gui_viewers.merge_tab", merge_tab)
@@ -149,7 +216,8 @@ def _install_gui_submodule_stubs(monkeypatch):
     probe_tab = types.ModuleType("quicken_helper.gui_viewers.probe_tab")
 
     class ProbeTab:
-        def __init__(self, *a, **k): pass
+        def __init__(self, *a, **k):
+            pass
 
     probe_tab.ProbeTab = ProbeTab
     monkeypatch.setitem(sys.modules, "quicken_helper.gui_viewers.probe_tab", probe_tab)
@@ -158,6 +226,7 @@ def _install_gui_submodule_stubs(monkeypatch):
 # --------------------------
 # Fixture: import App with stubs
 # --------------------------
+
 
 @pytest.fixture
 def app_mod(monkeypatch):
@@ -176,6 +245,7 @@ def app_mod(monkeypatch):
 # --------------------------
 # Tests
 # --------------------------
+
 
 def test_app_init_builds_tabs(app_mod):
     """App builds the Notebook and instantiates Convert/Merge/Probe tabs (no shim checks)."""

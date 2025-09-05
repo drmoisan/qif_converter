@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from _decimal import Decimal
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -25,4 +24,3 @@ class ExcelRow:
     quantity: Decimal = Decimal("0")
     commission: Decimal = Decimal("0")
     transfer_amount: Decimal = Decimal("0")
-

@@ -3,9 +3,13 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
+from .i_comparable import IComparable
+from .i_equatable import IEquatable
+from .i_to_dict import IToDict
+
 
 @runtime_checkable
-class IHeader(Protocol):
+class IHeader(Protocol, IComparable, IEquatable, IToDict):
     # data attributes
     code: str
     description: str
@@ -13,5 +17,3 @@ class IHeader(Protocol):
 
     # behavior
     def qif_entry(self) -> str: ...
-    def __eq__(self, other: object, /) -> bool: ...
-    def __hash__(self) -> int: ...

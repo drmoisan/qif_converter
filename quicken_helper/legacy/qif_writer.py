@@ -14,6 +14,7 @@ Features:
   * QIF writer for round-trips
 - CLI with combinations of the above
 """
+
 from __future__ import annotations
 
 import csv
@@ -24,8 +25,7 @@ from pathlib import Path
 from typing import IO, Any, Dict, Iterable, List, Optional, TextIO, Union
 
 from quicken_helper.data_model import ITransaction
-from quicken_helper.utilities import parse_date_string
-
+from quicken_helper.utilities import to_date
 
 # ------------------------ Filtering helpers ------------------------
 
@@ -96,12 +96,12 @@ def filter_by_date_range(
     txns: List[Dict[str, Any]], date_from: Optional[str], date_to: Optional[str]
 ) -> List[Dict[str, Any]]:
     """Filter by date range. Dates inclusive. Accepts mm/dd'yy, mm/dd/yyyy, or yyyy-mm-dd strings."""
-    df = parse_date_string(date_from) if date_from else None
-    dt = parse_date_string(date_to) if date_to else None
+    df = to_date(date_from) if date_from else None
+    dt = to_date(date_to) if date_to else None
     out: List[Dict[str, Any]] = []
     for t in txns:
         ds = t.get("date", "")
-        d = parse_date_string(ds)
+        d = to_date(ds)
         if not d:
             continue
         if df and d < df:

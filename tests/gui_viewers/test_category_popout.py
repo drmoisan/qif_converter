@@ -1,18 +1,16 @@
 # tests/gui_viewers/test_category_popout.py
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
-from typing import List, Tuple, Set
-
-import types
 import sys
+import types
+from dataclasses import dataclass
+
 import pytest
 
 import quicken_helper.gui_viewers.category_popout as cp
 
-
 # ---------- Stubs & fixtures ----------
+
 
 @dataclass
 class _FakeMB:
@@ -39,7 +37,9 @@ def _install_mex_stub(monkeypatch):
     mex.extract_excel_categories = lambda p: {"B", "C"}
 
     # Ensure parent package exists
-    pkg = sys.modules.setdefault("quicken_helper.controllers", types.ModuleType("quicken_helper.controllers"))
+    pkg = sys.modules.setdefault(
+        "quicken_helper.controllers", types.ModuleType("quicken_helper.controllers")
+    )
     pkg.__path__ = getattr(pkg, "__path__", [])
     monkeypatch.setitem(sys.modules, "quicken_helper.controllers.merge_excel", mex)
 
@@ -49,6 +49,7 @@ def _install_mex_stub(monkeypatch):
 
 
 # ---------- Tests ----------
+
 
 def test_compute_category_sets_returns_expected_sets(tmp_path):
     session = _FakeSession()

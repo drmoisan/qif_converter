@@ -13,6 +13,7 @@ Primary responsibilities:
 • Build a “matched-only” QIF view without mutating the source list.
 • Orchestrate a full merge (parse → match → apply updates → write).
 """
+
 # quicken_helper/controllers/match_excel.py
 from __future__ import annotations
 
@@ -29,8 +30,7 @@ import pandas as pd
 import quicken_helper as base
 from quicken_helper.controllers.match_helpers import (
     _to_date,
-    _to_date,
-    _to_decimal,
+    to_decimal,
 )
 from quicken_helper.controllers.match_session import MatchSession
 from quicken_helper.data_model.excel.excel_row import ExcelRow
@@ -96,7 +96,7 @@ def load_excel_rows(path: Path) -> List[ExcelRow]:
                 idx=int(i),
                 txn_id=str(r["TxnID"]).strip(),
                 date=dval,
-                amount=_to_decimal(r["Amount"]),
+                amount=to_decimal(r["Amount"]),
                 memo=str(r["Item"] or "").strip(),
                 category=str(r["Canonical MECE Category"] or "").strip(),
                 rationale=str(r["Categorization Rationale"] or "").strip(),
@@ -168,9 +168,9 @@ def _txn_amount(t: Dict[str, Any]) -> Decimal:
     """
     splits = t.get("splits") or []
     if splits:
-        total = sum((_to_decimal(s.get("amount", "0")) for s in splits), Decimal("0"))
+        total = sum((to_decimal(s.get("amount", "0")) for s in splits), Decimal("0"))
         return total
-    return _to_decimal(t.get("amount", "0"))
+    return to_decimal(t.get("amount", "0"))
 
 
 # changed from _flatten_qif_txns
@@ -210,7 +210,7 @@ def _flatten_qif_txns(txns: List[Dict[str, Any]]) -> List[QIFTxnView]:
         if splits:
             for si, s in enumerate(splits):
                 try:
-                    amt = _to_decimal(s.get("amount", "0"))
+                    amt = to_decimal(s.get("amount", "0"))
                 except Exception:
                     # If split amount isn't parseable, skip this split
                     continue
@@ -227,7 +227,7 @@ def _flatten_qif_txns(txns: List[Dict[str, Any]]) -> List[QIFTxnView]:
         else:
             # No splits → use the txn amount
             try:
-                amt = _to_decimal(t.get("amount", "0"))
+                amt = to_decimal(t.get("amount", "0"))
             except Exception:
                 # Can't parse txn amount → skip this txn
                 continue

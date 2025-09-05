@@ -1,6 +1,8 @@
 # quicken_helper/gui_viewers/probe_tab.py
 from __future__ import annotations
 
+import logging
+import logging.config
 import os
 import subprocess
 import sys
@@ -11,13 +13,10 @@ from typing import Optional
 
 from quicken_helper.gui_viewers.helpers import decode_best_effort
 from quicken_helper.legacy import qdx_probe
-import logging
-import logging.config
 from quicken_helper.utilities import LOGGING
 
 logging.config.dictConfig(LOGGING)
 log = logging.getLogger(__name__)
-
 
 
 class ProbeTab(ttk.Frame):
@@ -128,7 +127,9 @@ class ProbeTab(ttk.Frame):
             qif = Path(self.p_qif.get().strip()) if self.p_qif.get().strip() else None
             out = Path(self.p_out.get().strip()) if self.p_out.get().strip() else None
 
-            log.debug("Running qdx_probe.run_probe | qdx=%s qif=%s out=%s", qdx, qif, out)
+            log.debug(
+                "Running qdx_probe.run_probe | qdx=%s qif=%s out=%s", qdx, qif, out
+            )
             report, artifacts = qdx_probe.run_probe(qdx, qif, out)
             self.p_report.delete("1.0", "end")
             self.p_report.insert("end", report)

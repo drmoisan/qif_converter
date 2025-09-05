@@ -21,16 +21,15 @@ from pathlib import Path
 import pytest
 
 from quicken_helper.data_model import (
-    ITransaction,
-    IQuickenFile,
     EnumClearedStatus,
-    QTransaction,
+    IQuickenFile,
+    ITransaction,
 )
-
 
 # --------------------------
 # Tk / ttk / filedialog / messagebox stubs
 # --------------------------
+
 
 class _FileStub(IQuickenFile):
     """Minimal IQuickenFile implementation for MergeTab tests."""
@@ -42,8 +41,10 @@ class _FileStub(IQuickenFile):
         self.headers = []
         self.other_sections = {}
 
+
 class _TransactionStub(ITransaction):
     """Minimal ITransaction implementation for MergeTab tests."""
+
     def __init__(self, **kw):
         self.date = kw.get("date", date(1985, 11, 5))
         self.amount = kw.get("amount", Decimal(0))
@@ -55,8 +56,10 @@ class _TransactionStub(ITransaction):
         self.cleared = kw.get("cleared", EnumClearedStatus.UNKNOWN)
         self.splits = kw.get("splits", [])
         self._dict = kw.get("_dict", {})
+
     def to_dict(self):
         return self._dict
+
 
 class _DummyVar:
     """
@@ -405,10 +408,15 @@ class _MatchSessionStub:
     def manual_match(self, bank_index=None, excel_index=None):
         if bank_index is None or excel_index is None:
             return False, "missing selection"
-        if not (0 <= bank_index < len(self.bank_txns) and 0 <= excel_index < len(self.excel_txns)):
+        if not (
+            0 <= bank_index < len(self.bank_txns)
+            and 0 <= excel_index < len(self.excel_txns)
+        ):
             return False, "invalid selection"
         b, e = self.bank_txns[bank_index], self.excel_txns[excel_index]
-        self.pairs = [(bb, ee) for (bb, ee) in self.pairs if bb is not b and ee is not e]
+        self.pairs = [
+            (bb, ee) for (bb, ee) in self.pairs if bb is not b and ee is not e
+        ]
         self.pairs.append((b, e))
         return True, "ok"
 
@@ -559,10 +567,17 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
 
     def parse_qif_unified_protocol(path):
         file = _FileStub(path)
-        file.transactions.append(_TransactionStub(amount=Decimal(1.0),_dict={"key": {"txn_index": 1}, "amount": 1.0}))
-        file.transactions.append(_TransactionStub(amount=Decimal(2.0),_dict={"key": {"txn_index": 2}, "amount": 2.0}))
+        file.transactions.append(
+            _TransactionStub(
+                amount=Decimal(1.0), _dict={"key": {"txn_index": 1}, "amount": 1.0}
+            )
+        )
+        file.transactions.append(
+            _TransactionStub(
+                amount=Decimal(2.0), _dict={"key": {"txn_index": 2}, "amount": 2.0}
+            )
+        )
         return file
-
 
     # Minimal enum used by UI
     from quicken_helper.data_model.interfaces import EnumClearedStatus
@@ -688,8 +703,6 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
     mex = types.ModuleType(names["match_excel"])
 
     from dataclasses import dataclass as _dc, field as _dc_field
-    from decimal import Decimal
-    from datetime import date as _date
 
     @_dc(frozen=True)
     class _Row2:
@@ -725,7 +738,14 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
     def group_excel_rows(rows):
         _validate_rows(rows)
         total = sum((r.amount for r in rows or []), Decimal("0"))
-        return [_Group2(gid="G1", date=_date(2024, 1, 15), total_amount=total, rows=tuple(rows or []))]
+        return [
+            _Group2(
+                gid="G1",
+                date=_date(2024, 1, 15),
+                total_amount=total,
+                rows=tuple(rows or []),
+            )
+        ]
 
     def build_matched_only_txns(sess):
         return list(getattr(sess, "txns", []))
@@ -747,8 +767,6 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
     ms = types.ModuleType(names["match_session"])
 
     from dataclasses import dataclass, field
-    from datetime import date as _date
-    from decimal import Decimal as _Decimal
     from typing import Iterable, List, Tuple
 
     @dataclass(frozen=True)
@@ -813,7 +831,9 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
             self.pairs.append((b, e))
             return True, "ok"
 
-        def manual_unmatch(self, bank_index: int | None = None, excel_index: int | None = None):
+        def manual_unmatch(
+            self, bank_index: int | None = None, excel_index: int | None = None
+        ):
             if bank_index is not None and 0 <= bank_index < len(self.bank_txns):
                 b = self.bank_txns[bank_index]
                 before = len(self.pairs)
@@ -828,7 +848,6 @@ def _install_project_stubs(monkeypatch, tmp_path=None):
 
     ms.MatchSession = MatchSession
     monkeypatch.setitem(sys.modules, names["match_session"], ms)
-
 
     # ---- category_match_session (stub) ----
     cms = types.ModuleType(names["category_match_session"])
@@ -1072,9 +1091,9 @@ def test_manual_match_requires_selection_and_calls_session(merge_mod):
     # Act (no selection)
     mt._m_manual_match()
     # Assert
-    assert any(c[0] == "showerror" for c in mt.mb.calls), (
-        "Expected error when nothing selected"
-    )
+    assert any(
+        c[0] == "showerror" for c in mt.mb.calls
+    ), "Expected error when nothing selected"
 
     # Act (with selections)
     mt.mb.calls.clear()
@@ -1116,7 +1135,6 @@ def test_manual_unmatch_from_pairs_calls_session(merge_mod):
 
     mt.lbx_pairs.insert("end", "PAIR")
     mt.lbx_pairs.selection_set(0)
-
 
     # Act
     mt._m_manual_unmatch()
@@ -1315,17 +1333,18 @@ def _cleanup_module():
             sys.modules.pop(name, None)
     importlib.invalidate_caches()
 
+
 # --- Migration guard: skip normalize-related tests moved to test_category_popout.py ---
 def _skip_legacy_normalize_tests():
     import pytest as _pytest
 
     # Tailored selectors: name/docstring, case-insensitive
     KEYWORDS = (
-        "normalize",                  # broad: catches test_normalize_* variants
-        "open_normalize_modal",       # specific old entrypoint
-        "_m_normalize_categories",    # specific old handler
-        "normalize categories",       # docstring phrase
-        "category_popout",            # new home reference
+        "normalize",  # broad: catches test_normalize_* variants
+        "open_normalize_modal",  # specific old entrypoint
+        "_m_normalize_categories",  # specific old handler
+        "normalize categories",  # docstring phrase
+        "category_popout",  # new home reference
     )
 
     g = globals()
@@ -1337,6 +1356,7 @@ def _skip_legacy_normalize_tests():
             g[name] = _pytest.mark.skip(
                 "Moved to tests/gui_viewers/test_category_popout.py"
             )(obj)
+
 
 _skip_legacy_normalize_tests()
 del _skip_legacy_normalize_tests

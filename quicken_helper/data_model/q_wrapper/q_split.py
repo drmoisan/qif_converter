@@ -3,15 +3,16 @@ from __future__ import annotations
 from _decimal import Decimal
 from dataclasses import dataclass
 from functools import total_ordering
+from typing import TYPE_CHECKING
 
 import quicken_helper.data_model.q_wrapper.qif_codes as emit_q
 
-from ..interfaces import ISplit
+from ..interfaces import IComparable, IEquatable, ISplit, IToDict, RecursiveDictStr
 
 
 @total_ordering
 @dataclass
-class QSplit(ISplit):
+class QSplit:
     """
     Represents a single QIF split transaction.
     """
@@ -25,7 +26,7 @@ class QSplit(ISplit):
         """
         Returns the QIF representation of this split.
         """
-        lines = []
+        lines: list[str] = []
         if self.tag != "":
             lines.append(f"{emit_q.category_split().code}{self.category}/{self.tag}")
         else:
@@ -66,15 +67,23 @@ class QSplit(ISplit):
             return False
         return self.memo < other.memo
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, RecursiveDictStr]:
         """
         Convert the QifSplit to a dictionary representation.
         """
-        return {
+        d: dict[str, RecursiveDictStr] = {
             "category": self.category,
-            "amount": str(
-                self.amount
-            ),  # Convert Decimal to string for JSON serialization
-            "memo": self.memo,
-            "tag": self.tag,
+            "amount": str(self.amount),
         }
+        if self.memo:
+            d["memo"] = self.memo
+        if self.tag:
+            d["tag"] = self.tag
+        return d
+
+
+if TYPE_CHECKING:
+    _is_i_split: type[ISplit] = QSplit
+    _is_IToDict: type[IToDict] = QSplit
+    _is_IEquatable: type[IEquatable] = QSplit
+    _is_IComparable: type[IComparable] = QSplit

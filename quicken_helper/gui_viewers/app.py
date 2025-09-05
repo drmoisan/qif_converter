@@ -1,17 +1,17 @@
 # quicken_helper/gui_viewers/app.py
 from __future__ import annotations
 
+import logging
+import logging.config
 import tkinter as tk
 from datetime import date
 from pathlib import Path
-from tkinter import font as tkfont
-from tkinter import messagebox, ttk
+from tkinter import font as tkfont, messagebox, ttk
 from types import SimpleNamespace
 from typing import Any, Dict, List
 
-from quicken_helper.controllers.qif_loader import load_transactions_protocol
 from quicken_helper.controllers.data_session import DataSession
-
+from quicken_helper.controllers.qif_loader import load_transactions_protocol
 
 # from quicken_helper.qif_loader import (
 #     load_transactions,                  # legacy (dicts) — kept for back-compat
@@ -23,22 +23,18 @@ from quicken_helper.gui_viewers.convert_tab import ConvertTab
 # project modules
 from quicken_helper.gui_viewers.merge_tab import MergeTab
 from quicken_helper.gui_viewers.probe_tab import ProbeTab
-from quicken_helper.controllers.data_session import DataSession
 from quicken_helper.gui_viewers.utils import (
     apply_multi_payee_filters,
     filter_date_range,
 )
-from quicken_helper.legacy import qfx_to_txns as qfx
-from quicken_helper.legacy import qif_writer as mod
-
-from .scaling import apply_global_font_scaling
-import logging
-import logging.config
+from quicken_helper.legacy import qfx_to_txns as qfx, qif_writer as mod
 from quicken_helper.utilities import LOGGING
 
+from .scaling import apply_global_font_scaling
 
 logging.config.dictConfig(LOGGING)
 log = logging.getLogger(__name__)
+
 
 class App(tk.Tk):
     """

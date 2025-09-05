@@ -1,5 +1,8 @@
 from enum import Enum
 from functools import total_ordering
+from typing import TYPE_CHECKING
+
+from .i_to_dict import IToDict, RecursiveDictStr
 
 # from quicken_helper.data_model import qif_codes as codes
 
@@ -62,3 +65,13 @@ class EnumClearedStatus(Enum):
             return True
         else:
             return False
+
+    def to_dict(self) -> dict[str, RecursiveDictStr]:
+        """
+        Convert the EnumClearedStatus instance to a dictionary representation.
+        """
+        return {"type": "ClearedStatus", "value": self.value}
+
+
+if TYPE_CHECKING:
+    _has_to_dict: type[IToDict] = EnumClearedStatus

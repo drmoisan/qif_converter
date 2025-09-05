@@ -2,24 +2,24 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 import pytest
 
-from quicken_helper.controllers.match_helpers import (_candidate_cost, _flatten_qif_txns)
-from quicken_helper.utilities.converters_scalar import _to_decimal, _to_date
+from quicken_helper.controllers.match_helpers import _candidate_cost, _flatten_qif_txns
 from quicken_helper.legacy.qif_item_key import QIFItemKey
 from quicken_helper.legacy.qif_txn_view import QIFTxnView
+from quicken_helper.utilities.converters_scalar import _to_date, to_decimal
 
 # ----------------------- _to_decimal -----------------------
 
 
 def test_to_decimal_accepts_decimal_int_float_and_str():
     # Arrange / Act
-    d_from_dec = _to_decimal(Decimal("-12.34"))
-    d_from_int = _to_decimal(7)
-    d_from_float = _to_decimal(1.1)  # should preserve textual value, not binary float
-    d_from_str = _to_decimal(" -1,234.56 ")
+    d_from_dec = to_decimal(Decimal("-12.34"))
+    d_from_int = to_decimal(7)
+    d_from_float = to_decimal(1.1)  # should preserve textual value, not binary float
+    d_from_str = to_decimal(" -1,234.56 ")
 
     # Assert
     assert d_from_dec == Decimal("-12.34")
@@ -29,16 +29,16 @@ def test_to_decimal_accepts_decimal_int_float_and_str():
 
 
 def test_to_decimal_strips_currency_and_commas_and_space():
-    assert _to_decimal(" $ 2,345.00 ") == Decimal("2345.00")
+    assert to_decimal(" $ 2,345.00 ") == Decimal("2345.00")
 
 
 def test_to_decimal_raises_on_empty_plus_minus():
     with pytest.raises(ValueError):
-        _to_decimal("")
+        to_decimal("")
     with pytest.raises(ValueError):
-        _to_decimal("+")
+        to_decimal("+")
     with pytest.raises(ValueError):
-        _to_decimal("-")
+        to_decimal("-")
 
 
 # ----------------------- _parse_date -----------------------

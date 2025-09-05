@@ -1,26 +1,46 @@
 from __future__ import annotations
 
-from argparse import ArgumentError
-from collections.abc import Iterable, Callable
-from ctypes.wintypes import tagMSG
-
-from pyparsing import Empty
-import re
-from typing import List, Tuple, Any, Dict
-from quicken_helper.data_model import ICategory, QCategory, EnumClearedStatus
-from quicken_helper.data_model.interfaces import IParserEmitter, IQuickenFile, QuickenFileType, ITag, IAccount, ITransaction, IHeader
-from quicken_helper.utilities.core_util import from_dict, convert_value, is_null_or_whitespace
-from quicken_helper.data_model.q_wrapper import QuickenFile, QAccount, QTag, QTransaction, QifHeader, QSplit
-from itertools import pairwise  # Python 3.10+
 import logging
 import logging.config
+import re
+from collections.abc import Callable, Iterable
+from itertools import pairwise  # Python 3.10+
+from typing import Any, Dict, List, Tuple
+
+from pyparsing import Empty
+
+from quicken_helper.data_model import EnumClearedStatus, ICategory, QCategory
+from quicken_helper.data_model.interfaces import (
+    IAccount,
+    IHeader,
+    IParserEmitter,
+    IQuickenFile,
+    ITag,
+    ITransaction,
+    QuickenFileType,
+)
+from quicken_helper.data_model.q_wrapper import (
+    QAccount,
+    QifHeader,
+    QSplit,
+    QTag,
+    QTransaction,
+    QuickenFile,
+)
 from quicken_helper.utilities import LOGGING
+from quicken_helper.utilities.core_util import (
+    from_dict,
+    is_null_or_whitespace,
+)
+
 logging.config.dictConfig(LOGGING)
 
 log = logging.getLogger(__name__)
 
+
 class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
     """Parse text into IQuickenFile objects and emit them back to text."""
+
     file_format: QuickenFileType = QuickenFileType.QIF
 
     def __init__(self, make_file: Callable[[], IQuickenFile] | None = None):
@@ -85,14 +105,14 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
             "D": "description",
             "T": "type",
             "L": "limit",  # Credit limit for credit card accounts
-            "/": "balance_date", # Statement balance date
+            "/": "balance_date",  # Statement balance date
             "$": "balance_amount",  # Statement balance amount
         },
         "Category": {
             "N": "name",
             "D": "description",
-            "E": "expense_category",# boolean
-            "I": "income_category",# boolean
+            "E": "expense_category",  # boolean
+            "I": "income_category",  # boolean
             "T": "tax_related",  # boolean
             "R": "tax_schedule",
         },
@@ -142,7 +162,11 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
         },
     }
 
-    def _preprocess_section(self, lines: list[str],drop_if_contains: list[str] | None = None,) -> list[str]:
+    def _preprocess_section(
+        self,
+        lines: list[str],
+        drop_if_contains: list[str] | None = None,
+    ) -> list[str]:
         """
         Normalize a section’s lines for lossless parsing while preserving case,
         and optionally drop lines containing disallowed substrings.
@@ -174,7 +198,9 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
             if s and not any(b in s for b in banned)
         ]
 
-    def _split_on_caret(self, lines: list[str], keep_empty: bool = False) -> list[list[str]]:
+    def _split_on_caret(
+        self, lines: list[str], keep_empty: bool = False
+    ) -> list[list[str]]:
         """
         Split a list of lines into records using a line that is exactly "^" as the delimiter.
 
@@ -257,7 +283,9 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
         # Slice each section and return as a dict
         return {k: lines[s:e] for (k, s), (_, e) in pairwise(pairs)}
 
-    def parse_account_entry(self, field_map: dict, entry_lines: list[str]) -> IAccount | None:
+    def parse_account_entry(
+        self, field_map: dict, entry_lines: list[str]
+    ) -> IAccount | None:
         """Parse a single account entry from its lines into an IAccount object."""
         if not entry_lines or field_map is Empty:
             return None
@@ -268,7 +296,9 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
             code = line[0]
             value = line[1:].strip() if len(line) > 1 else ""
             if code not in field_map:
-                raise ValueError(f"Unknown field code {code} while parsing account entry {'\r\n'.join(entry_lines)}")
+                raise ValueError(
+                    f"Unknown field code {code} while parsing account entry {'\r\n'.join(entry_lines)}"
+                )
             mapping = field_map.get(code)
             account_data[mapping] = value
 
@@ -276,7 +306,9 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
             account = from_dict(QAccount, account_data)
             return account
         except Exception as e:
-            log.exception(f"Error constructing IAccount from data {account_data}\nException: {e}")
+            log.exception(
+                f"Error constructing IAccount from data {account_data}\nException: {e}"
+            )
             return None
 
     def parse_accounts(self, lines: list[str]) -> list[IAccount]:
@@ -309,7 +341,9 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
         ]
         return categories
 
-    def parse_category_entry(self, field_map: dict, entry_lines: list[str]) -> ICategory | None:
+    def parse_category_entry(
+        self, field_map: dict, entry_lines: list[str]
+    ) -> ICategory | None:
         if not entry_lines or field_map is Empty:
             return None
         data = {}
@@ -323,7 +357,7 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
                     f"Unknown field code {code} while parsing tag entry {'\r\n'.join(entry_lines)}"
                 )
             mapping = field_map.get(code)
-            if mapping in ["expense_category","income_category","tax_related"]:
+            if mapping in ["expense_category", "income_category", "tax_related"]:
                 data[mapping] = True
             else:
                 data[mapping] = value
@@ -331,10 +365,12 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
             typed_object = from_dict(QCategory, data)
             return typed_object
         except Exception as e:
-            log.exception(f"Error constructing IAccount from data {data}\nException: {e}")
+            log.exception(
+                f"Error constructing IAccount from data {data}\nException: {e}"
+            )
             return None
 
-    def parse_tag_entry(self,field_map: dict,entry_lines: list[str]) -> ITag | None:
+    def parse_tag_entry(self, field_map: dict, entry_lines: list[str]) -> ITag | None:
         if not entry_lines or field_map is Empty:
             return None
         tag_data = {}
@@ -353,7 +389,9 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
             tag = from_dict(QTag, tag_data)
             return tag
         except Exception as e:
-            log.exception(f"Error constructing IAccount from data {tag_data}\nException: {e}")
+            log.exception(
+                f"Error constructing IAccount from data {tag_data}\nException: {e}"
+            )
             return None
 
     def parse_tags(self, lines: list[str]) -> list[ITag]:
@@ -369,38 +407,48 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
         ]
         return tags
 
-    def _normalize_group_0(self, text: str) -> Tuple[IAccount,IHeader] | None:
+    def _normalize_group_0(self, text: str) -> Tuple[IAccount, IHeader] | None:
         account_map = self._FIELD_MAP.get("Account", {})
         lines = text.splitlines()
         cleaned_lines = self._preprocess_section(lines, drop_if_contains=["!Account"])
         entries = self._split_on_caret(cleaned_lines, keep_empty=False)
         if not entries or len(entries) != 2:
-            raise ValueError(f"Expected !Account and !Type separated by ^. Malformed QIF?\n{text}")
+            raise ValueError(
+                f"Expected !Account and !Type separated by ^. Malformed QIF?\n{text}"
+            )
         account = self.parse_account_entry(account_map, entries[0])
         header = QifHeader(entries[1][0])
         return account, header
 
-    def _normalize_group_1(self, text: str) ->  list[list[str]]:
+    def _normalize_group_1(self, text: str) -> list[list[str]]:
         lines = text.splitlines()
         cleaned_lines = self._preprocess_section(lines)
         entries = self._split_on_caret(cleaned_lines, keep_empty=False)
         return entries
 
-    def _normalize_group(self, group:Tuple[str, str]) -> list[Tuple[IAccount,IHeader,list[str]]]:
+    def _normalize_group(
+        self, group: Tuple[str, str]
+    ) -> list[Tuple[IAccount, IHeader, list[str]]]:
         null0 = is_null_or_whitespace(group[0])
         null1 = is_null_or_whitespace(group[1])
         if null0 and null1:
-            log.warning("Empty group encountered in transaction parsing.\nGroup Header and Body are both empty."
-                        f" regex failure?\nGroup Header:{group[0]}\nGroup Body:{group[1]}\n\n")
+            log.warning(
+                "Empty group encountered in transaction parsing.\nGroup Header and Body are both empty."
+                f" regex failure?\nGroup Header:{group[0]}\nGroup Body:{group[1]}\n\n"
+            )
             return []
         elif null0:
-            log.warning(f"Empty group header encountered in transaction parsing, but transaction has data."
-                        f" regex failure?\nGroup Header:\n{group[0]}\nGroup Body:\n{group[1]}\n\n")
+            log.warning(
+                f"Empty group header encountered in transaction parsing, but transaction has data."
+                f" regex failure?\nGroup Header:\n{group[0]}\nGroup Body:\n{group[1]}\n\n"
+            )
             return []
         elif null1:
-            log.debug("Empty group body encountered in transaction parsing, but header has data."
-                      " This may be valid if there are no transactions for the account.\n"
-                      "Group Header:\n{group[0]}\n\nGroup Body:\n{group[1]}\n")
+            log.debug(
+                "Empty group body encountered in transaction parsing, but header has data."
+                " This may be valid if there are no transactions for the account.\n"
+                "Group Header:\n{group[0]}\n\nGroup Body:\n{group[1]}\n"
+            )
             return []
 
         account, header = self._normalize_group_0(group[0])
@@ -414,7 +462,9 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
         """
         return [(m.group(1), m.group(2)) for m in self._PATTERN.finditer(text)]
 
-    def _parse_transaction_entry(self, field_map: dict, entry: Tuple[IAccount,IHeader,list[str]]) -> ITransaction | None:
+    def _parse_transaction_entry(
+        self, field_map: dict, entry: Tuple[IAccount, IHeader, list[str]]
+    ) -> ITransaction | None:
         rec: Dict[str, Any] = {}
         rec["account"] = entry[0]
         rec["type"] = entry[1]
@@ -435,7 +485,7 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
             if code in field_map:
                 mapping = field_map.get(code)
                 if mapping == "category" and "/" in value:
-                    [rec["category"],rec["tag"]] = value.split("/")
+                    [rec["category"], rec["tag"]] = value.split("/")
                 elif mapping == "cleared":
                     rec[mapping] = EnumClearedStatus.from_char(value)
                 else:
@@ -450,27 +500,39 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
                         splits.append(pending_split)
                     pending_split = {}
                     if mapping == "category" and "/" in value:
-                        [pending_split["category"],pending_split["tag"]] = value.split("/")
+                        [pending_split["category"], pending_split["tag"]] = value.split(
+                            "/"
+                        )
                     else:
                         pending_split[mapping] = value
                 else:
                     pending_split[mapping] = value
             else:
-                raise ValueError(f"Unknown field code {code} while parsing transaction entry {'\r\n'.join(lines)}")
+                raise ValueError(
+                    f"Unknown field code {code} while parsing transaction entry {'\r\n'.join(lines)}"
+                )
         if pending_split:
             splits.append(pending_split)
         if len(splits) > 0:
             try:
                 rec["splits"] = [from_dict(QSplit, s) for s in splits if s]
             except Exception as e:
-                log.exception(f"Error constructing ISplit from data {splits}\nException: {e}")
-                raise ValueError(f"Error constructing ISplit from data {splits}\nException: {e}")
+                log.exception(
+                    f"Error constructing ISplit from data {splits}\nException: {e}"
+                )
+                raise ValueError(
+                    f"Error constructing ISplit from data {splits}\nException: {e}"
+                )
         if is_security_transaction and security_data:
             try:
                 rec["_security"] = from_dict(QTag, security_data)
             except Exception as e:
-                log.exception(f"Error constructing ISecurity from data {security_data}\nException: {e}")
-                raise ValueError(f"Error constructing ISecurity from data {security_data}\nException: {e}")
+                log.exception(
+                    f"Error constructing ISecurity from data {security_data}\nException: {e}"
+                )
+                raise ValueError(
+                    f"Error constructing ISecurity from data {security_data}\nException: {e}"
+                )
 
         if "cleared" not in rec:
             rec["cleared"] = EnumClearedStatus.NOT_CLEARED
@@ -489,7 +551,11 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
         normalized_groups = [self._normalize_group(g) for g in groups]
         # Flatten the list of lists
         entries = [tup for sublist in normalized_groups for tup in sublist]
-        transactions = [self._parse_transaction_entry(field_map, entry) for entry in entries if entry]
+        transactions = [
+            self._parse_transaction_entry(field_map, entry)
+            for entry in entries
+            if entry
+        ]
         return transactions
 
     def _parse(self, unparsed_string: str) -> IQuickenFile:
@@ -506,4 +572,3 @@ class QifFileParserEmitter(IParserEmitter[IQuickenFile]):
         if "Transaction" in sections:
             qf.transactions = self.parse_transactions(sections["Transaction"])
         return qf
-        

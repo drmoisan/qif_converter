@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from ..interfaces import HasEmitQifWithHeader, IHeader
+from .i_comparable import IComparable
+from .i_equatable import IEquatable
+from .i_has_emit_qif import HasEmitQifWithHeader
+from .i_header import IHeader
+from .i_to_dict import IToDict
 
 
 @runtime_checkable
-class ITag(HasEmitQifWithHeader, Protocol):
+class ITag(HasEmitQifWithHeader, Protocol, IComparable, IEquatable, IToDict):
     """
     Protocol for objects that behave like QifTag.
 
@@ -31,11 +35,3 @@ class ITag(HasEmitQifWithHeader, Protocol):
     # read-only property
     @property
     def header(self) -> IHeader: ...
-
-    # behavior
-    # def emit_qif(self, with_header: bool = False) -> str: ...
-
-    # (optional) special methods – not enforced at runtime, but help mypy/pyright
-    def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
-    def __repr__(self) -> str: ...

@@ -29,20 +29,23 @@ Migration notes:
   this class (e.g., using an ExcelTransaction adapter). Alternatively, pass the raw objects and rely
   on core_util.convert_value(ITransaction, x) (requires _PROTOCOL_IMPLEMENTATION mapping).
 """
+
 from __future__ import annotations
+
 from math import inf
-from typing import List, Tuple, Dict, Optional, Iterable, cast
+from typing import Dict, Iterable, List, Optional, Tuple, cast
 
 # Protocols / utilities
 from quicken_helper.data_model.interfaces import ITransaction
+
 # convert_value MUST be wired to use _PROTOCOL_IMPLEMENTATION so it can adapt arbitrary objects to ITransaction
 from quicken_helper.utilities.core_util import convert_value
 
 # Scoring (amount-gated, date proximity, payee similarity)
-from .transaction_compare import compare_txn, MatchScore
-
+from .transaction_compare import MatchScore, compare_txn
 
 # ---------- helpers ----------
+
 
 def _coerce_txns(src: Iterable[object]) -> List[ITransaction]:
     """Coerce an iterable of arbitrary objects into ITransaction using convert_value."""
@@ -66,6 +69,7 @@ def _sort_key_for_match(ms: MatchScore) -> tuple:
 
 
 # ---------- core class ----------
+
 
 class MatchSession:
     """
@@ -134,7 +138,9 @@ class MatchSession:
 
     # --- matching ---
 
-    def auto_match(self, min_score: Optional[int] = None) -> List[Tuple[ITransaction, ITransaction]]:
+    def auto_match(
+        self, min_score: Optional[int] = None
+    ) -> List[Tuple[ITransaction, ITransaction]]:
         """
         Greedy one-to-one matching between bank and excel transactions using compare_txn.
 
@@ -151,7 +157,9 @@ class MatchSession:
         Returns:
             List of accepted (bank_txn, excel_txn) pairs in bank index order.
         """
-        threshold: int = self._min_score_default if min_score is None else int(min_score)
+        threshold: int = (
+            self._min_score_default if min_score is None else int(min_score)
+        )
 
         self._pairs_ix.clear()
         self._auto_pairs_cache.clear()
@@ -164,7 +172,9 @@ class MatchSession:
         used_excel: set[int] = set()
 
         for bi, bt in enumerate(self._bank_txns):
-            candidates_ix = [j for j in by_amount.get(str(bt.amount), []) if j not in used_excel]
+            candidates_ix = [
+                j for j in by_amount.get(str(bt.amount), []) if j not in used_excel
+            ]
             if not candidates_ix:
                 continue
 
@@ -208,7 +218,9 @@ class MatchSession:
         # Overwrite any existing pair for this bank index
         self._pairs_ix[bank_index] = excel_index
 
-    def manual_unmatch(self, bank_index: int | None = None, excel_index: int | None = None) -> None:
+    def manual_unmatch(
+        self, bank_index: int | None = None, excel_index: int | None = None
+    ) -> None:
         """
         Remove an existing pairing by bank index OR excel index.
 

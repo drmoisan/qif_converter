@@ -1,33 +1,33 @@
 # quicken_helper/gui_viewers/merge_tab.py
 from __future__ import annotations
 
+import logging
+import logging.config
 import tkinter as tk
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from tkinter import filedialog, ttk
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 
 from quicken_helper.controllers import match_excel as mex
-from quicken_helper.controllers.category_match_session import CategoryMatchSession
+from quicken_helper.controllers.data_session import DataSession
 from quicken_helper.controllers.match_session import MatchSession
 
 # from quicken_helper.qif_loader import load_transactions
 from quicken_helper.controllers.qif_loader import load_transactions_protocol
 from quicken_helper.data_model import EnumClearedStatus, ITransaction
-from quicken_helper.data_model.excel import ExcelTransaction, ExcelTxnGroup, map_group_to_excel_txn
+from quicken_helper.data_model.excel import (
+    map_group_to_excel_txn,
+)
+from quicken_helper.gui_viewers.category_popout import (
+    open_normalize_modal as open_category_popout,
+)
 from quicken_helper.gui_viewers.helpers import _fmt_excel_row, _fmt_txn, _set_text
-from quicken_helper.gui_viewers.category_popout import open_normalize_modal as open_category_popout
-from quicken_helper.controllers.data_session import DataSession
 
 # import qif_item_key
 from quicken_helper.legacy import qif_writer as mod
-from quicken_helper.legacy.qif_item_key import QIFItemKey
-
-import logging
-import logging.config
 from quicken_helper.utilities import LOGGING
-
 
 logging.config.dictConfig(LOGGING)
 log = logging.getLogger(__name__)
@@ -71,7 +71,12 @@ class MergeTab(ttk.Frame):
         self._build_info_section()
         self._bind_preview_events()
 
-    def _build_list_column(self, parent: tk.Misc, title: str, export_slug: str,) -> _ListColumn:
+    def _build_list_column(
+        self,
+        parent: tk.Misc,
+        title: str,
+        export_slug: str,
+    ) -> _ListColumn:
         lf = ttk.LabelFrame(parent, text=title)
         lf.pack(side="left", fill="both", expand=True, padx=4, pady=4)
 
@@ -149,14 +154,14 @@ class MergeTab(ttk.Frame):
         pad = {"padx": 8, "pady": 6}
         actions = ttk.Frame(self)
         actions.pack(fill="x", **pad)
+        ttk.Button(actions, text="Load", command=self._m_load).pack(side="left")
+        ttk.Button(actions, text="Auto-Match", command=self._m_auto_match).pack(
+            side="left", padx=6
+        )
         ttk.Button(
-            actions, text="Load", command=self._m_load
-        ).pack(side="left")
-        ttk.Button(
-            actions, text="Auto-Match", command=self._m_auto_match
-        ).pack(side="left", padx=6)
-        ttk.Button(
-            actions, text="Normalize Categories", command=self.open_normalize_modal #normalize_cats_modal
+            actions,
+            text="Normalize Categories",
+            command=self.open_normalize_modal,  # normalize_cats_modal
         ).pack(side="left", padx=6)
         ttk.Button(
             actions, text="Apply Updates & Save", command=self._m_apply_and_save
@@ -208,7 +213,6 @@ class MergeTab(ttk.Frame):
             "<<ListboxSelect>>", lambda e: self._m_update_preview("pairs")
         )
         self.lbx_unx.bind("<<ListboxSelect>>", lambda e: self._m_update_preview("unx"))
-
 
     # --------- Protocol→dict adapters (temporary during migration) ---------
     @staticmethod
@@ -425,9 +429,7 @@ class MergeTab(ttk.Frame):
         try:
             s = self._merge_session
             if not s:
-                self.mb.showerror(
-                    "Error", "No session loaded. Click 'Load' first."
-                )
+                self.mb.showerror("Error", "No session loaded. Click 'Load' first.")
                 return
             qif_out = Path(self.m_qif_out.get().strip())
             if not qif_out:
@@ -732,12 +734,12 @@ class MergeTab(ttk.Frame):
                 self.mb.showerror("Error", "Load data first.")
                 return
             xlsx_path = Path(self.m_xlsx.get().strip())
-            open_category_popout(self, self._merge_session, xlsx_path, mb=self.mb, show_ui=False)
+            open_category_popout(
+                self, self._merge_session, xlsx_path, mb=self.mb, show_ui=False
+            )
         except Exception as e:
             # Keep UI resilient
             self.mb.showerror("Error", f"{e}")
-
-
 
     def _m_normalize_categories(self):
         """Toolbar/Actions handler: Normalize Categories."""
@@ -746,11 +748,11 @@ class MergeTab(ttk.Frame):
                 self.mb.showerror("Error", "Load data first.")
                 return
             xlsx_path = Path(self.m_xlsx.get().strip())
-            open_category_popout(self, self._merge_session, xlsx_path, mb=self.mb, show_ui=False)
+            open_category_popout(
+                self, self._merge_session, xlsx_path, mb=self.mb, show_ui=False
+            )
         except Exception as e:
             self.mb.showerror("Error", f"{e}")
-
-
 
     # def _m_normalize_categories(self):
     #     return self.open_normalize_modal()
@@ -882,9 +884,11 @@ class MergeTab(ttk.Frame):
                         self.prev_unqif,
                         _fmt_txn(
                             {
-                                "date": getattr(b, "date", None).isoformat()
-                                if getattr(b, "date", None)
-                                else "",
+                                "date": (
+                                    getattr(b, "date", None).isoformat()
+                                    if getattr(b, "date", None)
+                                    else ""
+                                ),
                                 "amount": str(getattr(b, "amount", "")),
                                 "payee": getattr(b, "payee", "") or "",
                                 "category": getattr(b, "category", "") or "",
@@ -901,17 +905,19 @@ class MergeTab(ttk.Frame):
                         _fmt_excel_row(
                             {
                                 "TxnID": getattr(e, "id", "") or "",
-                                "Date": getattr(e, "date", None).isoformat()
-                                if getattr(e, "date", None)
-                                else "",
+                                "Date": (
+                                    getattr(e, "date", None).isoformat()
+                                    if getattr(e, "date", None)
+                                    else ""
+                                ),
                                 "Total Amount": str(getattr(e, "amount", "")),
                                 "Split Count": len(getattr(e, "splits", []) or []),
-                                "First Item": getattr(first, "memo", "")
-                                if first
-                                else "",
-                                "First Category": getattr(first, "category", "")
-                                if first
-                                else "",
+                                "First Item": (
+                                    getattr(first, "memo", "") if first else ""
+                                ),
+                                "First Category": (
+                                    getattr(first, "category", "") if first else ""
+                                ),
                                 "First Rationale": getattr(e, "memo", "") or "",
                             }
                         ),
@@ -921,31 +927,49 @@ class MergeTab(ttk.Frame):
                     _bi, _ei, b, e = self._pairs_sorted[0]
                     excel_view = {
                         "TxnID": getattr(e, "id", "") or "",
-                        "Date": getattr(e, "date", None).isoformat()
-                        if getattr(e, "date", None)
-                        else "",
+                        "Date": (
+                            getattr(e, "date", None).isoformat()
+                            if getattr(e, "date", None)
+                            else ""
+                        ),
                         "Total Amount": str(getattr(e, "amount", "")),
                         "Split Count": len(getattr(e, "splits", []) or []),
-                        "First Item": getattr(
-                            (getattr(e, "splits", None) or [None])[0], "memo", ""
-                        )
-                        if getattr(e, "splits", None)
-                        else "",
-                        "First Category": getattr(
-                            (getattr(e, "splits", None) or [None])[0], "category", ""
-                        )
-                        if getattr(e, "splits", None)
-                        else "",
+                        "First Item": (
+                            getattr(
+                                (getattr(e, "splits", None) or [None])[0], "memo", ""
+                            )
+                            if getattr(e, "splits", None)
+                            else ""
+                        ),
+                        "First Category": (
+                            getattr(
+                                (getattr(e, "splits", None) or [None])[0],
+                                "category",
+                                "",
+                            )
+                            if getattr(e, "splits", None)
+                            else ""
+                        ),
                         "First Rationale": getattr(e, "memo", "") or "",
                     }
                     qif_view = {
-                        "date": getattr(b, "date", None).isoformat() if getattr(b, "date", None) else "",
+                        "date": (
+                            getattr(b, "date", None).isoformat()
+                            if getattr(b, "date", None)
+                            else ""
+                        ),
                         "amount": str(getattr(b, "amount", "")),
                         "payee": getattr(b, "payee", "") or "",
                         "category": getattr(b, "category", "") or "",
                         "memo": getattr(b, "memo", "") or "",
                     }
-                    _set_text(self.prev_pairs, "[Excel]\n" + _fmt_excel_row(excel_view) + "\n\n[QIF]\n" + _fmt_txn(qif_view))
+                    _set_text(
+                        self.prev_pairs,
+                        "[Excel]\n"
+                        + _fmt_excel_row(excel_view)
+                        + "\n\n[QIF]\n"
+                        + _fmt_txn(qif_view),
+                    )
             except Exception:
                 # Preview is non-critical; ignore errors to keep UI stable
                 pass
@@ -960,7 +984,6 @@ class MergeTab(ttk.Frame):
         bi, _ = self._unqif_sorted[sel[0]]
         return bi
 
-
     def _m_selected_unx_index(self) -> Optional[int]:
         if not getattr(self, "_unx_sorted", None):
             return None
@@ -970,7 +993,6 @@ class MergeTab(ttk.Frame):
         # stored as (excel_index, txn)
         ei, _ = self._unx_sorted[sel[0]]
         return ei
-
 
     def _m_why_not(self):
         s = self._merge_session
@@ -1036,9 +1058,9 @@ class MergeTab(ttk.Frame):
                             "Total Amount": getattr(e, "amount", ""),
                             "Split Count": len(e.splits or []),
                             "First Item": getattr(first, "memo", "") if first else "",
-                            "First Category": getattr(first, "category", "")
-                            if first
-                            else "",
+                            "First Category": (
+                                getattr(first, "category", "") if first else ""
+                            ),
                             "First Rationale": getattr(e, "memo", ""),
                         }
                     ),
@@ -1055,12 +1077,14 @@ class MergeTab(ttk.Frame):
                     "Date": e.date.isoformat(),
                     "Total Amount": getattr(e, "amount", ""),
                     "Split Count": len(e.splits or []),
-                    "First Item": getattr((e.splits or [None])[0], "memo", "")
-                    if e.splits
-                    else "",
-                    "First Category": getattr((e.splits or [None])[0], "category", "")
-                    if e.splits
-                    else "",
+                    "First Item": (
+                        getattr((e.splits or [None])[0], "memo", "") if e.splits else ""
+                    ),
+                    "First Category": (
+                        getattr((e.splits or [None])[0], "category", "")
+                        if e.splits
+                        else ""
+                    ),
                     "First Rationale": getattr(e, "memo", ""),
                 }
                 qif_tx = {
@@ -1070,7 +1094,13 @@ class MergeTab(ttk.Frame):
                     "category": getattr(b, "category", ""),
                     "memo": getattr(b, "memo", ""),
                 }
-                _set_text(self.prev_pairs, "[Excel]\n" + _fmt_excel_row(excel_row) + "\n\n[QIF]\n" + _fmt_txn(qif_tx))
+                _set_text(
+                    self.prev_pairs,
+                    "[Excel]\n"
+                    + _fmt_excel_row(excel_row)
+                    + "\n\n[QIF]\n"
+                    + _fmt_txn(qif_tx),
+                )
         except Exception as e:
             try:
                 self._m_info(f"Preview error: {e}")

@@ -4,7 +4,7 @@ import inspect
 import io
 from collections.abc import Iterable
 from dataclasses import field
-from typing import cast, TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from ..interfaces.i_parser_emitter import IParserEmitter

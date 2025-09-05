@@ -1,11 +1,10 @@
 # quicken_helper/controllers/match_helpers.py
-from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from datetime import date
 from typing import Any, Dict, List, Optional
 
 from quicken_helper.legacy.qif_item_key import QIFItemKey
 from quicken_helper.legacy.qif_txn_view import QIFTxnView
-from quicken_helper.utilities.converters_scalar import _to_decimal, _to_date
+from quicken_helper.utilities.converters_scalar import _to_date, to_decimal
 
 _DATE_FORMATS = ["%m/%d'%y", "%m/%d/%Y", "%Y-%m-%d"]
 
@@ -92,7 +91,7 @@ def _flatten_qif_txns(txns: List[Dict[str, Any]]) -> List[QIFTxnView]:
         if splits:
             for si, s in enumerate(splits):
                 try:
-                    amt = _to_decimal(s.get("amount", "0"))
+                    amt = to_decimal(s.get("amount", "0"))
                 except Exception:
                     # If split amount isn't parseable, skip this split
                     continue
@@ -109,7 +108,7 @@ def _flatten_qif_txns(txns: List[Dict[str, Any]]) -> List[QIFTxnView]:
         else:
             # No splits → use the txn amount
             try:
-                amt = _to_decimal(t.get("amount", "0"))
+                amt = to_decimal(t.get("amount", "0"))
             except Exception:
                 # Can't parse txn amount → skip this txn
                 continue
@@ -132,5 +131,3 @@ def _candidate_cost(qif_date: date, excel_date: date) -> Optional[int]:
     if delta > 3:
         return None
     return delta  # 0 preferred, then 1,2,3
-
-
