@@ -58,7 +58,7 @@ def parse_date_maybe(s: str) -> Optional[datetime]:
 def filter_date_range(
     txns: List[Dict[str, Any]], start_str: str, end_str: str
 ) -> List[Dict[str, Any]]:
-    def _d(s):
+    def _d(s: str):
         d = parse_date_maybe(s)
         return d.date() if d else None
 
@@ -67,7 +67,7 @@ def filter_date_range(
     if not start and not end:
         return txns
 
-    out = []
+    out: List[Dict[str, Any]] = []
     for t in txns:
         d = parse_date_maybe(str(t.get("date", "")).strip())
         if not d:
@@ -139,7 +139,7 @@ def apply_multi_payee_filters(
     combine: str = "any",
 ) -> List[Dict[str, Any]]:
     # Minimal local implementation to avoid importing the whole convert tab.
-    def local_filter(tlist, q):
+    def local_filter(tlist: list[Dict[str, Any]], q: str) -> list[Dict[str, Any]]:
         q = str(q or "")
         if not q:
             return tlist
@@ -184,7 +184,8 @@ def apply_multi_payee_filters(
             cur = local_filter(cur, q)
         return cur
     # any (union)
-    seen, out = set(), []
+    seen: set[int] = set()
+    out: list[Dict[str, Any]] = []
     for q in queries:
         subset = local_filter(txns, q)
         for t in subset:

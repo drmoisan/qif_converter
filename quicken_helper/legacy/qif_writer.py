@@ -19,12 +19,23 @@ from __future__ import annotations
 
 import csv
 import fnmatch
-import os
 import re
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import IO, Any, Dict, Iterable, List, Optional, TextIO, Union
+from typing import (
+    IO,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    TextIO,
+    cast,
+    overload,
+)
 
-from quicken_helper.data_model import ITransaction
+from typing_extensions import Literal
+
 from quicken_helper.utilities import to_date
 
 # ------------------------ Filtering helpers ------------------------
@@ -59,7 +70,10 @@ def _match_one(payee: str, query: str, mode: str, case_sensitive: bool) -> bool:
 
 
 def filter_by_payee(
-    txns: List[Dict[str, Any]], query: str, mode="contains", case_sensitive=False
+    txns: List[Dict[str, Any]],
+    query: str,
+    mode: str = "contains",
+    case_sensitive: bool = False,
 ) -> List[Dict[str, Any]]:
     """Filter transactions by a single payee query."""
     return [
@@ -70,8 +84,8 @@ def filter_by_payee(
 def filter_by_payees(
     txns: List[Dict[str, Any]],
     queries: Iterable[str],
-    mode="contains",
-    case_sensitive=False,
+    mode: str = "contains",
+    case_sensitive: bool = False,
     combine: str = "any",
 ) -> List[Dict[str, Any]]:
     """
@@ -79,7 +93,7 @@ def filter_by_payees(
     combine: 'any' (OR) or 'all' (AND)
     """
     qlist = list(queries)
-    out = []
+    out: List[Dict[str, Any]] = []
     for t in txns:
         payee = t.get("payee", "")
         matches = [_match_one(payee, q, mode, case_sensitive) for q in qlist]
@@ -115,36 +129,71 @@ def filter_by_date_range(
 # --------------------- Writer Helpers ---------------------
 
 
-def _emit_multiline_field(out, tag: str, value: str) -> None:
+def _emit_multiline_field(out: TextIO, tag: str, value: str) -> None:
     """
     Write a multi-line QIF field so that EACH line is prefixed with the tag.
     Example:
       MLine 1
       MLine 2
     """
-    if value is None:
+    if value == "":
         return
     for line in str(value).splitlines():
         out.write(f"{tag}{line}\n")
 
 
+@overload
 def _open_for_write(
-    path: Path, *, binary: bool = False, newline: Optional[str] = ""
-) -> IO:
-    """
-    Small indirection so tests can monkeypatch in-memory I/O.
-    Default behavior simply delegates to Path.open. Tests can replace
-    this function to support 'MEM://' or other schemes.
-    """
-    mode = "wb" if binary else "w"
-    kwargs = {} if binary else {"encoding": "utf-8", "newline": newline}
-    return open(path, mode, **kwargs)
+    path: Path,
+    binary: Literal[True],
+    *,
+    ensure_parent: bool = ...,
+    **kwargs: Any,
+) -> IO[bytes]: ...
+@overload
+def _open_for_write(
+    path: Path,
+    binary: Literal[False] = False,
+    *,
+    ensure_parent: bool = ...,
+    newline: str | None = ...,
+    encoding: str | None = ...,
+    **kwargs: Any,
+) -> IO[str]: ...
+
+
+def _open_for_write(
+    path: Path,
+    binary: bool = False,
+    *,
+    ensure_parent: bool = True,
+    newline: str | None = "\n",
+    encoding: str | None = "utf-8",
+    **kwargs: Any,
+) -> IO[Any]:
+    if ensure_parent:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+    if binary:
+        return cast(IO[bytes], open(path, "wb", **kwargs))
+
+    if "newline" in kwargs:
+        newline = kwargs.pop("newline")
+    if "encoding" in kwargs:
+        encoding = kwargs.pop("encoding")
+
+    return cast(IO[str], open(path, "w", newline=newline, encoding=encoding, **kwargs))
 
 
 # ------------------------ Writers ------------------------
 
 
-def write_csv_flat(txns, out_path: Path, newline: str = "") -> None:
+def write_csv_flat(
+    txns: List[Dict[str, Any]], out_path: Path, newline: str = ""
+) -> None:
     """
     Write a flat CSV - One row per transaction; splits flattened into pipe-delimited columns.
     Uses _open_for_write so tests can redirect to an in-memory stream.
@@ -193,7 +242,9 @@ def write_csv_flat(txns, out_path: Path, newline: str = "") -> None:
             writer.writerow({k: row.get(k, "") for k in fieldnames})
 
 
-def write_csv_exploded(txns, out_path: Path, newline: str = "") -> None:
+def write_csv_exploded(
+    txns: List[Dict[str, Any]], out_path: Path, newline: str = ""
+) -> None:
     """
     Write an exploded CSV (one row per split; transactions without splits
     still produce a single row). Uses _open_for_write for testable I/O.
@@ -332,78 +383,132 @@ def write_csv_quicken_mac(
 # ... keep your existing imports and helpers ...
 
 
+def _is_dataclass_instance(obj: Any) -> bool:
+    # True for dataclass instances; False for dataclass *classes* (types)
+    return is_dataclass(obj) and not isinstance(obj, type)
+
+
 def write_qif(
-    txns, out: Union[str, os.PathLike, TextIO], encoding: str = "utf-8"
-) -> None:
+    path: str | Path,
+    txns: Iterable[Any],
+    *,
+    newline: str = "\n",
+    encoding: str = "utf-8",
+    ensure_parent: bool = True,
+) -> int:
+    """Write an iterable of transactions to a QIF file.
+
+    Parameters
+    ----------
+    path : str | Path
+        Destination file path.
+    txns : Iterable[Any]
+        Each item is either a dict-like legacy record, a dataclass instance,
+        or an object exposing ``to_dict()``.
+    newline : str, default "\\n"
+        Line ending to use in text mode. Use "\\r\\n" if you want CRLF.
+    encoding : str, default "utf-8"
+        Text encoding for the output file.
+    ensure_parent : bool, default True
+        Create parent directories if they don't exist.
+
+    Returns
+    -------
+    int
+        Number of records written.
     """
-    Write QIF to either:
-      - a filesystem path (str/PathLike), or
-      - a text stream with .write() (e.g., io.StringIO)
-    """
-    # If it's already a file-like object, write to it directly
-    if hasattr(out, "write") and callable(getattr(out, "write")):
-        _write_qif_to_stream(txns, out)  # type: ignore[arg-type]
-        return
+    p = Path(path)
 
-    # Otherwise treat as a path
-    with open(out, "w", encoding=encoding, newline="") as fp:
-        _write_qif_to_stream(txns, fp)
+    current_account: Optional[str] = None
+    current_type: Optional[str] = None
+    written = 0
 
+    with _open_for_write(
+        p,
+        binary=False,
+        ensure_parent=ensure_parent,
+        newline=newline,
+        encoding=encoding,
+    ) as fp:
+        tfp: TextIO = cast(TextIO, fp)
 
-# def write_qif(txns, out: Union[str, os.PathLike, TextIO], encoding: str = "utf-8"):
-#     # detect model and use proper emitter if desired
-#     if txns and isinstance(txns[0], QifTxnLike):
-#         # build a QifFile and emit using model’s emitters
-#         _iter_as_legacy(txns)  # convert to legacy dicts for now
-#     else:
-#         # current legacy dict writing path
-#         _iter_as_legacy(txns)
+        for rec in txns:
+            # Normalize record to a dict[str, Any]
+            if isinstance(rec, dict):
+                d: dict[str, Any] = rec  # type: ignore[assignment]
+            elif hasattr(rec, "to_dict") and callable(getattr(rec, "to_dict")):
+                d = cast("dict[str, Any]", rec.to_dict())
+            elif _is_dataclass_instance(rec):
+                # Pylance: rec is still Any here; acceptable for asdict()
+                d = asdict(rec)
+            else:
+                raise TypeError(
+                    f"Unsupported transaction record type: {type(rec).__name__}; "
+                    "expected dict, dataclass instance, or object with to_dict()."
+                )
 
+            current_account, current_type = legacy_write(
+                current_account, current_type, tfp, d
+            )
+            written += 1
 
-def _write_qif_to_stream(txns: list[dict], fp: TextIO) -> None:
-    """
-    Core QIF writer that emits to a text stream.
-
-    Behavior:
-      - Emits an !Account block whenever the transaction's 'account' changes.
-        Includes:
-          * N<account name>
-          * T<account type> (e.g., TBank) derived from txn["type"] or default 'Bank'
-      - Emits the proper !Type:<TypeName> header when the transaction 'type' changes.
-      - Writes address lines correctly by splitting a single string on newlines,
-        or iterating a pre-split sequence of lines.
-      - Preserves existing behavior for memo: a single 'M' line may contain embedded
-        newlines if the memo is multi-line.
-    """
-    current_account: str | None = None
-    current_type: str | None = None
-
-    for r in txns:
-        if isinstance(r, ITransaction):
-            # Convert model to dict if initially
-            # Will eventually replace with emitter methods on the model
-            r = r.to_dict()
-        # Derive txn_type early since we may need it for the !Account block.
-        legacy_write(current_account, current_type, fp, r)
+    return written
 
 
-def legacy_write(current_account, current_type, fp, r):
-    txn_type = (r.get("type") or "Bank").strip()
+# def _write_qif_to_stream(txns: list[dict[str, Any]], fp: TextIO) -> None:
+#     """
+#     Core QIF writer that emits to a text stream.
+
+#     Behavior:
+#       - Emits an !Account block whenever the transaction's 'account' changes.
+#         Includes:
+#           * N<account name>
+#           * T<account type> (e.g., TBank) derived from txn["type"] or default 'Bank'
+#       - Emits the proper !Type:<TypeName> header when the transaction 'type' changes.
+#       - Writes address lines correctly by splitting a single string on newlines,
+#         or iterating a pre-split sequence of lines.
+#       - Preserves existing behavior for memo: a single 'M' line may contain embedded
+#         newlines if the memo is multi-line.
+#     """
+#     current_account: str | None = None
+#     current_type: str | None = None
+
+#     for r in txns:
+#         if isinstance(r, ITransaction):
+#             # Convert model to dict if initially
+#             # Will eventually replace with emitter methods on the model
+#             r = r.to_dict()
+#         # Derive txn_type early since we may need it for the !Account block.
+#         legacy_write(current_account, current_type, fp, r)
+
+
+def legacy_write(
+    current_account: Optional[str],
+    current_type: Optional[str],
+    fp: TextIO,
+    r: Dict[str, Any],
+) -> tuple[Optional[str], Optional[str]]:
+    """Emit a single QIF record from a legacy dict and return updated writer state."""
+    # Normalize basic fields
+    txn_type = str(r.get("type") or "Bank").strip()
+    acct = str(r.get("account") or "").strip()
+
     # 1) Account block (when account changes and account is non-empty)
-    acct = (r.get("account") or "").strip()
     if acct and acct != current_account:
         fp.write("!Account\n")
         fp.write(f"N{acct}\n")
-        # Include account type in the account list block (what the test expects)
+        # Include account type in the account list block (per tests)
         fp.write(f"T{txn_type}\n")
         fp.write("^\n")
         current_account = acct
         # Reset the current_type so we re-emit the !Type header after switching accounts
         current_type = None
+
     # 2) Type header (when type changes; default to Bank)
     if txn_type != current_type:
         fp.write(f"!Type:{txn_type}\n")
         current_type = txn_type
+
     # 3) Transaction body
     d = r.get("date", "")
     if d:
@@ -416,10 +521,11 @@ def legacy_write(current_account, current_type, fp, r):
         fp.write(f"P{payee}\n")
     memo = r.get("memo", "")
     if memo:
-        _emit_multiline_field(fp, "M", memo)
+        _emit_multiline_field(fp, "M", str(memo))  # one M per logical line
     cat = r.get("category", "")
     if cat:
         fp.write(f"L{cat}\n")
+
     # Optional scalar fields
     checknum = r.get("checknum", "")
     if checknum:
@@ -427,19 +533,20 @@ def legacy_write(current_account, current_type, fp, r):
     cleared = r.get("cleared", "")
     if cleared:
         fp.write(f"C{cleared}\n")
-    # Address can be a single string (splitlines) or a sequence of lines
+
+    # Address: single string (splitlines) or sequence of lines
     addr = r.get("address", "")
+    addr_lines: list[str] = []
     if isinstance(addr, str):
         addr_lines = [line for line in addr.splitlines() if line != ""]
     elif addr:
         try:
-            addr_lines = list(addr)
-        except TypeError:
+            addr_lines = [str(x) for x in list(addr)]
+        except Exception:
             addr_lines = []
-    else:
-        addr_lines = []
     for line in addr_lines:
         fp.write(f"A{line}\n")
+
     # Investment fields (pass-through if present)
     action = r.get("action", "")
     if action:
@@ -456,8 +563,10 @@ def legacy_write(current_account, current_type, fp, r):
     commission = r.get("commission", "")
     if commission != "":
         fp.write(f"O{commission}\n")
+
     # 4) Splits
-    for s in r.get("splits") or []:
+    splits: List[dict[str, Any]] = r.get("splits", [])
+    for s in splits:
         sc = s.get("category", "")
         if sc:
             fp.write(f"S{sc}\n")
@@ -467,5 +576,8 @@ def legacy_write(current_account, current_type, fp, r):
         sa = s.get("amount", "")
         if sa != "":
             fp.write(f"${sa}\n")
+
     # 5) Record terminator
     fp.write("^\n")
+
+    return current_account, current_type
