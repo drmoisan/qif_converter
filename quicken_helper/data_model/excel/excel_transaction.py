@@ -2,78 +2,27 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
-from functools import total_ordering
-from typing import TYPE_CHECKING, Iterable, List
+from typing import TYPE_CHECKING, List, Sequence
 
-from ..interfaces import ISplit, ITransaction, RecursiveDictStr
-from ..q_wrapper import QTransaction
+from quicken_helper.utilities import to_decimal
+
+from ..interfaces import (
+    EnumClearedStatus,
+    IComparable,
+    IEquatable,
+    ISplit,
+    IToDict,
+    ITransaction,
+)
+from ..q_wrapper import QAccount, QSecurity, QTransaction
 from .excel_row import ExcelRow
+from .excel_split import ExcelSplit
 from .excel_txn_group import ExcelTxnGroup
 
+# region Disabled
 # --------------------------- Concrete adapters ---------------------------
-
-
-@total_ordering
-@dataclass
-class ExcelSplit:
-    """Adapter for a single Excel row as a split line."""
-
-    category: str
-    amount: Decimal
-    memo: str = ""
-    tag: str = ""
-    rationale: str = ""
-
-    def to_dict(self) -> dict[str, RecursiveDictStr]:
-        """Convert to a simple dict for easier serialization/debugging."""
-        return {
-            "category": self.category,
-            "amount": str(self.amount),
-            "memo": self.memo,
-            "tag": self.tag,
-            "rationale": self.rationale,
-        }
-
-    def emit_qif(self) -> str:
-        raise NotImplementedError("ExcelSplit does not support QIF export")
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, ISplit):
-            return NotImplemented
-        return (
-            self.category == other.category
-            and self.amount == other.amount
-            and self.tag == other.tag
-            and self.memo == other.memo
-        )
-
-    def __hash__(self) -> int:
-        # Required if you want to use instances in sets/dicts and keep it consistent with __eq__
-        return hash((self.category, self.amount, self.tag, self.memo))
-
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, ISplit):
-            return NotImplemented
-        if self.category < other.category:
-            return True
-        elif self.category > other.category:
-            return False
-        elif self.tag < other.tag:
-            return True
-        elif self.tag > other.tag:
-            return False
-        elif self.amount < other.amount:
-            return True
-        elif self.amount > other.amount:
-            return False
-        return self.memo < other.memo
-
-
-if TYPE_CHECKING:
-    _is_i_split: type[ISplit] = ExcelSplit
-
-
 # @total_ordering
 # @dataclass
 # class ExcelTransaction:
@@ -138,9 +87,43 @@ if TYPE_CHECKING:
 
 
 # ------------------------------ Mapper ----------------------------------
+# endregion Disabled
 
 
-def map_group_to_excel_txn(group: ExcelTxnGroup) -> ITransaction:
+@dataclass
+class ExcelTransaction(QTransaction):
+    rationale: str = ""
+
+    def __hash__(self) -> int:
+        # Required if you want to use instances in sets/dicts and keep it consistent with __eq__
+        return hash(
+            (
+                self.account,
+                self.type,
+                self.date,
+                self.payee,
+                self.amount,
+                self.memo,
+                self.category,
+                self.rationale,
+                self.tag,
+                tuple(sorted(self.splits)),
+            )
+        )
+
+
+if TYPE_CHECKING:
+    _is_i_transaction: type[ITransaction] = ExcelTransaction
+    _is_icomparable: type[IComparable] = ExcelTransaction
+    _is_iquatable: type[IEquatable] = ExcelTransaction
+    _is_idict: type[IToDict] = ExcelTransaction
+
+
+_MISSING_DATE = date(1900, 1, 1)
+_MISSING_SECURITY = QSecurity("", Decimal(0), Decimal(0), Decimal(0), Decimal(0))
+
+
+def map_group_to_excel_txn(group: ExcelTxnGroup) -> ExcelTransaction:
     """
     Convert an ExcelTxnGroup (with one or more ExcelRow items) into a single ITransaction.
 
@@ -155,68 +138,146 @@ def map_group_to_excel_txn(group: ExcelTxnGroup) -> ITransaction:
       • cleared ← EnumClearedStatus.UNKNOWN
       • action  ← None (Excel groups generally have no investment action)
     """
-    txn: QTransaction = QTransaction()
+
+    rows: Sequence[ExcelRow] = getattr(group, "rows", ()) or ()
+    if not rows:
+        raise ValueError("ExcelTxnGroup must contain at least one ExcelRow")
+    elif len(rows) == 1:
+        return build_transaction_no_splits(group, rows[0])
+    else:
+        return build_transaction_with_splits(group, rows)
+
+
+def build_transaction_no_splits(
+    group: ExcelTxnGroup, row: ExcelRow
+) -> ExcelTransaction:
+    """
+    Build a transaction without splits from an ExcelTxnGroup.
+    """
+    txn = ExcelTransaction()
+
     txn.amount = group.total_amount
+    txn.date = group.date
 
-    rows: Iterable[ExcelRow] = getattr(group, "rows", ()) or ()
+    defaults: ExcelRow = ExcelRow("", _MISSING_DATE, Decimal(0), "")
 
-    # Payee: first non-empty item
-    payee_candidates = set(
+    # Mapping of ExcelRow attributes to QTransaction attributes
+    _MAP: dict[str, str] = {
+        "category": "category",
+        "action_chk": "action_chk",
+        "payee": "payee",
+        "memo": "memo",
+        "rationale": "rationale",
+        "tag": "tag",
+    }
+
+    for kvp in _MAP.items():
+        if getattr(row, kvp[0]) != getattr(defaults, kvp[0]):
+            setattr(txn, kvp[1], getattr(row, kvp[0]))
+
+    if row.account:
+        txn.account = QAccount(name=row.account)
+
+    if row.cleared:
+        txn.cleared = EnumClearedStatus.from_char(row.cleared)
+
+    map_security_attributes(row, txn, defaults)
+
+    return txn
+
+
+def extract_string_field_from_rows(rows: Sequence[ExcelRow], field_name: str) -> str:
+    """Extract unique non-empty values of a specified field from a list of ExcelRow objects."""
+    values = set(
         [
-            payee
+            val
             for r in rows
-            if (payee := getattr(r, "item", "").strip()) and isinstance(payee, str)
+            if (val := getattr(r, field_name, "").strip()) and isinstance(val, str)
         ]
     )
-    if len(payee_candidates) == 1:
-        txn.payee = payee_candidates.pop()
-    if len(payee_candidates) > 1:
-        txn.payee = str.join(" | ", payee_candidates)
 
-    # This is the wrong logic. Should be in splits
-    # # Memo: distinct rationales, joined
-    # rat_list = [
-    #     getattr(r, "rationale", "") for r in rows if getattr(r, "rationale", "")
-    # ]
-    # preserve order while deduping
-    # seen: set[str] = set()
-    # uniq_rats: List[str] = []
-    # for r in rat_list:
-    #     if r not in seen:
-    #         seen.add(r)
-    #         uniq_rats.append(r)
-    # memo = "; ".join(uniq_rats)
+    return str.join(" | ", values) if values and len(values) >= 1 else ""
+
+
+def extract_decimal_max_from_rows(rows: Sequence[ExcelRow], field_name: str) -> Decimal:
+    """Extract unique non-empty values of a specified field from a list of ExcelRow objects."""
+    values = list(
+        [val for r in rows if (val := to_decimal(getattr(r, field_name, Decimal(0))))]
+    )
+    return max(values, default=Decimal(0))
+
+
+def build_transaction_with_splits(
+    group: ExcelTxnGroup, rows: Sequence[ExcelRow]
+) -> ExcelTransaction:
+    """
+    Build a transaction with splits from an ExcelTxnGroup.
+    """
+    txn = ExcelTransaction()
+    txn.amount = group.total_amount
+    txn.date = group.date
+
+    defaults: ExcelRow = ExcelRow("", _MISSING_DATE, Decimal(0), "")
+
+    _MAP: dict[str, str] = {
+        "action_chk": "action_chk",
+        "payee": "payee",
+    }
+
+    for kvp in _MAP.items():
+        val = extract_string_field_from_rows(rows, kvp[0])
+        if val != getattr(defaults, kvp[0]):
+            setattr(txn, kvp[1], val)
 
     # Splits: one per row
     split_list: List[ISplit] = []
-    for r in rows:
-        amt = r.amount
-        # Prefer row.item as the line memo; fall back to rationale if item is empty.
-        line_memo = getattr(r, "item", "") or getattr(r, "rationale", "")
-        split_list.append(
-            ExcelSplit(
-                category=getattr(r, "category", "") or "", memo=line_memo, amount=amt
-            )
-        )
+    for r in group.rows:
+        split: ExcelSplit = ExcelSplit()
+        if r.category and r.category != defaults.category:
+            split.category = r.category
+        if r.memo and r.memo != defaults.memo:
+            split.memo = r.memo
+        elif r.rationale and r.rationale != defaults.rationale:
+            split.memo = r.rationale
+        split.amount = r.amount
+        split_list.append(split)
 
-    # Parent category: leave empty when we have splits; otherwise can mirror a single-row category.
-    parent_category = ""
-    if not split_list:
-        # No rows → keep empty; if you prefer to propagate a group-level category, add it here.
-        parent_category = ""
-    elif len(split_list) == 1:
-        # Single split: you may choose to bubble up its category (optional).
-        # parent_category = split_list[0].category
-        parent_category = ""  # keep empty for consistency with split semantics
+    txn.splits = split_list
 
+    sec = get_security_max(rows, defaults)
+    if sec != _MISSING_SECURITY:
+        txn.security = sec
     return txn
-    # return ExcelTransaction(
-    #     id=str(getattr(group, "gid", "")),
-    #     date=getattr(group, "date"),
-    #     amount=total,
-    #     payee=payee,
-    #     memo=memo,
-    #     category=parent_category,
-    #     splits=split_list or None,
-    #     # cleared defaults to UNKNOWN; action remains None
-    # )
+
+
+_SECURITY_MAP: dict[str, str] = {
+    "price": "price",
+    "quantity": "quantity",
+    "commission": "commission",
+    "transfer_amount": "transfer_amount",
+}
+
+
+def get_security_max(rows: Sequence[ExcelRow], defaults: ExcelRow):
+    """Get the maximum security value from a list of ExcelRow objects."""
+    if any(
+        getattr(row, k) != getattr(defaults, k)
+        for k in _SECURITY_MAP.keys()
+        for row in rows
+    ):
+        sec = QSecurity()
+        for kvp in _SECURITY_MAP.items():
+            val = extract_decimal_max_from_rows(rows, kvp[0])
+            if val != getattr(defaults, kvp[0]):
+                setattr(sec, kvp[1], val)
+        return sec
+    return _MISSING_SECURITY
+
+
+def map_security_attributes(row: ExcelRow, txn: QTransaction, defaults: ExcelRow):
+    if any(getattr(row, k) != getattr(defaults, k) for k in _SECURITY_MAP.keys()):
+        sec = QSecurity()
+        for kvp in _SECURITY_MAP.items():
+            if getattr(row, kvp[0]) != getattr(defaults, kvp[0]):
+                setattr(sec, kvp[1], getattr(row, kvp[0]))
+        txn.security = sec

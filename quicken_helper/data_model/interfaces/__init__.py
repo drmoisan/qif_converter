@@ -12,7 +12,7 @@ from .i_comparable import IComparable
 from .i_equatable import IEquatable
 from .i_has_emit_qif import HasEmitQif, HasEmitQifNoHeader, HasEmitQifWithHeader
 from .i_header import IHeader
-from .i_parser_emitter import IParserEmitter
+from .i_parser_emitter import GenericParserEmitter, IParserEmitter
 from .i_quicken_file import IQuickenFile
 from .i_security import ISecurity
 from .i_split import ISplit
@@ -39,5 +39,6 @@ __all__ = [
     "ITransaction",
     "IQuickenFile",
     "IParserEmitter",
+    "GenericParserEmitter",
     "RecursiveDictStr",
 ]

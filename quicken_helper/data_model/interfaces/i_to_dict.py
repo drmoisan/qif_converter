@@ -5,7 +5,9 @@ from typing import runtime_checkable
 
 from typing_extensions import Protocol, TypeAlias
 
-RecursiveDictStr: TypeAlias = str | dict[str, "RecursiveDictStr"]
+RecursiveDictStr: TypeAlias = (
+    str | dict[str, "RecursiveDictStr"] | list["RecursiveDictStr"]
+)
 
 
 @runtime_checkable

@@ -10,8 +10,6 @@ if TYPE_CHECKING:
 from .enum_quicken_section import QuickenSections
 from .i_account import IAccount
 from .i_category import ICategory
-from .i_comparable import IComparable
-from .i_equatable import IEquatable
 from .i_has_emit_qif import HasEmitQifWithHeader
 from .i_tag import ITag
 from .i_to_dict import IToDict
@@ -19,7 +17,7 @@ from .i_transaction import ITransaction
 
 
 @runtime_checkable
-class IQuickenFile(Protocol, IComparable, IEquatable, IToDict):
+class IQuickenFile(Protocol, IToDict):
     # --- data ---
     sections: QuickenSections
     tags: list[ITag]

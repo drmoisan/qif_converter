@@ -1,5 +1,5 @@
 from .config_logging import LOGGING
-from .converters_scalar import to_date
+from .converters_scalar import to_date, to_decimal
 from .core_util import (
     convert_value,
     from_dict,
@@ -12,6 +12,7 @@ from .core_util import (
 __all__ = [
     "is_null_or_whitespace",
     "to_date",
+    "to_decimal",
     "convert_value",
     "from_dict",
     "is_protocol_type",

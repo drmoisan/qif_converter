@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Any, Callable
+from typing import Any, Callable, Tuple
 
 
-def _to_list(args, value, cv):
+def _to_list(args: Tuple[Any, ...], value: object, cv: object):
     (T,) = args or (object,)
     seq = list(value)  # let this raise if it's not iterable
     # (optional) guard: treat str/bytes as atomic, not iterable
@@ -38,7 +38,7 @@ def _to_tuple(args, value, cv):
     return tuple(cv(T, v) for T, v in zip(args, seq))
 
 
-def _to_dict(args, value, cv):
+def _to_dict(args: Tuple[Any, ...], value, cv):
     KT, VT = args or (object, object)
     items = dict(value).items()  # raises if not mapping-like
     return {cv(KT, k): cv(VT, v) for k, v in items}

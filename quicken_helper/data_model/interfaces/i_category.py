@@ -25,25 +25,9 @@ class ICategory(HasEmitQifWithHeader, Protocol, IComparable, IEquatable, IToDict
     """
 
     # --- core identity/metadata ---
-    @property
-    def name(self) -> str: ...
-
-    @property
-    def description(self) -> str: ...
-
-    # --- type flags ---
-    @property
-    def is_income(self) -> bool: ...
-
-    @property
-    def is_expense(self) -> bool: ...
-
-    # --- tax metadata (optional but commonly present) ---
-    @property
-    def tax_related(self) -> bool: ...
-
-    @property
-    def tax_schedule(self) -> str: ...
-
-    # # --- data_model emission (inherited from HasEmitQif) ---
-    # def emit_qif(self, out: TextIO) -> None: ...
+    name: str = ""
+    description: str = ""
+    income_category: bool = False
+    expense_category: bool = False
+    tax_related: bool = False
+    tax_schedule: str = ""

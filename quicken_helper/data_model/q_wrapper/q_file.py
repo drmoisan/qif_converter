@@ -17,6 +17,7 @@ from ..interfaces import (
     ITag,
     ITransaction,
     QuickenSections,
+    RecursiveDictStr,
 )
 from .q_account import QAccount
 
@@ -104,13 +105,15 @@ def _emit_qif_text(item: object, with_header: bool) -> str:
     )
 
 
-class QuickenFile(IQuickenFile):
+class QuickenFile:
     """
     Represents a complete QIF file, including header and multiple transactions.
     """
 
     def __init__(self):
-        self.sections: QuickenSections = QuickenSections.NONE
+        self.sections: QuickenSections = field(
+            default_factory=lambda: QuickenSections(0)
+        )
         self.tags: list[ITag] = []
         self.categories: list[ICategory] = []
         self.accounts: list[IAccount] = []
@@ -124,7 +127,7 @@ class QuickenFile(IQuickenFile):
         for i, item in enumerate(xs):
             txt = _emit_qif_text(item, with_header=(i == 0))
             # Guard against None or non-string returns
-            texts.append("" if txt is None else str(txt))
+            texts.append(txt)
         return "\n".join(texts)
 
     def emit_transactions(self) -> str:
@@ -136,13 +139,13 @@ class QuickenFile(IQuickenFile):
         current_account: IAccount = field(default_factory=QAccount)
 
         texts: list[str] = []
-        for i, item in enumerate(self.transactions):
+        for item in self.transactions:
             if item.account != current_account:
                 current_account = item.account
                 txt = item.emit_qif(with_account=True, with_type=True)
             else:
                 txt = item.emit_qif(with_account=False, with_type=False)
-            texts.append("" if txt is None else str(txt))
+            texts.append(txt)
         return "\n".join(texts)
 
     def emit_qif(self) -> str:
@@ -151,7 +154,7 @@ class QuickenFile(IQuickenFile):
         """
         if self.sections == QuickenSections.NONE:
             raise ValueError("No section specified for QIF file.")
-        lines = []
+        lines: list[str] = []
 
         if self.sections.has_flag(QuickenSections.TAGS):
             lines.append(self.emit_section(self.tags))
@@ -166,3 +169,17 @@ class QuickenFile(IQuickenFile):
                 self.emit_section(cast(list[HasEmitQifWithHeader], self.transactions))
             )
         return "\n".join(lines)  # Ensure file ends with newline
+
+    def to_dict(self) -> dict[str, RecursiveDictStr]:
+        d: dict[str, RecursiveDictStr] = {
+            "sections": str(self.sections),
+            "tags": [tag.to_dict() for tag in self.tags],
+            "categories": [cat.to_dict() for cat in self.categories],
+            "accounts": [acc.to_dict() for acc in self.accounts],
+            "transactions": [txn.to_dict() for txn in self.transactions],
+        }
+        return d
+
+
+if TYPE_CHECKING:
+    _is_i_quicken_file: type[IQuickenFile] = QuickenFile
